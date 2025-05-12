@@ -1,0 +1,3 @@
+/home/total/nixtile/build/CMakeFiles/wm.dir
+/home/total/nixtile/build/CMakeFiles/edit_cache.dir
+/home/total/nixtile/build/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,2 @@
+-I/nix/store/l6mx7ifbcrlzmsl72ih41j8ij475kh7a-wlroots-0.18.2/include/wlroots-0.18
+

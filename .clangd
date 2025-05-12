@@ -1,0 +1,21 @@
+# .clangd
+
+CompileFlags:
+  # Bruk compile_commands.json direkte i prosjektroten
+  CompilationDatabase: compile_commands.json
+
+  # Legg til wlroots-include-sti eksplisitt
+  Add:
+    - "-I/nix/store/l6mx7ifbcrlzmsl72ih41j8ij475kh7a-wlroots-0.18.2/include/wlroots-0.18"
+
+  # Fallback-flagg ved åpning uten compile_commands
+  FallbackFlags:
+    - "-std=c++23"
+    - "-Wall"
+    - "-Wextra"
+    - "-Wpedantic"
+
+# Aktiver bakgrunnsindeksering for clangd
+Index:
+  Background: true
+

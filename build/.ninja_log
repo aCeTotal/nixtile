@@ -1,0 +1,4 @@
+# ninja log v6
+1	1115	1747067180569144797	CMakeFiles/wm.dir/src/renderer/VulkanRenderer.cpp.o	7842b1a80eb0f64d
+1	1132	1747067180569293296	CMakeFiles/wm.dir/src/renderer/MyCustomRenderer.cpp.o	ce69012002a319f9
+1	1272	1747067180569441851	CMakeFiles/wm.dir/src/renderer/RendererFactory.cpp.o	da0691170201454f

@@ -1,0 +1,32 @@
+[
+{
+  "directory": "/home/total/nixtile/build",
+  "command": "/nix/store/f16xdvddql4q386incjvxcys4g4dcavj-clang-wrapper-19.1.7/bin/clang++ -I/nix/store/l6mx7ifbcrlzmsl72ih41j8ij475kh7a-wlroots-0.18.2/include/wlroots-0.18/wlr -I/home/total/nixtile/src -I/home/total/nixtile/include -I/home/total/nixtile/include/renderer  -I/nix/store/l6mx7ifbcrlzmsl72ih41j8ij475kh7a-wlroots-0.18.2/include -g -std=gnu++23 -Wall -Wextra -Wpedantic -o CMakeFiles/wm.dir/src/main.cpp.o -c /home/total/nixtile/src/main.cpp",
+  "file": "/home/total/nixtile/src/main.cpp",
+  "output": "CMakeFiles/wm.dir/src/main.cpp.o"
+},
+{
+  "directory": "/home/total/nixtile/build",
+  "command": "/nix/store/f16xdvddql4q386incjvxcys4g4dcavj-clang-wrapper-19.1.7/bin/clang++ -I/nix/store/l6mx7ifbcrlzmsl72ih41j8ij475kh7a-wlroots-0.18.2/include/wlroots-0.18/wlr -I/home/total/nixtile/src -I/home/total/nixtile/include -I/home/total/nixtile/include/renderer  -I/nix/store/l6mx7ifbcrlzmsl72ih41j8ij475kh7a-wlroots-0.18.2/include -g -std=gnu++23 -Wall -Wextra -Wpedantic -o CMakeFiles/wm.dir/src/renderer/Renderer.cpp.o -c /home/total/nixtile/src/renderer/Renderer.cpp",
+  "file": "/home/total/nixtile/src/renderer/Renderer.cpp",
+  "output": "CMakeFiles/wm.dir/src/renderer/Renderer.cpp.o"
+},
+{
+  "directory": "/home/total/nixtile/build",
+  "command": "/nix/store/f16xdvddql4q386incjvxcys4g4dcavj-clang-wrapper-19.1.7/bin/clang++ -I/nix/store/l6mx7ifbcrlzmsl72ih41j8ij475kh7a-wlroots-0.18.2/include/wlroots-0.18/wlr -I/home/total/nixtile/src -I/home/total/nixtile/include -I/home/total/nixtile/include/renderer  -I/nix/store/l6mx7ifbcrlzmsl72ih41j8ij475kh7a-wlroots-0.18.2/include -g -std=gnu++23 -Wall -Wextra -Wpedantic -o CMakeFiles/wm.dir/src/renderer/VulkanRenderer.cpp.o -c /home/total/nixtile/src/renderer/VulkanRenderer.cpp",
+  "file": "/home/total/nixtile/src/renderer/VulkanRenderer.cpp",
+  "output": "CMakeFiles/wm.dir/src/renderer/VulkanRenderer.cpp.o"
+},
+{
+  "directory": "/home/total/nixtile/build",
+  "command": "/nix/store/f16xdvddql4q386incjvxcys4g4dcavj-clang-wrapper-19.1.7/bin/clang++ -I/nix/store/l6mx7ifbcrlzmsl72ih41j8ij475kh7a-wlroots-0.18.2/include/wlroots-0.18/wlr -I/home/total/nixtile/src -I/home/total/nixtile/include -I/home/total/nixtile/include/renderer  -I/nix/store/l6mx7ifbcrlzmsl72ih41j8ij475kh7a-wlroots-0.18.2/include -g -std=gnu++23 -Wall -Wextra -Wpedantic -o CMakeFiles/wm.dir/src/renderer/MyCustomRenderer.cpp.o -c /home/total/nixtile/src/renderer/MyCustomRenderer.cpp",
+  "file": "/home/total/nixtile/src/renderer/MyCustomRenderer.cpp",
+  "output": "CMakeFiles/wm.dir/src/renderer/MyCustomRenderer.cpp.o"
+},
+{
+  "directory": "/home/total/nixtile/build",
+  "command": "/nix/store/f16xdvddql4q386incjvxcys4g4dcavj-clang-wrapper-19.1.7/bin/clang++ -I/nix/store/l6mx7ifbcrlzmsl72ih41j8ij475kh7a-wlroots-0.18.2/include/wlroots-0.18/wlr -I/home/total/nixtile/src -I/home/total/nixtile/include -I/home/total/nixtile/include/renderer  -I/nix/store/l6mx7ifbcrlzmsl72ih41j8ij475kh7a-wlroots-0.18.2/include -g -std=gnu++23 -Wall -Wextra -Wpedantic -o CMakeFiles/wm.dir/src/renderer/RendererFactory.cpp.o -c /home/total/nixtile/src/renderer/RendererFactory.cpp",
+  "file": "/home/total/nixtile/src/renderer/RendererFactory.cpp",
+  "output": "CMakeFiles/wm.dir/src/renderer/RendererFactory.cpp.o"
+}
+]
