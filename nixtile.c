@@ -58,6 +58,32 @@
 #include <wlr/types/wlr_xdg_activation_v1.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
+#include <stdbool.h>
+#include <string.h>
+
+// --- Launcher state ---
+typedef struct {
+    bool visible;
+    int width, height;
+    int selected_tab; // 0 = Apps, 1 = Files, 2 = Content Search
+    char search[128];
+    int search_len;
+    int selected_index;
+    // App list etc. kommer senere
+} launcher_state_t;
+
+static launcher_state_t launcher = {0};
+
+// Launcher scene nodes
+static struct wlr_scene_tree *launcher_scene_tree = NULL;
+static struct wlr_scene_rect *launcher_rect = NULL;
+static struct wlr_scene_rect *launcher_tab_rects[3] = {NULL, NULL, NULL};
+
+// Launcher colors (RGBA)
+static const float launcher_bg_color[4] = {0.08, 0.09, 0.12, 0.97};
+static const float launcher_tab_color[4] = {0.13, 0.14, 0.18, 1.0};
+static const float launcher_tab_active_color[4] = {0.22, 0.24, 0.32, 1.0};
+
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 #include <wlr/util/region.h>
@@ -292,8 +318,14 @@ static void handlesig(int signo);
 static void incnmaster(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
 static int keybinding(uint32_t mods, xkb_keysym_t sym);
+
+// --- Launcher and keypress helpers ---
 static void keypress(struct wl_listener *listener, void *data);
 static void keypressmod(struct wl_listener *listener, void *data);
+static void handle_launcher_key(uint32_t key, uint32_t state, xkb_keysym_t sym);
+static void hide_launcher(void);
+static void update_launcher_filter(void);
+
 static int keyrepeat(void *data);
 static void killclient(const Arg *arg);
 static void locksession(struct wl_listener *listener, void *data);
@@ -1608,6 +1640,7 @@ inputdevice(struct wl_listener *listener, void *data)
 int
 keybinding(uint32_t mods, xkb_keysym_t sym)
 {
+    fprintf(stderr, "[nixtile] keybinding: mods=0x%x, sym=0x%x\n", mods, sym);
 	/*
 	 * Here we handle compositor keybindings. This is when the compositor is
 	 * processing keys, rather than passing them on to the client for its own
@@ -1627,6 +1660,8 @@ keybinding(uint32_t mods, xkb_keysym_t sym)
 void
 keypress(struct wl_listener *listener, void *data)
 {
+    extern int launcher_just_closed;
+
 	int i;
 	/* This event is raised when a key is pressed or released. */
 	KeyboardGroup *group = wl_container_of(listener, group, key);
@@ -1640,6 +1675,15 @@ keypress(struct wl_listener *listener, void *data)
 			group->wlr_group->keyboard.xkb_state, keycode, &syms);
 
 	int handled = 0;
+
+	// Launcher input handling: if launcher is visible, handle and return
+	if (launcher.visible) {
+		for (i = 0; i < nsyms; i++) {
+			handle_launcher_key(event->keycode, event->state, syms[i]);
+		}
+		return;
+	}
+
 	uint32_t mods = wlr_keyboard_get_modifiers(&group->wlr_group->keyboard);
 
 	wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
@@ -1650,6 +1694,22 @@ keypress(struct wl_listener *listener, void *data)
 		for (i = 0; i < nsyms; i++)
 			handled = keybinding(mods, syms[i]) || handled;
 	}
+
+    // Reset launcher debounce when MOD or P is released
+    if (!locked && event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
+        for (i = 0; i < nsyms; i++) {
+            // 0x70 is 'p', 0x40 is likely MOD (from logs)
+            if (syms[i] == 0x70 || (event->keycode + 8) == 0x70) { // P released
+                launcher_just_closed = 0;
+                fprintf(stderr, "[nixtile] launcher_just_closed reset on P release\n");
+            }
+        }
+        // Also reset if MOD is released (modifier release not always in syms)
+        if (!(mods & 0x40)) {
+            launcher_just_closed = 0;
+            fprintf(stderr, "[nixtile] launcher_just_closed reset on MOD release\n");
+        }
+    }
 
 	if (handled && group->wlr_group->keyboard.repeat_info.delay > 0) {
 		group->mods = mods;
@@ -1670,6 +1730,7 @@ keypress(struct wl_listener *listener, void *data)
 	wlr_seat_keyboard_notify_key(seat, event->time_msec,
 			event->keycode, event->state);
 }
+
 
 void
 keypressmod(struct wl_listener *listener, void *data)
@@ -2151,10 +2212,212 @@ quit(const Arg *arg)
 int statusbar_visible = 1; // 1 = visible, 0 = hidden
 static struct wlr_scene_rect *statusbar_rect = NULL;
 
+int launcher_just_closed = 0;
+
+void show_launcher(const Arg *arg) {
+    if (launcher_just_closed) {
+        fprintf(stderr, "[nixtile] show_launcher: just closed, skipping\n");
+        return;
+    }
+    if (launcher.visible) {
+        fprintf(stderr, "[nixtile] show_launcher: already visible, skipping\n");
+        return;
+    }
+    fprintf(stderr, "[nixtile] show_launcher called (launcher.visible=%d)\n", launcher.visible);
+    Monitor *m;
+    int center_x, center_y;
+    int tab_height, tab_width, base_x, base_y;
+    int i;
+    
+    launcher.visible = true;
+    launcher.width = 300;
+    launcher.height = 300;
+    launcher.selected_tab = 0;
+    launcher.search[0] = '\0';
+    launcher.search_len = 0;
+    launcher.selected_index = 0;
+
+    update_launcher_filter();
+
+    m = selmon; // Use selected monitor for overlay
+    if (!m) return;
+
+    // Use the global overlay scene layer as parent for the launcher overlay
+    if (!launcher_scene_tree) {
+        launcher_scene_tree = wlr_scene_tree_create(layers[LyrOverlay]);
+    }
+
+    wlr_scene_node_raise_to_top(&launcher_scene_tree->node);
+    wlr_scene_node_set_enabled(&launcher_scene_tree->node, true);
+
+    if (!launcher_rect) {
+        launcher_rect = wlr_scene_rect_create(launcher_scene_tree,
+            launcher.width, launcher.height, launcher_bg_color);
+    } else {
+        wlr_scene_rect_set_size(launcher_rect, launcher.width, launcher.height);
+        wlr_scene_node_set_enabled(&launcher_rect->node, true);
+    }
+    // Center overlay on monitor using m->m (monitor geometry)
+    center_x = m->m.x + (m->m.width - launcher.width) / 2;
+    center_y = m->m.y + (m->m.height - launcher.height) / 2;
+    wlr_scene_node_set_position(&launcher_rect->node, center_x, center_y);
+
+    tab_height = 36;
+    tab_width = launcher.width / 3;
+    base_x = center_x;
+    base_y = center_y;
+    for (i = 0; i < 3; ++i) {
+        const float *color = (i == launcher.selected_tab) ? launcher_tab_active_color : launcher_tab_color;
+        if (!launcher_tab_rects[i]) {
+            launcher_tab_rects[i] = wlr_scene_rect_create(launcher_scene_tree,
+                tab_width, tab_height, color);
+        } else {
+            wlr_scene_rect_set_size(launcher_tab_rects[i], tab_width, tab_height);
+            wlr_scene_rect_set_color(launcher_tab_rects[i], color);
+            wlr_scene_node_set_enabled(&launcher_tab_rects[i]->node, true);
+        }
+        wlr_scene_node_set_position(&launcher_tab_rects[i]->node,
+            base_x + i * tab_width,
+            base_y);
+        wlr_scene_node_place_above(&launcher_tab_rects[i]->node, &launcher_rect->node);
+    }
+
+    // --- Draw tab labels (placeholder, no real text rendering) ---
+    // TODO: Implement text rendering for tab labels
+
+    // --- Draw app list and search box (placeholder, no real text rendering) ---
+    // TODO: Implement text rendering for app list and search box
+
+    // Schedule redraw
+    if (m && m->wlr_output)
+        wlr_output_schedule_frame(m->wlr_output);
+}
+
+// --- Static app list for launcher ---
+#define LAUNCHER_MAX_APPS 32
+static const char *launcher_apps[LAUNCHER_MAX_APPS] = {
+    "Alacritty", "Firefox", "Thunar", "Foot", "Neovim", "GIMP", "Inkscape", "htop",
+    "Calculator", "Terminal", "Files", "VSCode", "LibreOffice", "Steam", "Discord",
+    "Spotify", "mpv", "qutebrowser", "Ranger", "ncmpcpp", "Lutris", "Telegram",
+    "Signal", "Hexchat", "KeepassXC", "Zathura", "Evince", "Shotwell", "Gwenview",
+    "Krita", "OBS Studio", "Blender"
+};
+#define LAUNCHER_APP_COUNT 32
+
+// --- Fuzzy search and filter ---
+static int launcher_filtered[LAUNCHER_MAX_APPS];
+static int launcher_filtered_count = 0;
+
+static void update_launcher_filter(void) {
+    int i;
+    launcher_filtered_count = 0;
+    for (i = 0; i < LAUNCHER_APP_COUNT; ++i) {
+        if (launcher.search_len == 0 || strstr(launcher_apps[i], launcher.search)) {
+            launcher_filtered[launcher_filtered_count++] = i;
+        }
+    }
+    if (launcher.selected_index >= launcher_filtered_count) {
+        launcher.selected_index = launcher_filtered_count - 1;
+    }
+    if (launcher.selected_index < 0) launcher.selected_index = 0;
+}
+
+// --- Input handling for launcher ---
+#include <xkbcommon/xkbcommon-keysyms.h>
+
+// --- Static function prototypes for C90 compliance ---
+static void keypress(struct wl_listener *listener, void *data);
+static void keypressmod(struct wl_listener *listener, void *data);
+static void handle_launcher_key(uint32_t key, uint32_t state, xkb_keysym_t sym);
+static void hide_launcher(void);
+static void update_launcher_filter(void);
+
+
+static void handle_launcher_key(uint32_t key, uint32_t state, xkb_keysym_t sym) {
+    if (!launcher.visible || state != WL_KEYBOARD_KEY_STATE_PRESSED) return;
+
+    // ESC: close launcher
+    if (sym == XKB_KEY_Escape) {
+        hide_launcher();
+        return;
+    }
+    // Tab/Left/Right: switch tab
+    if (sym == XKB_KEY_Tab || sym == XKB_KEY_Right) {
+        launcher.selected_tab = (launcher.selected_tab + 1) % 3;
+        return;
+    }
+    if (sym == XKB_KEY_Left) {
+        launcher.selected_tab = (launcher.selected_tab + 2) % 3;
+        return;
+    }
+    // Up/Down: move selection
+    if (sym == XKB_KEY_Up) {
+        if (launcher.selected_index > 0) launcher.selected_index--;
+        return;
+    }
+    if (sym == XKB_KEY_Down) {
+        if (launcher.selected_index + 1 < launcher_filtered_count) launcher.selected_index++;
+        return;
+    }
+    // Enter: launch selected app (placeholder)
+    if (sym == XKB_KEY_Return || sym == XKB_KEY_KP_Enter) {
+        // TODO: Actually launch the selected app
+        hide_launcher();
+        return;
+    }
+    // Backspace: remove last char in search
+    if (sym == XKB_KEY_BackSpace) {
+        if (launcher.search_len > 0) {
+            launcher.search[--launcher.search_len] = '\0';
+            update_launcher_filter();
+        }
+        return;
+    }
+    // Printable ASCII: add to search
+    if ((sym >= 32 && sym <= 126) && launcher.search_len < (int)sizeof(launcher.search) - 1) {
+        launcher.search[launcher.search_len++] = (char)sym;
+        launcher.search[launcher.search_len] = '\0';
+        update_launcher_filter();
+        return;
+    }
+}
+
+// --- Minimal placeholder for drawing app list and search box (no real text rendering) ---
+// TODO: Integrate a text rendering library or draw text buffers for real UI
+// For now, just leave comments where text would be rendered.
+
+
+void hide_launcher(void) {
+    launcher_just_closed = 1;
+    fprintf(stderr, "[nixtile] hide_launcher called (launcher.visible=%d)\n", launcher.visible);
+    Monitor *m;
+    int i;
+    launcher.visible = false;
+    // Hide or destroy launcher scene nodes
+    if (launcher_rect) {
+        wlr_scene_node_set_enabled(&launcher_rect->node, false);
+    }
+    for (i = 0; i < 3; ++i) {
+        if (launcher_tab_rects[i]) {
+            wlr_scene_node_set_enabled(&launcher_tab_rects[i]->node, false);
+        }
+    }
+    if (launcher_scene_tree) {
+        wlr_scene_node_set_enabled(&launcher_scene_tree->node, false);
+    }
+    m = selmon;
+    if (m && m->wlr_output)
+        wlr_output_schedule_frame(m->wlr_output);
+}
+
+
+
 void toggle_statusbar(const Arg *arg) {
     statusbar_visible = !statusbar_visible;
     arrange(selmon);
     printstatus(); // Triggers redraw
+    if (selmon && selmon->wlr_output)
+        wlr_output_schedule_frame(selmon->wlr_output);
 }
 
 static void draw_status_bar(Monitor *m) {

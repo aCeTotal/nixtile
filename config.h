@@ -125,15 +125,16 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 
 /* commands */
 static const char *termcmd[] = { "foot", NULL };
-static const char *menucmd[] = { "wmenu-run", NULL };
+
 
 void toggle_statusbar(const Arg *arg);
+void show_launcher(const Arg *arg);
 
 static const Key keys[] = {
     { .mod = MODKEY, .keysym = XKB_KEY_b, .func = toggle_statusbar, .arg = { .i = 0 } },
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
 	/* modifier                  key                 function        argument */
-    { .mod = MODKEY, .keysym = XKB_KEY_p, .func = spawn, .arg = { .v = menucmd } },
+    { .mod = MODKEY, .keysym = XKB_KEY_p, .func = show_launcher, .arg = { .i = 0 } },
     { .mod = MODKEY|WLR_MODIFIER_SHIFT, .keysym = XKB_KEY_Return, .func = spawn, .arg = { .v = termcmd } },
     { .mod = MODKEY, .keysym = XKB_KEY_j, .func = focusstack, .arg = { .i = +1 } },
     { .mod = MODKEY, .keysym = XKB_KEY_k, .func = focusstack, .arg = { .i = -1 } },

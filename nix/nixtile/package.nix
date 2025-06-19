@@ -1,6 +1,6 @@
 {
   lib,
-  fetchFromGitea,
+  fetchFromGitHub,
   installShellFiles,
   libX11,
   libinput,
@@ -37,9 +37,14 @@
 assert withCustomConfigH -> (configH != null);
 stdenv.mkDerivation (finalAttrs: {
   pname = "nixtile";
-  version = "0.8-dev";
+  version = "0.1-dev";
 
-  src = ./.;
+  src = fetchFromGitHub {
+    owner = "aCeTotal";
+    repo = "nixtile";
+    rev = "6a31a1b24aa6adb5f7ad89423ac048d22f8955e3";
+    sha256 = "sha256-i78+gXTzaHxcGz3CoGNG1W5vyEfKfDqjE+K59zOWij4=";
+  };
 
   nativeBuildInputs = [
     installShellFiles
@@ -121,4 +126,4 @@ stdenv.mkDerivation (finalAttrs: {
     mainProgram = "nixtile";
   };
 })
-# TODO: custom patches from upstream website
+
