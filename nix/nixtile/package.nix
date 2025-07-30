@@ -82,6 +82,13 @@ stdenv.mkDerivation (finalAttrs: {
           writeText "config.h" configH;
     in
     lib.optionalString withCustomConfigH "cp ${configFile} config.h";
+    
+  postInstall = ''
+    mkdir -p $out/share/wayland-sessions
+    mkdir -p $out/share/applications
+    cp -f nixtile.desktop $out/share/wayland-sessions/
+    cp -f nixtile.desktop $out/share/applications/
+  '';
 
   makeFlags =
     [
@@ -89,6 +96,7 @@ stdenv.mkDerivation (finalAttrs: {
       "WAYLAND_SCANNER=wayland-scanner"
       "PREFIX=$(out)"
       "MANDIR=$(man)/share/man"
+      "DATADIR=$(out)/share"
     ]
     ++ lib.optionals enableXWayland [
       ''XWAYLAND="-DXWAYLAND"''

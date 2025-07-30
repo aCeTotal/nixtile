@@ -1,5 +1,5 @@
 {
-  description = "nixtile development shell";
+  description = "nixtile - tiling wayland compositor based on wlroots";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -10,7 +10,19 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
+        nixtilePackage = pkgs.callPackage ./nix/nixtile/package.nix { };
       in {
+        packages = {
+          default = nixtilePackage;
+          nixtile = nixtilePackage;
+        };
+        
+        apps = {
+          default = flake-utils.lib.mkApp {
+            drv = nixtilePackage;
+          };
+        };
+
         devShells.default = pkgs.mkShell {
           buildInputs = [
             pkgs.gcc

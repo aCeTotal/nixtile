@@ -3,3 +3,7 @@ Name=nixtile
 Comment=dwm for Wayland
 Exec=nixtile
 Type=Application
+Categories=WindowManager;
+Terminal=false
+X-Session-Type=wayland
+DesktopNames=nixtile
