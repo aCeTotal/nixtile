@@ -498,32 +498,30 @@ detectresizeedge(Client *c, double x, double y)
 {
 	int edge = EDGE_NONE;
 	
-	/* Validate input */
+	/* Validate client */
 	if (!c) {
 		return EDGE_NONE;
 	}
 	
-	/* Calculate center points */
+	/* Calculate center point of the tile */
 	double center_x = c->geom.x + (c->geom.width / 2.0);
 	double center_y = c->geom.y + (c->geom.height / 2.0);
 	
-	/* Left half of the window */
-	if (x >= c->geom.x && x < center_x) {
+	/* Check left edge - extended from border to center */
+	if (x >= c->geom.x && x < center_x)
 		edge |= EDGE_LEFT;
-	}
-	/* Right half of the window */
-	else if (x >= center_x && x < c->geom.x + c->geom.width) {
-		edge |= EDGE_RIGHT;
-	}
 	
-	/* Top half of the window */
-	if (y >= c->geom.y && y < center_y) {
+	/* Check right edge - extended from border to center */
+	else if (x >= center_x && x < c->geom.x + c->geom.width)
+		edge |= EDGE_RIGHT;
+	
+	/* Check top edge - extended from border to center */
+	if (y >= c->geom.y && y < center_y)
 		edge |= EDGE_TOP;
-	}
-	/* Bottom half of the window */
-	else if (y >= center_y && y < c->geom.y + c->geom.height) {
+	
+	/* Check bottom edge - extended from border to center */
+	else if (y >= center_y && y < c->geom.y + c->geom.height)
 		edge |= EDGE_BOTTOM;
-	}
 	
 	return edge;
 }
@@ -560,78 +558,71 @@ hasadjacenttile(Client *c, int edge)
 void
 smoothresize(Client *c, int edge, double dx, double dy)
 {
-	struct wlr_box geo;
+	struct wlr_box geo = c->geom;
 	float factor;
 	
 	/* Basic validation */
-	if (!c || !c->mon || !cursor) {
-		wlr_log(WLR_ERROR, "[nixtile] smoothresize: invalid pointers");
+	if (!c || !c->mon)
 		return;
-	}
 	
-	/* Start with original geometry */
-	geo = c->geom;
-	
-	/* Debug output to help identify issues */
-	wlr_log(WLR_DEBUG, "[nixtile] smoothresize: edge=%d, dx=%f, dy=%f, cursor=(%f,%f)",
-		edge, dx, dy, cursor->x, cursor->y);
-	wlr_log(WLR_DEBUG, "[nixtile] smoothresize: original geom: x=%d, y=%d, w=%d, h=%d",
-		c->geom.x, c->geom.y, c->geom.width, c->geom.height);
-	
-	/* Simple edge-based resize logic */
-	if (edge & EDGE_LEFT) {
-		/* Left edge - move left edge and adjust width */
-		geo.x = (int)round(cursor->x);
-		geo.width = c->geom.x + c->geom.width - geo.x;
+	/* Calculate resize factor based on direction and mouse movement */
+	switch (edge) {
+	case EDGE_LEFT:
+		/* Adjust position and width based on horizontal movement */
+		geo.x = (int)round(cursor->x - grabcx);
+		geo.width = c->geom.width + (c->geom.x - geo.x);
+		
+		/* Ensure minimum width */
 		if (geo.width < 50) {
 			geo.width = 50;
 			geo.x = c->geom.x + c->geom.width - 50;
 		}
-	}
-	
-	if (edge & EDGE_RIGHT) {
-		/* Right edge - adjust width only */
+		break;
+		
+	case EDGE_RIGHT:
+		/* Adjust width based on horizontal movement */
 		geo.width = (int)round(cursor->x - c->geom.x);
+		
+		/* Ensure minimum width */
 		if (geo.width < 50)
 			geo.width = 50;
-	}
-	
-	if (edge & EDGE_TOP) {
-		/* Top edge - move top edge and adjust height */
-		geo.y = (int)round(cursor->y);
-		geo.height = c->geom.y + c->geom.height - geo.y;
+		break;
+		
+	case EDGE_TOP:
+		/* Adjust position and height based on vertical movement */
+		geo.y = (int)round(cursor->y - grabcy);
+		geo.height = c->geom.height + (c->geom.y - geo.y);
+		
+		/* Ensure minimum height */
 		if (geo.height < 50) {
 			geo.height = 50;
 			geo.y = c->geom.y + c->geom.height - 50;
 		}
-	}
-	
-	if (edge & EDGE_BOTTOM) {
-		/* Bottom edge - adjust height only */
+		break;
+		
+	case EDGE_BOTTOM:
+		/* Adjust height based on vertical movement */
 		geo.height = (int)round(cursor->y - c->geom.y);
+		
+		/* Ensure minimum height */
 		if (geo.height < 50)
 			geo.height = 50;
+		break;
 	}
 	
-	/* Log the new geometry for debugging */
-	wlr_log(WLR_DEBUG, "[nixtile] smoothresize: new geom: x=%d, y=%d, w=%d, h=%d",
-		geo.x, geo.y, geo.width, geo.height);
-	
-	/* Apply the resize */
+	/* Apply resize with interaction flag */
 	resize(c, geo, 1);
 	
-	/* For tiled windows, adjust master factor for left/right edges */
-	if (!c->isfloating && c->mon->w.width > 0 && 
-		(edge & (EDGE_LEFT | EDGE_RIGHT))) {
-		
-		/* Calculate factor as percentage of monitor width */
+	/* If not floating, adjust master factor for left/right edges */
+	if (!c->isfloating && (edge == EDGE_LEFT || edge == EDGE_RIGHT)) {
+		/* Calculate relative movement as percentage of monitor width */
 		factor = (float)dx / c->mon->w.width;
 		
-		/* Adjust sign based on edge and direction */
-		if ((edge & EDGE_LEFT && dx > 0) || (edge & EDGE_RIGHT && dx < 0))
+		/* Adjust mfact based on the edge and direction of movement */
+		if ((edge == EDGE_LEFT && dx > 0) || (edge == EDGE_RIGHT && dx < 0))
 			factor = -factor;
 		
-		/* Apply if within bounds */
+		/* Apply the change to mfact */
 		if (c->mon->mfact + factor >= 0.1 && c->mon->mfact + factor <= 0.9) {
 			c->mon->mfact += factor;
 			arrange(c->mon);
