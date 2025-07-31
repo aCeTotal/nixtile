@@ -139,6 +139,7 @@ static const Key keys[] = {
     { .mod = MODKEY, .keysym = XKB_KEY_b, .func = toggle_statusbar, .arg = { .i = 0 } },
     { .mod = MODKEY, .keysym = XKB_KEY_p, .func = show_launcher, .arg = { .i = 0 } },
     { .mod = MODKEY, .keysym = XKB_KEY_Return, .func = spawn, .arg = { .v = termcmd } },
+    { .mod = MODKEY, .keysym = XKB_KEY_e, .func = spawn, .arg = { .v = filebrowsercmdcmd } },
     { .mod = MODKEY, .keysym = XKB_KEY_f, .func = togglefullscreen, .arg = { .i = 0 } },
 
     

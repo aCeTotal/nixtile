@@ -2156,9 +2156,16 @@ moveresize(const Arg *arg)
 {
 	if (cursor_mode != CurNormal && cursor_mode != CurPressed)
 		return;
-	xytonode(cursor->x, cursor->y, NULL, &grabc, NULL, NULL, NULL);
-	if (!grabc || client_is_unmanaged(grabc) || grabc->isfullscreen)
+	/* Make sure cursor is valid before using it */
+	if (!cursor) {
+		wlr_log(WLR_ERROR, "[nixtile] moveresize: cursor is NULL");
 		return;
+	}
+	xytonode(cursor->x, cursor->y, NULL, &grabc, NULL, NULL, NULL);
+	if (!grabc || client_is_unmanaged(grabc) || grabc->isfullscreen) {
+		wlr_log(WLR_DEBUG, "[nixtile] moveresize: no valid client found under cursor");
+		return;
+	}
 
 	/* Keep the window in its current state (tiled or floating) and tell motionnotify to grab it */
 	/* Note: We don't change floating status - window stays in current mode */
@@ -2171,12 +2178,19 @@ moveresize(const Arg *arg)
 		break;
 		
 	case CurSmartResize: {
+		/* Additional check for grabc validity */
+		if (!grabc) {
+			wlr_log(WLR_ERROR, "[nixtile] CurSmartResize: grabc is NULL");
+			return;
+		}
 		/* Detect which edge of the window the cursor is on */
 		int edge = detectresizeedge(grabc, cursor->x, cursor->y);
 		
 		/* Only allow resizing if there's an adjacent tile in that direction */
-		if (edge == EDGE_NONE || !hasadjacenttile(grabc, edge))
+		if (edge == EDGE_NONE || !hasadjacenttile(grabc, edge)) {
+			wlr_log(WLR_DEBUG, "[nixtile] CurSmartResize: no valid edge (%d) or adjacent tile", edge);
 			return;
+		}
 		
 		/* Store the edge being resized */
 		grabcx = (int)round(cursor->x) - grabc->geom.x;
