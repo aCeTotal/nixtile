@@ -503,24 +503,20 @@ detectresizeedge(Client *c, double x, double y)
 		return EDGE_NONE;
 	}
 	
-	/* Calculate center point of the tile */
-	double center_x = c->geom.x + (c->geom.width / 2.0);
-	double center_y = c->geom.y + (c->geom.height / 2.0);
-	
-	/* Check left edge - extended from border to center */
-	if (x >= c->geom.x && x < center_x)
+	/* Check if cursor is near the left edge */
+	if (x >= c->geom.x && x <= c->geom.x + EDGE_THRESHOLD)
 		edge |= EDGE_LEFT;
 	
-	/* Check right edge - extended from border to center */
-	else if (x >= center_x && x < c->geom.x + c->geom.width)
+	/* Check if cursor is near the right edge */
+	else if (x >= c->geom.x + c->geom.width - EDGE_THRESHOLD && x <= c->geom.x + c->geom.width)
 		edge |= EDGE_RIGHT;
 	
-	/* Check top edge - extended from border to center */
-	if (y >= c->geom.y && y < center_y)
+	/* Check if cursor is near the top edge */
+	if (y >= c->geom.y && y <= c->geom.y + EDGE_THRESHOLD)
 		edge |= EDGE_TOP;
 	
-	/* Check bottom edge - extended from border to center */
-	else if (y >= center_y && y < c->geom.y + c->geom.height)
+	/* Check if cursor is near the bottom edge */
+	else if (y >= c->geom.y + c->geom.height - EDGE_THRESHOLD && y <= c->geom.y + c->geom.height)
 		edge |= EDGE_BOTTOM;
 	
 	return edge;
@@ -565,9 +561,8 @@ smoothresize(Client *c, int edge, double dx, double dy)
 	if (!c || !c->mon)
 		return;
 	
-	/* Calculate resize factor based on direction and mouse movement */
-	switch (edge) {
-	case EDGE_LEFT:
+	/* Handle horizontal edges */
+	if (edge & EDGE_LEFT) {
 		/* Adjust position and width based on horizontal movement */
 		geo.x = (int)round(cursor->x - grabcx);
 		geo.width = c->geom.width + (c->geom.x - geo.x);
@@ -577,18 +572,18 @@ smoothresize(Client *c, int edge, double dx, double dy)
 			geo.width = 50;
 			geo.x = c->geom.x + c->geom.width - 50;
 		}
-		break;
-		
-	case EDGE_RIGHT:
+	}
+	else if (edge & EDGE_RIGHT) {
 		/* Adjust width based on horizontal movement */
 		geo.width = (int)round(cursor->x - c->geom.x);
 		
 		/* Ensure minimum width */
 		if (geo.width < 50)
 			geo.width = 50;
-		break;
-		
-	case EDGE_TOP:
+	}
+	
+	/* Handle vertical edges */
+	if (edge & EDGE_TOP) {
 		/* Adjust position and height based on vertical movement */
 		geo.y = (int)round(cursor->y - grabcy);
 		geo.height = c->geom.height + (c->geom.y - geo.y);
@@ -598,28 +593,26 @@ smoothresize(Client *c, int edge, double dx, double dy)
 			geo.height = 50;
 			geo.y = c->geom.y + c->geom.height - 50;
 		}
-		break;
-		
-	case EDGE_BOTTOM:
+	}
+	else if (edge & EDGE_BOTTOM) {
 		/* Adjust height based on vertical movement */
 		geo.height = (int)round(cursor->y - c->geom.y);
 		
 		/* Ensure minimum height */
 		if (geo.height < 50)
 			geo.height = 50;
-		break;
 	}
 	
 	/* Apply resize with interaction flag */
 	resize(c, geo, 1);
 	
 	/* If not floating, adjust master factor for left/right edges */
-	if (!c->isfloating && (edge == EDGE_LEFT || edge == EDGE_RIGHT)) {
+	if (!c->isfloating && (edge & (EDGE_LEFT | EDGE_RIGHT))) {
 		/* Calculate relative movement as percentage of monitor width */
 		factor = (float)dx / c->mon->w.width;
 		
 		/* Adjust mfact based on the edge and direction of movement */
-		if ((edge == EDGE_LEFT && dx > 0) || (edge == EDGE_RIGHT && dx < 0))
+		if ((edge & EDGE_LEFT && dx > 0) || (edge & EDGE_RIGHT && dx < 0))
 			factor = -factor;
 		
 		/* Apply the change to mfact */
