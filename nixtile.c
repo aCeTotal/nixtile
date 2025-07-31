@@ -1105,11 +1105,31 @@ createmon(struct wl_listener *listener, void *data)
 		}
 	}
 
-	/* The mode is a tuple of (width, height, refresh rate), and each
-	 * monitor supports only a specific set of modes. We just pick the
-	 * monitor's preferred mode; a more sophisticated compositor would let
-	 * the user configure it. */
-	wlr_output_state_set_mode(&state, wlr_output_preferred_mode(wlr_output));
+	/* Find the mode with the highest resolution and refresh rate */
+	struct wlr_output_mode *mode;
+	struct wlr_output_mode *best_mode = NULL;
+	int best_width = 0;
+	int best_height = 0;
+	int best_refresh = 0;
+	
+	wl_list_for_each(mode, &wlr_output->modes, link) {
+		/* First prioritize by total pixels (width * height) */
+		if (mode->width * mode->height > best_width * best_height ||
+		    /* If same resolution, prioritize by refresh rate */
+		    (mode->width * mode->height == best_width * best_height &&
+		     mode->refresh > best_refresh)) {
+			best_mode = mode;
+			best_width = mode->width;
+			best_height = mode->height;
+			best_refresh = mode->refresh;
+		}
+	}
+	
+	/* If we found a mode, use it; otherwise fall back to preferred mode */
+	if (best_mode)
+		wlr_output_state_set_mode(&state, best_mode);
+	else
+		wlr_output_state_set_mode(&state, wlr_output_preferred_mode(wlr_output));
 
 	/* Set up event listeners */
 	LISTEN(&wlr_output->events.frame, &m->frame, rendermon);
@@ -3041,6 +3061,23 @@ tile(Monitor *m)
 
 	/* Calculate adjusted window area with gaps */
 	struct wlr_box adjusted_area = m->w;
+	
+	/* Adjust for status bar if it's visible */
+	if (statusbar_visible) {
+		if (strcmp(statusbar_position, "top") == 0) {
+			adjusted_area.y += statusbar_height;
+			adjusted_area.height -= statusbar_height;
+		} else if (strcmp(statusbar_position, "bottom") == 0) {
+			adjusted_area.height -= statusbar_height;
+		} else if (strcmp(statusbar_position, "left") == 0) {
+			adjusted_area.x += statusbar_height;
+			adjusted_area.width -= statusbar_height;
+		} else if (strcmp(statusbar_position, "right") == 0) {
+			adjusted_area.width -= statusbar_height;
+		}
+	}
+	
+	/* Apply outer gaps */
 	adjusted_area.x += x_outer_gap;
 	adjusted_area.y += y_outer_gap;
 	adjusted_area.width -= 2 * x_outer_gap;
