@@ -3034,29 +3034,75 @@ tile(Monitor *m)
 	unsigned int mw, my, ty;
 	int i, n = 0;
 	Client *c;
+	extern int statusbar_visible;
+	/* Apply outer gap to the monitor window area */
+	int x_outer_gap = outergappx;
+	int y_outer_gap = outergappx;
 
+	/* Calculate adjusted window area with gaps */
+	struct wlr_box adjusted_area = m->w;
+	adjusted_area.x += x_outer_gap;
+	adjusted_area.y += y_outer_gap;
+	adjusted_area.width -= 2 * x_outer_gap;
+	adjusted_area.height -= 2 * y_outer_gap;
+
+	/* Count windows that need to be tiled */
 	wl_list_for_each(c, &clients, link)
 		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen)
 			n++;
 	if (n == 0)
 		return;
 
+	/* Calculate master area width */
 	if (n > m->nmaster)
-		mw = m->nmaster ? (int)roundf(m->w.width * m->mfact) : 0;
+		mw = m->nmaster ? (int)roundf(adjusted_area.width * m->mfact) : 0;
 	else
-		mw = m->w.width;
+		mw = adjusted_area.width;
+
+	/* Apply inner gap (half of innergappx between master and stack areas) */
+	if (n > m->nmaster && m->nmaster > 0) {
+		mw -= innergappx / 2;
+	}
+
 	i = my = ty = 0;
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
+
 		if (i < m->nmaster) {
-			resize(c, (struct wlr_box){.x = m->w.x, .y = m->w.y + my, .width = mw,
-				.height = (m->w.height - my) / (MIN(n, m->nmaster) - i)}, 0);
-			my += c->geom.height;
+			/* Master area */
+			int height = (adjusted_area.height - my) / (MIN(n, m->nmaster) - i);
+			
+			/* Apply inner gap between windows, but not after the last window */
+			if (i < m->nmaster - 1)
+				height -= innergappx;
+
+			resize(c, (struct wlr_box){
+				.x = adjusted_area.x,
+				.y = adjusted_area.y + my,
+				.width = mw,
+				.height = height
+			}, 0);
+
+			my += c->geom.height + innergappx;
 		} else {
-			resize(c, (struct wlr_box){.x = m->w.x + mw, .y = m->w.y + ty,
-				.width = m->w.width - mw, .height = (m->w.height - ty) / (n - i)}, 0);
-			ty += c->geom.height;
+			/* Stack area */
+			int stack_x = adjusted_area.x + mw + innergappx;
+			int stack_width = adjusted_area.width - mw - innergappx;
+			int height = (adjusted_area.height - ty) / (n - i);
+			
+			/* Apply inner gap between windows, but not after the last window */
+			if (i < n - 1)
+				height -= innergappx;
+
+			resize(c, (struct wlr_box){
+				.x = stack_x,
+				.y = adjusted_area.y + ty,
+				.width = stack_width,
+				.height = height
+			}, 0);
+
+			ty += c->geom.height + innergappx;
 		}
 		i++;
 	}
