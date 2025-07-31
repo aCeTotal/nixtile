@@ -692,6 +692,8 @@ buttonpress(struct wl_listener *listener, void *data)
 			/* Drop the window off on its new monitor */
 			selmon = xytomon(cursor->x, cursor->y);
 			setmon(grabc, selmon, 0);
+			/* Force rearrange to snap window to tiled layout */
+			arrange(selmon);
 			grabc = NULL;
 			return;
 		}
@@ -2041,8 +2043,8 @@ moveresize(const Arg *arg)
 	if (!grabc || client_is_unmanaged(grabc) || grabc->isfullscreen)
 		return;
 
-	/* Float the window and tell motionnotify to grab it */
-	setfloating(grabc, 1);
+	/* Keep the window in its current state (tiled or floating) and tell motionnotify to grab it */
+	/* Note: We don't change floating status - window stays in current mode */
 	switch (cursor_mode = arg->ui) {
 	case CurMove:
 		grabcx = (int)round(cursor->x) - grabc->geom.x;
