@@ -14,7 +14,7 @@ static const float urgentcolor[]           = COLOR(0xff0000ff);
 /* Status bar configuration */
 static const char *statusbar_position      = "top";   /* "top", "bottom", "left", "right" */
 static const unsigned int statusbar_height = 30;      /* Height in pixels (for top/bottom), width for left/right) */
-static const float statusbar_alpha         = 0.8f;    /* Transparency (0.0 = fully transparent, 1.0 = opaque) */
+static const float statusbar_alpha         = 0.4f;    /* Transparency (0.0 = fully transparent, 1.0 = opaque) */
 static const float statusbar_color[]       = COLOR(0x222222ff); /* Default bar background color */
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
@@ -124,7 +124,7 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
 
 /* commands */
-static const char *termcmd[] = { "foot", NULL };
+static const char *termcmd[] = { "kitty", NULL };
 
 
 void toggle_statusbar(const Arg *arg);
@@ -135,14 +135,13 @@ static const Key keys[] = {
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
 	/* modifier                  key                 function        argument */
     { .mod = MODKEY, .keysym = XKB_KEY_p, .func = show_launcher, .arg = { .i = 0 } },
-    { .mod = MODKEY|WLR_MODIFIER_SHIFT, .keysym = XKB_KEY_Return, .func = spawn, .arg = { .v = termcmd } },
+    { .mod = MODKEY, .keysym = XKB_KEY_Return, .func = spawn, .arg = { .v = termcmd } },
     { .mod = MODKEY, .keysym = XKB_KEY_j, .func = focusstack, .arg = { .i = +1 } },
     { .mod = MODKEY, .keysym = XKB_KEY_k, .func = focusstack, .arg = { .i = -1 } },
     { .mod = MODKEY, .keysym = XKB_KEY_i, .func = incnmaster, .arg = { .i = +1 } },
     { .mod = MODKEY, .keysym = XKB_KEY_d, .func = incnmaster, .arg = { .i = -1 } },
     { .mod = MODKEY, .keysym = XKB_KEY_h, .func = setmfact, .arg = { .f = -0.05f } },
     { .mod = MODKEY, .keysym = XKB_KEY_l, .func = setmfact, .arg = { .f = +0.05f } },
-    { .mod = MODKEY, .keysym = XKB_KEY_Return, .func = zoom, .arg = { .i = 0 } },
     { .mod = MODKEY, .keysym = XKB_KEY_Tab, .func = view, .arg = { .i = 0 } },
     { .mod = MODKEY|WLR_MODIFIER_SHIFT, .keysym = XKB_KEY_C, .func = killclient, .arg = { .i = 0 } },
     { .mod = MODKEY, .keysym = XKB_KEY_t, .func = setlayout, .arg = { .v = &layouts[0] } },

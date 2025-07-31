@@ -42,8 +42,8 @@ stdenv.mkDerivation (finalAttrs: {
   src = fetchFromGitHub {
     owner = "aCeTotal";
     repo = "nixtile";
-    rev = "6a31a1b24aa6adb5f7ad89423ac048d22f8955e3";
-    sha256 = "sha256-i78+gXTzaHxcGz3CoGNG1W5vyEfKfDqjE+K59zOWij4=";
+    rev = "f8a4943c78dc2438e7aee966a95a2c5b376b9d4a";
+    sha256 = "sha256-1z3kqbnpx1n0z7z0cjiqgy00lp7v3vgq58fr8x9f24jr1qrv7qp7";
   };
 
   nativeBuildInputs = [
