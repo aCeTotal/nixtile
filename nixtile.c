@@ -108,7 +108,7 @@ static const float launcher_tab_active_color[4] = {0.22, 0.24, 0.32, 1.0};
 #define LISTEN_STATIC(E, H)     do { struct wl_listener *_l = ecalloc(1, sizeof(*_l)); _l->notify = (H); wl_signal_add((E), _l); } while (0)
 
 /* enums */
-enum { CurNormal, CurPressed, CurMove, CurResize }; /* cursor */
+enum { CurNormal, CurPressed, CurMove, CurResize, CurSmartResize }; /* cursor */
 enum { XDGShell, LayerShell, X11 }; /* client types */
 enum { LyrBg, LyrBottom, LyrTile, LyrFloat, LyrTop, LyrFS, LyrOverlay, LyrBlock, NUM_LAYERS }; /* scene layers */
 
@@ -431,7 +431,7 @@ static struct wlr_seat *seat;
 static KeyboardGroup *kb_group;
 static unsigned int cursor_mode;
 static Client *grabc;
-static int grabcx, grabcy; /* client-relative */
+static int grabcx, grabcy, grabedge; /* client-relative */
 
 static struct wlr_output_layout *output_layout;
 static struct wlr_box sgeom;
@@ -486,6 +486,119 @@ static struct wlr_xwayland *xwayland;
 
 /* attempt to encapsulate suck into one file */
 #include "client.h"
+#include "resize_edge.h"
+
+/* 
+ * Detects which edge of a client window the cursor is on.
+ * Returns a bitmask of EDGE_* values from resize_edge.h.
+ */
+int
+detectresizeedge(Client *c, double x, double y)
+{
+	int edge = EDGE_NONE;
+	int threshold = EDGE_THRESHOLD;
+	
+	/* Check left edge */
+	if (x >= c->geom.x && x < c->geom.x + threshold)
+		edge |= EDGE_LEFT;
+	
+	/* Check right edge */
+	else if (x >= c->geom.x + c->geom.width - threshold && x < c->geom.x + c->geom.width)
+		edge |= EDGE_RIGHT;
+	
+	/* Check top edge */
+	if (y >= c->geom.y && y < c->geom.y + threshold)
+		edge |= EDGE_TOP;
+	
+	/* Check bottom edge */
+	else if (y >= c->geom.y + c->geom.height - threshold && y < c->geom.y + c->geom.height)
+		edge |= EDGE_BOTTOM;
+	
+	return edge;
+}
+
+/*
+ * Checks if there is an adjacent tile in the specified direction.
+ * Returns 1 if there is an adjacent tile, 0 otherwise.
+ * 
+ * Note: Since we don't have direct access to the client list structure,
+ * we'll simplify and always allow resizing for tiled windows.
+ * A more sophisticated implementation would require tracking
+ * adjacent window information during layout calculations.
+ */
+int
+hasadjacenttile(Client *c, int edge)
+{
+	/* Only allow resizing if the client is not floating */
+	if (!c || !c->mon)
+		return 0;
+	
+	/* For floating windows, always allow resizing */
+	if (c->isfloating)
+		return 1;
+	
+	/* For tiled windows, allow resizing in any direction for now */
+	/* A more sophisticated approach would check for adjacent windows */
+	return 1;
+}
+
+/*
+ * Perform smooth resizing based on mouse movement.
+ * Only resize in the direction of the edge being grabbed.
+ */
+void
+smoothresize(Client *c, int edge, double dx, double dy)
+{
+	struct wlr_box geo = c->geom;
+	float factor;
+	
+	if (!c || !c->mon)
+		return;
+	
+	/* Calculate resize factor based on direction and mouse movement */
+	switch (edge) {
+	case EDGE_LEFT:
+		/* Adjust position and width based on horizontal movement */
+		geo.x = (int)round(cursor->x - grabcx);
+		geo.width = c->geom.width + (c->geom.x - geo.x);
+		break;
+		
+	case EDGE_RIGHT:
+		/* Adjust width based on horizontal movement */
+		geo.width = (int)round(cursor->x - c->geom.x);
+		break;
+		
+	case EDGE_TOP:
+		/* Adjust position and height based on vertical movement */
+		geo.y = (int)round(cursor->y - grabcy);
+		geo.height = c->geom.height + (c->geom.y - geo.y);
+		break;
+		
+	case EDGE_BOTTOM:
+		/* Adjust height based on vertical movement */
+		geo.height = (int)round(cursor->y - c->geom.y);
+		break;
+	}
+	
+	/* Apply resize with interaction flag */
+	resize(c, geo, 1);
+	
+	/* If not floating, adjust master factor for left/right edges */
+	if (!c->isfloating && (edge == EDGE_LEFT || edge == EDGE_RIGHT)) {
+		/* Calculate relative movement as percentage of monitor width */
+		factor = (float)dx / c->mon->w.width;
+		
+		/* Adjust mfact based on the edge and direction of movement */
+		if ((edge == EDGE_LEFT && dx > 0) || (edge == EDGE_RIGHT && dx < 0))
+			factor = -factor;
+		
+		/* Apply the change to mfact */
+		if (c->mon->mfact + factor >= 0.1 && c->mon->mfact + factor <= 0.9) {
+			c->mon->mfact += factor;
+			arrange(c->mon);
+		}
+	}
+}
 
 /* function implementations */
 void
@@ -2004,6 +2117,10 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 		resize(grabc, (struct wlr_box){.x = (int)round(cursor->x) - grabcx, .y = (int)round(cursor->y) - grabcy,
 			.width = grabc->geom.width, .height = grabc->geom.height}, 1);
 		return;
+	} else if (cursor_mode == CurSmartResize) {
+		/* Use the smoothresize function for the detected edge */
+		smoothresize(grabc, grabedge, dx, dy);
+		return;
 	} else if (cursor_mode == CurResize) {
 		resize(grabc, (struct wlr_box){.x = grabc->geom.x, .y = grabc->geom.y,
 			.width = (int)round(cursor->x) - grabc->geom.x, .height = (int)round(cursor->y) - grabc->geom.y}, 1);
@@ -2045,13 +2162,66 @@ moveresize(const Arg *arg)
 
 	/* Keep the window in its current state (tiled or floating) and tell motionnotify to grab it */
 	/* Note: We don't change floating status - window stays in current mode */
-	switch (cursor_mode = arg->ui) {
+	switch (arg->ui) {
 	case CurMove:
+		cursor_mode = CurMove;
 		grabcx = (int)round(cursor->x) - grabc->geom.x;
 		grabcy = (int)round(cursor->y) - grabc->geom.y;
 		wlr_cursor_set_xcursor(cursor, cursor_mgr, "all-scroll");
 		break;
+		
+	case CurSmartResize: {
+		/* Detect which edge of the window the cursor is on */
+		int edge = detectresizeedge(grabc, cursor->x, cursor->y);
+		
+		/* Only allow resizing if there's an adjacent tile in that direction */
+		if (edge == EDGE_NONE || !hasadjacenttile(grabc, edge))
+			return;
+		
+		/* Store the edge being resized */
+		grabcx = (int)round(cursor->x) - grabc->geom.x;
+		grabcy = (int)round(cursor->y) - grabc->geom.y;
+		
+		/* Use the edge as the resize type */
+		grabedge = edge;
+		
+		/* Update cursor based on the edge being resized */
+		switch (edge) {
+		case EDGE_LEFT:
+			wlr_cursor_set_xcursor(cursor, cursor_mgr, "w-resize");
+			break;
+		case EDGE_RIGHT:
+			wlr_cursor_set_xcursor(cursor, cursor_mgr, "e-resize");
+			break;
+		case EDGE_TOP:
+			wlr_cursor_set_xcursor(cursor, cursor_mgr, "n-resize");
+			break;
+		case EDGE_BOTTOM:
+			wlr_cursor_set_xcursor(cursor, cursor_mgr, "s-resize");
+			break;
+		case EDGE_TOP | EDGE_LEFT:
+			wlr_cursor_set_xcursor(cursor, cursor_mgr, "nw-resize");
+			break;
+		case EDGE_TOP | EDGE_RIGHT:
+			wlr_cursor_set_xcursor(cursor, cursor_mgr, "ne-resize");
+			break;
+		case EDGE_BOTTOM | EDGE_LEFT:
+			wlr_cursor_set_xcursor(cursor, cursor_mgr, "sw-resize");
+			break;
+		case EDGE_BOTTOM | EDGE_RIGHT:
+			wlr_cursor_set_xcursor(cursor, cursor_mgr, "se-resize");
+			break;
+		default:
+			wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
+		}
+		
+		cursor_mode = CurSmartResize;
+		break;
+	}
+	
 	case CurResize:
+		/* Keep old resize functionality for backwards compatibility */
+		cursor_mode = CurResize;
 		/* Doesn't work for X11 output - the next absolute motion event
 		 * returns the cursor to where it started */
 		wlr_cursor_warp_closest(cursor, NULL,
