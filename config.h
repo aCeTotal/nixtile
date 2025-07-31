@@ -127,17 +127,21 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 
 /* commands */
 static const char *termcmd[] = { "kitty", NULL };
+static const char *filebrowsercmd[] = { "thunar", NULL };
+
 
 
 void toggle_statusbar(const Arg *arg);
 void show_launcher(const Arg *arg);
 
 static const Key keys[] = {
+    { .mod = MODKEY, .keysym = XKB_KEY_q, .func = killclient, .arg = { .i = 0 } },
     { .mod = MODKEY, .keysym = XKB_KEY_b, .func = toggle_statusbar, .arg = { .i = 0 } },
-	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
-	/* modifier                  key                 function        argument */
     { .mod = MODKEY, .keysym = XKB_KEY_p, .func = show_launcher, .arg = { .i = 0 } },
     { .mod = MODKEY, .keysym = XKB_KEY_Return, .func = spawn, .arg = { .v = termcmd } },
+    { .mod = MODKEY, .keysym = XKB_KEY_f, .func = togglefullscreen, .arg = { .i = 0 } },
+
+    
     { .mod = MODKEY, .keysym = XKB_KEY_j, .func = focusstack, .arg = { .i = +1 } },
     { .mod = MODKEY, .keysym = XKB_KEY_k, .func = focusstack, .arg = { .i = -1 } },
     { .mod = MODKEY, .keysym = XKB_KEY_i, .func = incnmaster, .arg = { .i = +1 } },
@@ -145,13 +149,10 @@ static const Key keys[] = {
     { .mod = MODKEY, .keysym = XKB_KEY_h, .func = setmfact, .arg = { .f = -0.05f } },
     { .mod = MODKEY, .keysym = XKB_KEY_l, .func = setmfact, .arg = { .f = +0.05f } },
     { .mod = MODKEY, .keysym = XKB_KEY_Tab, .func = view, .arg = { .i = 0 } },
-    { .mod = MODKEY|WLR_MODIFIER_SHIFT, .keysym = XKB_KEY_C, .func = killclient, .arg = { .i = 0 } },
     { .mod = MODKEY, .keysym = XKB_KEY_t, .func = setlayout, .arg = { .v = &layouts[0] } },
     { .mod = MODKEY, .keysym = XKB_KEY_f, .func = setlayout, .arg = { .v = &layouts[1] } },
     { .mod = MODKEY, .keysym = XKB_KEY_m, .func = setlayout, .arg = { .v = &layouts[2] } },
     { .mod = MODKEY, .keysym = XKB_KEY_space, .func = setlayout, .arg = { .i = 0 } },
-    { .mod = MODKEY|WLR_MODIFIER_SHIFT, .keysym = XKB_KEY_space, .func = togglefloating, .arg = { .i = 0 } },
-    { .mod = MODKEY, .keysym = XKB_KEY_e, .func = togglefullscreen, .arg = { .i = 0 } },
     { .mod = MODKEY, .keysym = XKB_KEY_0, .func = view, .arg = { .ui = ~0 } },
     { .mod = MODKEY|WLR_MODIFIER_SHIFT, .keysym = XKB_KEY_parenright, .func = tag, .arg = { .ui = ~0 } },
     { .mod = MODKEY, .keysym = XKB_KEY_comma, .func = focusmon, .arg = { .i = WLR_DIRECTION_LEFT } },
