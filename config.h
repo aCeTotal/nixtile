@@ -139,10 +139,10 @@ static const Key keys[] = {
     { .mod = MODKEY, .keysym = XKB_KEY_b, .func = toggle_statusbar, .arg = { .i = 0 } },
     { .mod = MODKEY, .keysym = XKB_KEY_p, .func = show_launcher, .arg = { .i = 0 } },
     { .mod = MODKEY, .keysym = XKB_KEY_Return, .func = spawn, .arg = { .v = termcmd } },
-    { .mod = MODKEY, .keysym = XKB_KEY_e, .func = spawn, .arg = { .v = filebrowsercmdcmd } },
+    { .mod = MODKEY, .keysym = XKB_KEY_e, .func = spawn, .arg = { .v = filebrowsercmd } },
     { .mod = MODKEY, .keysym = XKB_KEY_f, .func = togglefullscreen, .arg = { .i = 0 } },
 
-    
+    /*
     { .mod = MODKEY, .keysym = XKB_KEY_j, .func = focusstack, .arg = { .i = +1 } },
     { .mod = MODKEY, .keysym = XKB_KEY_k, .func = focusstack, .arg = { .i = -1 } },
     { .mod = MODKEY, .keysym = XKB_KEY_i, .func = incnmaster, .arg = { .i = +1 } },
@@ -197,7 +197,7 @@ static const Key keys[] = {
     { .mod = MODKEY|WLR_MODIFIER_SHIFT, .keysym = XKB_KEY_parenleft, .func = tag, .arg = { .ui = 1 << 8 } },
     { .mod = MODKEY|WLR_MODIFIER_CTRL|WLR_MODIFIER_SHIFT, .keysym = XKB_KEY_parenleft, .func = toggletag, .arg = { .ui = 1 << 8 } },
     { .mod = MODKEY|WLR_MODIFIER_SHIFT, .keysym = XKB_KEY_Q, .func = quit, .arg = { .i = 0 } },
-
+    */
 	/* Ctrl-Alt-Backspace and Ctrl-Alt-Fx used to be handled by X server */
 	{ .mod = WLR_MODIFIER_CTRL|WLR_MODIFIER_ALT, .keysym = XKB_KEY_Terminate_Server, .func = quit, .arg = { .i = 0 } },
 	/* Ctrl-Alt-Fx is used to switch to another VT, if you don't know what a VT is

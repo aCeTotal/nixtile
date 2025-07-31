@@ -3,6 +3,7 @@
  */
 #include <getopt.h>
 #include <libinput.h>
+#include <math.h>
 #include <linux/input-event-codes.h>
 #include <math.h>
 #include <signal.h>
@@ -496,23 +497,49 @@ int
 detectresizeedge(Client *c, double x, double y)
 {
 	int edge = EDGE_NONE;
-	int threshold = EDGE_THRESHOLD;
+	/* Center point of the tile */
+	double center_x = c->geom.x + (c->geom.width / 2.0);
+	double center_y = c->geom.y + (c->geom.height / 2.0);
 	
-	/* Check left edge */
-	if (x >= c->geom.x && x < c->geom.x + threshold)
-		edge |= EDGE_LEFT;
+	/* Check left edge - from left border to center */
+	if (x >= c->geom.x && x < center_x) {
+		if (fabs(x - c->geom.x) < EDGE_THRESHOLD) {
+			/* Higher priority to the exact edge for better precision */
+			edge |= EDGE_LEFT;
+		} else {
+			edge |= EDGE_LEFT;
+		}
+	}
 	
-	/* Check right edge */
-	else if (x >= c->geom.x + c->geom.width - threshold && x < c->geom.x + c->geom.width)
-		edge |= EDGE_RIGHT;
+	/* Check right edge - from right border to center */
+	else if (x >= center_x && x < c->geom.x + c->geom.width) {
+		if (fabs((c->geom.x + c->geom.width) - x) < EDGE_THRESHOLD) {
+			/* Higher priority to the exact edge for better precision */
+			edge |= EDGE_RIGHT;
+		} else {
+			edge |= EDGE_RIGHT;
+		}
+	}
 	
-	/* Check top edge */
-	if (y >= c->geom.y && y < c->geom.y + threshold)
-		edge |= EDGE_TOP;
+	/* Check top edge - from top border to center */
+	if (y >= c->geom.y && y < center_y) {
+		if (fabs(y - c->geom.y) < EDGE_THRESHOLD) {
+			/* Higher priority to the exact edge for better precision */
+			edge |= EDGE_TOP;
+		} else {
+			edge |= EDGE_TOP;
+		}
+	}
 	
-	/* Check bottom edge */
-	else if (y >= c->geom.y + c->geom.height - threshold && y < c->geom.y + c->geom.height)
-		edge |= EDGE_BOTTOM;
+	/* Check bottom edge - from bottom border to center */
+	else if (y >= center_y && y < c->geom.y + c->geom.height) {
+		if (fabs((c->geom.y + c->geom.height) - y) < EDGE_THRESHOLD) {
+			/* Higher priority to the exact edge for better precision */
+			edge |= EDGE_BOTTOM;
+		} else {
+			edge |= EDGE_BOTTOM;
+		}
+	}
 	
 	return edge;
 }
@@ -549,11 +576,18 @@ hasadjacenttile(Client *c, int edge)
 void
 smoothresize(Client *c, int edge, double dx, double dy)
 {
-	struct wlr_box geo = c->geom;
+	struct wlr_box geo;
 	float factor;
 	
-	if (!c || !c->mon)
+	/* Validate input parameters */
+	if (!c || !c->mon || !cursor) {
+		wlr_log(WLR_ERROR, "[nixtile] smoothresize: invalid pointers (c=%p, mon=%p, cursor=%p)", 
+			(void *)c, (c ? (void *)c->mon : NULL), (void *)cursor);
 		return;
+	}
+	
+	/* Copy original geometry */
+	geo = c->geom;
 	
 	/* Calculate resize factor based on direction and mouse movement */
 	switch (edge) {
@@ -561,32 +595,63 @@ smoothresize(Client *c, int edge, double dx, double dy)
 		/* Adjust position and width based on horizontal movement */
 		geo.x = (int)round(cursor->x - grabcx);
 		geo.width = c->geom.width + (c->geom.x - geo.x);
+		
+		/* Ensure minimum width */
+		if (geo.width < 50) {
+			geo.width = 50;
+			geo.x = c->geom.x + c->geom.width - 50;
+		}
 		break;
 		
 	case EDGE_RIGHT:
 		/* Adjust width based on horizontal movement */
 		geo.width = (int)round(cursor->x - c->geom.x);
+		
+		/* Ensure minimum width */
+		if (geo.width < 50)
+			geo.width = 50;
 		break;
 		
 	case EDGE_TOP:
 		/* Adjust position and height based on vertical movement */
 		geo.y = (int)round(cursor->y - grabcy);
 		geo.height = c->geom.height + (c->geom.y - geo.y);
+		
+		/* Ensure minimum height */
+		if (geo.height < 50) {
+			geo.height = 50;
+			geo.y = c->geom.y + c->geom.height - 50;
+		}
 		break;
 		
 	case EDGE_BOTTOM:
 		/* Adjust height based on vertical movement */
 		geo.height = (int)round(cursor->y - c->geom.y);
+		
+		/* Ensure minimum height */
+		if (geo.height < 50)
+			geo.height = 50;
 		break;
+		
+	default:
+		/* Invalid edge - log warning and return without resizing */
+		wlr_log(WLR_DEBUG, "[nixtile] smoothresize: invalid edge value: %d", edge);
+		return;
 	}
 	
 	/* Apply resize with interaction flag */
 	resize(c, geo, 1);
 	
 	/* If not floating, adjust master factor for left/right edges */
-	if (!c->isfloating && (edge == EDGE_LEFT || edge == EDGE_RIGHT)) {
+	if (!c->isfloating && (edge == EDGE_LEFT || edge == EDGE_RIGHT) && c->mon->w.width > 0) {
 		/* Calculate relative movement as percentage of monitor width */
 		factor = (float)dx / c->mon->w.width;
+		
+		/* Avoid division by very small numbers */
+		if (isnan(factor) || isinf(factor) || fabs(factor) > 1.0) {
+			wlr_log(WLR_DEBUG, "[nixtile] smoothresize: invalid factor calculation: %f", factor);
+			return;
+		}
 		
 		/* Adjust mfact based on the edge and direction of movement */
 		if ((edge == EDGE_LEFT && dx > 0) || (edge == EDGE_RIGHT && dx < 0))
@@ -2154,16 +2219,29 @@ motionrelative(struct wl_listener *listener, void *data)
 void
 moveresize(const Arg *arg)
 {
-	if (cursor_mode != CurNormal && cursor_mode != CurPressed)
-		return;
-	/* Make sure cursor is valid before using it */
-	if (!cursor) {
-		wlr_log(WLR_ERROR, "[nixtile] moveresize: cursor is NULL");
+	/* Validate cursor mode */
+	if (cursor_mode != CurNormal && cursor_mode != CurPressed) {
+		wlr_log(WLR_DEBUG, "[nixtile] moveresize: invalid cursor mode: %d", cursor_mode);
 		return;
 	}
+
+	/* Make sure cursor and args are valid before using them */
+	if (!cursor || !arg) {
+		wlr_log(WLR_ERROR, "[nixtile] moveresize: cursor or arg is NULL (cursor=%p, arg=%p)", 
+			(void *)cursor, (void *)arg);
+		return;
+	}
+
+	/* Find client under cursor */
 	xytonode(cursor->x, cursor->y, NULL, &grabc, NULL, NULL, NULL);
 	if (!grabc || client_is_unmanaged(grabc) || grabc->isfullscreen) {
 		wlr_log(WLR_DEBUG, "[nixtile] moveresize: no valid client found under cursor");
+		return;
+	}
+
+	/* Make sure monitor is valid */
+	if (!grabc->mon) {
+		wlr_log(WLR_ERROR, "[nixtile] moveresize: client has no monitor");
 		return;
 	}
 
