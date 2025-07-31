@@ -497,48 +497,32 @@ int
 detectresizeedge(Client *c, double x, double y)
 {
 	int edge = EDGE_NONE;
-	/* Center point of the tile */
+	
+	/* Validate input */
+	if (!c) {
+		return EDGE_NONE;
+	}
+	
+	/* Calculate center points */
 	double center_x = c->geom.x + (c->geom.width / 2.0);
 	double center_y = c->geom.y + (c->geom.height / 2.0);
 	
-	/* Check left edge - from left border to center */
+	/* Left half of the window */
 	if (x >= c->geom.x && x < center_x) {
-		if (fabs(x - c->geom.x) < EDGE_THRESHOLD) {
-			/* Higher priority to the exact edge for better precision */
-			edge |= EDGE_LEFT;
-		} else {
-			edge |= EDGE_LEFT;
-		}
+		edge |= EDGE_LEFT;
 	}
-	
-	/* Check right edge - from right border to center */
+	/* Right half of the window */
 	else if (x >= center_x && x < c->geom.x + c->geom.width) {
-		if (fabs((c->geom.x + c->geom.width) - x) < EDGE_THRESHOLD) {
-			/* Higher priority to the exact edge for better precision */
-			edge |= EDGE_RIGHT;
-		} else {
-			edge |= EDGE_RIGHT;
-		}
+		edge |= EDGE_RIGHT;
 	}
 	
-	/* Check top edge - from top border to center */
+	/* Top half of the window */
 	if (y >= c->geom.y && y < center_y) {
-		if (fabs(y - c->geom.y) < EDGE_THRESHOLD) {
-			/* Higher priority to the exact edge for better precision */
-			edge |= EDGE_TOP;
-		} else {
-			edge |= EDGE_TOP;
-		}
+		edge |= EDGE_TOP;
 	}
-	
-	/* Check bottom edge - from bottom border to center */
+	/* Bottom half of the window */
 	else if (y >= center_y && y < c->geom.y + c->geom.height) {
-		if (fabs((c->geom.y + c->geom.height) - y) < EDGE_THRESHOLD) {
-			/* Higher priority to the exact edge for better precision */
-			edge |= EDGE_BOTTOM;
-		} else {
-			edge |= EDGE_BOTTOM;
-		}
+		edge |= EDGE_BOTTOM;
 	}
 	
 	return edge;
@@ -579,85 +563,75 @@ smoothresize(Client *c, int edge, double dx, double dy)
 	struct wlr_box geo;
 	float factor;
 	
-	/* Validate input parameters */
+	/* Basic validation */
 	if (!c || !c->mon || !cursor) {
-		wlr_log(WLR_ERROR, "[nixtile] smoothresize: invalid pointers (c=%p, mon=%p, cursor=%p)", 
-			(void *)c, (c ? (void *)c->mon : NULL), (void *)cursor);
+		wlr_log(WLR_ERROR, "[nixtile] smoothresize: invalid pointers");
 		return;
 	}
 	
-	/* Copy original geometry */
+	/* Start with original geometry */
 	geo = c->geom;
 	
-	/* Calculate resize factor based on direction and mouse movement */
-	switch (edge) {
-	case EDGE_LEFT:
-		/* Adjust position and width based on horizontal movement */
-		geo.x = (int)round(cursor->x - grabcx);
-		geo.width = c->geom.width + (c->geom.x - geo.x);
-		
-		/* Ensure minimum width */
+	/* Debug output to help identify issues */
+	wlr_log(WLR_DEBUG, "[nixtile] smoothresize: edge=%d, dx=%f, dy=%f, cursor=(%f,%f)",
+		edge, dx, dy, cursor->x, cursor->y);
+	wlr_log(WLR_DEBUG, "[nixtile] smoothresize: original geom: x=%d, y=%d, w=%d, h=%d",
+		c->geom.x, c->geom.y, c->geom.width, c->geom.height);
+	
+	/* Simple edge-based resize logic */
+	if (edge & EDGE_LEFT) {
+		/* Left edge - move left edge and adjust width */
+		geo.x = (int)round(cursor->x);
+		geo.width = c->geom.x + c->geom.width - geo.x;
 		if (geo.width < 50) {
 			geo.width = 50;
 			geo.x = c->geom.x + c->geom.width - 50;
 		}
-		break;
-		
-	case EDGE_RIGHT:
-		/* Adjust width based on horizontal movement */
+	}
+	
+	if (edge & EDGE_RIGHT) {
+		/* Right edge - adjust width only */
 		geo.width = (int)round(cursor->x - c->geom.x);
-		
-		/* Ensure minimum width */
 		if (geo.width < 50)
 			geo.width = 50;
-		break;
-		
-	case EDGE_TOP:
-		/* Adjust position and height based on vertical movement */
-		geo.y = (int)round(cursor->y - grabcy);
-		geo.height = c->geom.height + (c->geom.y - geo.y);
-		
-		/* Ensure minimum height */
+	}
+	
+	if (edge & EDGE_TOP) {
+		/* Top edge - move top edge and adjust height */
+		geo.y = (int)round(cursor->y);
+		geo.height = c->geom.y + c->geom.height - geo.y;
 		if (geo.height < 50) {
 			geo.height = 50;
 			geo.y = c->geom.y + c->geom.height - 50;
 		}
-		break;
-		
-	case EDGE_BOTTOM:
-		/* Adjust height based on vertical movement */
-		geo.height = (int)round(cursor->y - c->geom.y);
-		
-		/* Ensure minimum height */
-		if (geo.height < 50)
-			geo.height = 50;
-		break;
-		
-	default:
-		/* Invalid edge - log warning and return without resizing */
-		wlr_log(WLR_DEBUG, "[nixtile] smoothresize: invalid edge value: %d", edge);
-		return;
 	}
 	
-	/* Apply resize with interaction flag */
+	if (edge & EDGE_BOTTOM) {
+		/* Bottom edge - adjust height only */
+		geo.height = (int)round(cursor->y - c->geom.y);
+		if (geo.height < 50)
+			geo.height = 50;
+	}
+	
+	/* Log the new geometry for debugging */
+	wlr_log(WLR_DEBUG, "[nixtile] smoothresize: new geom: x=%d, y=%d, w=%d, h=%d",
+		geo.x, geo.y, geo.width, geo.height);
+	
+	/* Apply the resize */
 	resize(c, geo, 1);
 	
-	/* If not floating, adjust master factor for left/right edges */
-	if (!c->isfloating && (edge == EDGE_LEFT || edge == EDGE_RIGHT) && c->mon->w.width > 0) {
-		/* Calculate relative movement as percentage of monitor width */
+	/* For tiled windows, adjust master factor for left/right edges */
+	if (!c->isfloating && c->mon->w.width > 0 && 
+		(edge & (EDGE_LEFT | EDGE_RIGHT))) {
+		
+		/* Calculate factor as percentage of monitor width */
 		factor = (float)dx / c->mon->w.width;
 		
-		/* Avoid division by very small numbers */
-		if (isnan(factor) || isinf(factor) || fabs(factor) > 1.0) {
-			wlr_log(WLR_DEBUG, "[nixtile] smoothresize: invalid factor calculation: %f", factor);
-			return;
-		}
-		
-		/* Adjust mfact based on the edge and direction of movement */
-		if ((edge == EDGE_LEFT && dx > 0) || (edge == EDGE_RIGHT && dx < 0))
+		/* Adjust sign based on edge and direction */
+		if ((edge & EDGE_LEFT && dx > 0) || (edge & EDGE_RIGHT && dx < 0))
 			factor = -factor;
 		
-		/* Apply the change to mfact */
+		/* Apply if within bounds */
 		if (c->mon->mfact + factor >= 0.1 && c->mon->mfact + factor <= 0.9) {
 			c->mon->mfact += factor;
 			arrange(c->mon);
