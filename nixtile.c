@@ -2334,8 +2334,8 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			return;
 		}
 		
-		/* Use incremental tile resizing similar to setmfact */
-		incremental_tile_resize(local_grabc, local_grabedge, dx, dy);
+		/* Use direct setmfact-style tile resizing */
+		incremental_tile_resize(local_grabc, 0, dx, dy);
 		return;
 	} else if (cursor_mode == CurResize) {
 		/* Validate grabc before resizing */
@@ -2505,10 +2505,9 @@ tileresize(const Arg *arg)
 		return;
 	}
 
-	/* Make sure cursor and args are valid before using them */
-	if (!cursor || !arg) {
-		wlr_log(WLR_ERROR, "[nixtile] tileresize: cursor or arg is NULL (cursor=%p, arg=%p)", 
-			(void *)cursor, (void *)arg);
+	/* Make sure cursor is valid */
+	if (!cursor) {
+		wlr_log(WLR_ERROR, "[nixtile] tileresize: cursor is NULL");
 		return;
 	}
 
@@ -2519,9 +2518,9 @@ tileresize(const Arg *arg)
 		return;
 	}
 
-	/* Make sure monitor is valid */
-	if (!grabc->mon) {
-		wlr_log(WLR_ERROR, "[nixtile] tileresize: client has no monitor");
+	/* Make sure monitor is valid and has layout */
+	if (!grabc->mon || !grabc->mon->lt[grabc->mon->sellt] || !grabc->mon->lt[grabc->mon->sellt]->arrange) {
+		wlr_log(WLR_ERROR, "[nixtile] tileresize: client has no valid monitor or layout");
 		return;
 	}
 
@@ -2531,105 +2530,41 @@ tileresize(const Arg *arg)
 		return;
 	}
 
-	/* Detect which edge of the window the cursor is on */
-	int edge = detectresizeedge(grabc, cursor->x, cursor->y);
+	/* Store initial cursor position for delta calculation */
+	grabcx = (int)round(cursor->x);
+	grabcy = (int)round(cursor->y);
 	
-	/* Only allow resizing if there's an adjacent tile in that direction */
-	if (edge == EDGE_NONE || !hasadjacenttile(grabc, edge)) {
-		wlr_log(WLR_DEBUG, "[nixtile] tileresize: no valid edge (%d) or adjacent tile", edge);
-		return;
-	}
+	/* Set cursor to resize cursor */
+	wlr_cursor_set_xcursor(cursor, cursor_mgr, "e-resize");
 	
-	/* Store the edge being resized with overflow protection */
-	double temp_grabcx = round(cursor->x) - grabc->geom.x;
-	double temp_grabcy = round(cursor->y) - grabc->geom.y;
-	
-	/* Prevent integer overflow */
-	if (temp_grabcx > INT_MAX || temp_grabcx < INT_MIN || 
-	    temp_grabcy > INT_MAX || temp_grabcy < INT_MIN) {
-		wlr_log(WLR_ERROR, "[nixtile] tileresize: grab offset overflow (%.2f, %.2f)", temp_grabcx, temp_grabcy);
-		return;
-	}
-	
-	grabcx = (int)temp_grabcx;
-	grabcy = (int)temp_grabcy;
-	
-	/* Use the edge as the resize type */
-	grabedge = edge;
-	
-	/* Update cursor based on the edge being resized */
-	switch (edge) {
-	case EDGE_LEFT:
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "w-resize");
-		break;
-	case EDGE_RIGHT:
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "e-resize");
-		break;
-	case EDGE_TOP:
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "n-resize");
-		break;
-	case EDGE_BOTTOM:
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "s-resize");
-		break;
-	case EDGE_TOP | EDGE_LEFT:
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "nw-resize");
-		break;
-	case EDGE_TOP | EDGE_RIGHT:
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "ne-resize");
-		break;
-	case EDGE_BOTTOM | EDGE_LEFT:
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "sw-resize");
-		break;
-	case EDGE_BOTTOM | EDGE_RIGHT:
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "se-resize");
-		break;
-	default:
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
-	}
-	
+	/* Enter tile resize mode */
 	cursor_mode = CurSmartResize;
-	wlr_log(WLR_DEBUG, "[nixtile] tileresize: started tile resize on edge %d", edge);
+	wlr_log(WLR_DEBUG, "[nixtile] tileresize: started tile resize mode");
 }
 
 void
 incremental_tile_resize(Client *c, int edge, double dx, double dy)
 {
-	/* Validate inputs */
-	if (!c || !c->mon || !c->mon->lt[c->mon->sellt] || !c->mon->lt[c->mon->sellt]->arrange) {
-		wlr_log(WLR_DEBUG, "[nixtile] incremental_tile_resize: invalid client or monitor");
+	/* Simple approach: directly call setmfact with calculated .f value */
+	if (!c || !c->mon) {
 		return;
 	}
 
-	/* Convert mouse movement to factor change (similar to setmfact) */
-	/* Scale factor: larger values = more sensitive resizing */
-	float sensitivity = 0.002f; /* Adjust this to change resize sensitivity */
-	float factor_change = 0.0f;
-
-	/* Calculate factor change based on edge and mouse movement */
-	if (edge & EDGE_LEFT) {
-		/* Left edge: negative dx increases mfact (makes master larger) */
-		factor_change = -dx * sensitivity;
-	} else if (edge & EDGE_RIGHT) {
-		/* Right edge: positive dx increases mfact (makes master larger) */
-		factor_change = dx * sensitivity;
-	}
-
-	/* Only process horizontal resizing for now (similar to setmfact) */
-	if (factor_change != 0.0f) {
-		/* Calculate new mfact value */
-		float new_mfact = c->mon->mfact + factor_change;
+	/* Convert mouse movement to setmfact-style .f value */
+	/* Sensitivity: how much mouse movement affects resize */
+	float sensitivity = 0.003f;
+	float f_value = dx * sensitivity;
+	
+	/* Left movement = negative f, Right movement = positive f */
+	/* This matches the user's request: left is minus, right is plus */
+	
+	/* Only proceed if there's meaningful movement */
+	if (fabs(f_value) > 0.001f) {
+		/* Create Arg structure like setmfact uses */
+		Arg setmfact_arg = { .f = f_value };
 		
-		/* Clamp to reasonable bounds (same as setmfact) */
-		if (new_mfact < 0.1f) new_mfact = 0.1f;
-		if (new_mfact > 0.9f) new_mfact = 0.9f;
-		
-		/* Only update if the value actually changed */
-		if (new_mfact != c->mon->mfact) {
-			c->mon->mfact = new_mfact;
-			/* Trigger layout recalculation (same as setmfact) */
-			arrange(c->mon);
-			wlr_log(WLR_DEBUG, "[nixtile] incremental_tile_resize: mfact=%.3f", new_mfact);
-		}
+		/* Directly call setmfact - this is exactly what keyboard shortcuts do */
+		setmfact(&setmfact_arg);
 	}
 }
 
