@@ -110,7 +110,7 @@ static const float launcher_tab_active_color[4] = {0.22, 0.24, 0.32, 1.0};
 #define LISTEN_STATIC(E, H)     do { struct wl_listener *_l = ecalloc(1, sizeof(*_l)); _l->notify = (H); wl_signal_add((E), _l); } while (0)
 
 /* enums */
-enum { CurNormal, CurPressed, CurMove, CurResize, CurSmartResize }; /* cursor */
+enum { CurNormal, CurPressed, CurMove, CurResize, CurSmartResize, CurTileResize }; /* cursor */
 enum { XDGShell, LayerShell, X11 }; /* client types */
 enum { LyrBg, LyrBottom, LyrTile, LyrFloat, LyrTop, LyrFS, LyrOverlay, LyrBlock, NUM_LAYERS }; /* scene layers */
 
@@ -340,7 +340,6 @@ static void motionnotify(uint32_t time, struct wlr_input_device *device, double 
 static void motionrelative(struct wl_listener *listener, void *data);
 static void moveresize(const Arg *arg);
 static void tileresize(const Arg *arg);
-static void incremental_tile_resize(Client *c, int edge, double dx, double dy);
 static void outputmgrapply(struct wl_listener *listener, void *data);
 static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test);
 static void outputmgrtest(struct wl_listener *listener, void *data);
@@ -2309,33 +2308,8 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			.width = grabc->geom.width, .height = grabc->geom.height}, 1);
 		return;
 	} else if (cursor_mode == CurSmartResize) {
-		/* Validate grabc and edge before resizing */
-		if (!grabc || !grabc->mon || !grabc->scene || grabedge == EDGE_NONE) {
-			/* Safely reset all grab variables atomically */
-			grabc = NULL;
-			grabedge = EDGE_NONE;
-			grabcx = 0;
-			grabcy = 0;
-			cursor_mode = CurNormal;
-			return;
-		}
-		/* Store local reference to prevent race conditions */
-		Client *local_grabc = grabc;
-		int local_grabedge = grabedge;
-		
-		/* Additional validation of local references */
-		if (!local_grabc || !local_grabc->mon || !local_grabc->scene) {
-			/* Reset state if validation fails */
-			grabc = NULL;
-			grabedge = EDGE_NONE;
-			grabcx = 0;
-			grabcy = 0;
-			cursor_mode = CurNormal;
-			return;
-		}
-		
-		/* Use direct setmfact-style tile resizing */
-		incremental_tile_resize(local_grabc, 0, dx, dy);
+		/* Legacy mode - just reset to normal to avoid crashes */
+		cursor_mode = CurNormal;
 		return;
 	} else if (cursor_mode == CurResize) {
 		/* Validate grabc before resizing */
@@ -2351,6 +2325,27 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 		if (new_height < MIN_WINDOW_HEIGHT) new_height = MIN_WINDOW_HEIGHT;
 		resize(grabc, (struct wlr_box){.x = grabc->geom.x, .y = grabc->geom.y,
 			.width = new_width, .height = new_height}, 1);
+		return;
+	} else if (cursor_mode == CurTileResize) {
+		/* Absolutely minimal tile resizing - no validation that could crash */
+		if (!selmon) {
+			cursor_mode = CurNormal;
+			return;
+		}
+		
+		/* Convert horizontal mouse movement to setmfact .f value */
+		/* Left movement = negative, Right movement = positive */
+		float sensitivity = 0.005f;
+		float f_value = dx * sensitivity;
+		
+		/* Only proceed if there's meaningful movement */
+		if (fabs(f_value) > 0.001f) {
+			/* Create Arg structure exactly like keyboard setmfact */
+			Arg setmfact_arg = { .f = f_value };
+			
+			/* Directly call setmfact - same as keyboard shortcuts */
+			setmfact(&setmfact_arg);
+		}
 		return;
 	}
 
@@ -2499,73 +2494,20 @@ moveresize(const Arg *arg)
 void
 tileresize(const Arg *arg)
 {
-	/* Validate cursor mode */
-	if (cursor_mode != CurNormal && cursor_mode != CurPressed) {
-		wlr_log(WLR_DEBUG, "[nixtile] tileresize: invalid cursor mode: %d", cursor_mode);
+	/* Absolute minimal implementation - avoid all potentially problematic code */
+	if (!cursor || !selmon) {
 		return;
 	}
-
-	/* Make sure cursor is valid */
-	if (!cursor) {
-		wlr_log(WLR_ERROR, "[nixtile] tileresize: cursor is NULL");
-		return;
-	}
-
-	/* Find client under cursor */
-	xytonode(cursor->x, cursor->y, NULL, &grabc, NULL, NULL, NULL);
-	if (!grabc || client_is_unmanaged(grabc) || grabc->isfullscreen) {
-		wlr_log(WLR_DEBUG, "[nixtile] tileresize: no valid client found under cursor");
-		return;
-	}
-
-	/* Make sure monitor is valid and has layout */
-	if (!grabc->mon || !grabc->mon->lt[grabc->mon->sellt] || !grabc->mon->lt[grabc->mon->sellt]->arrange) {
-		wlr_log(WLR_ERROR, "[nixtile] tileresize: client has no valid monitor or layout");
-		return;
-	}
-
-	/* Only allow resizing for tiled windows */
-	if (grabc->isfloating) {
-		wlr_log(WLR_DEBUG, "[nixtile] tileresize: client is floating, not resizing");
-		return;
-	}
-
-	/* Store initial cursor position for delta calculation */
-	grabcx = (int)round(cursor->x);
-	grabcy = (int)round(cursor->y);
 	
-	/* Set cursor to resize cursor */
-	wlr_cursor_set_xcursor(cursor, cursor_mgr, "e-resize");
+	/* Simply enter tile resize mode - no complex validation */
+	cursor_mode = CurTileResize;
 	
-	/* Enter tile resize mode */
-	cursor_mode = CurSmartResize;
-	wlr_log(WLR_DEBUG, "[nixtile] tileresize: started tile resize mode");
-}
-
-void
-incremental_tile_resize(Client *c, int edge, double dx, double dy)
-{
-	/* Simple approach: directly call setmfact with calculated .f value */
-	if (!c || !c->mon) {
-		return;
+	/* Set resize cursor */
+	if (cursor_mgr) {
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "e-resize");
 	}
-
-	/* Convert mouse movement to setmfact-style .f value */
-	/* Sensitivity: how much mouse movement affects resize */
-	float sensitivity = 0.003f;
-	float f_value = dx * sensitivity;
 	
-	/* Left movement = negative f, Right movement = positive f */
-	/* This matches the user's request: left is minus, right is plus */
-	
-	/* Only proceed if there's meaningful movement */
-	if (fabs(f_value) > 0.001f) {
-		/* Create Arg structure like setmfact uses */
-		Arg setmfact_arg = { .f = f_value };
-		
-		/* Directly call setmfact - this is exactly what keyboard shortcuts do */
-		setmfact(&setmfact_arg);
-	}
+	wlr_log(WLR_DEBUG, "[nixtile] tileresize: entered tile resize mode");
 }
 
 void
