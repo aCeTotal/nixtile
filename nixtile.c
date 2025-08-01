@@ -339,6 +339,7 @@ static void motionnotify(uint32_t time, struct wlr_input_device *device, double 
 		double sy, double sx_unaccel, double sy_unaccel);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void moveresize(const Arg *arg);
+static void tileresize(const Arg *arg);
 static void outputmgrapply(struct wl_listener *listener, void *data);
 static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test);
 static void outputmgrtest(struct wl_listener *listener, void *data);
@@ -2492,6 +2493,101 @@ moveresize(const Arg *arg)
 		wlr_cursor_set_xcursor(cursor, cursor_mgr, "se-resize");
 		break;
 	}
+}
+
+void
+tileresize(const Arg *arg)
+{
+	/* Validate cursor mode */
+	if (cursor_mode != CurNormal && cursor_mode != CurPressed) {
+		wlr_log(WLR_DEBUG, "[nixtile] tileresize: invalid cursor mode: %d", cursor_mode);
+		return;
+	}
+
+	/* Make sure cursor and args are valid before using them */
+	if (!cursor || !arg) {
+		wlr_log(WLR_ERROR, "[nixtile] tileresize: cursor or arg is NULL (cursor=%p, arg=%p)", 
+			(void *)cursor, (void *)arg);
+		return;
+	}
+
+	/* Find client under cursor */
+	xytonode(cursor->x, cursor->y, NULL, &grabc, NULL, NULL, NULL);
+	if (!grabc || client_is_unmanaged(grabc) || grabc->isfullscreen) {
+		wlr_log(WLR_DEBUG, "[nixtile] tileresize: no valid client found under cursor");
+		return;
+	}
+
+	/* Make sure monitor is valid */
+	if (!grabc->mon) {
+		wlr_log(WLR_ERROR, "[nixtile] tileresize: client has no monitor");
+		return;
+	}
+
+	/* Only allow resizing for tiled windows */
+	if (grabc->isfloating) {
+		wlr_log(WLR_DEBUG, "[nixtile] tileresize: client is floating, not resizing");
+		return;
+	}
+
+	/* Detect which edge of the window the cursor is on */
+	int edge = detectresizeedge(grabc, cursor->x, cursor->y);
+	
+	/* Only allow resizing if there's an adjacent tile in that direction */
+	if (edge == EDGE_NONE || !hasadjacenttile(grabc, edge)) {
+		wlr_log(WLR_DEBUG, "[nixtile] tileresize: no valid edge (%d) or adjacent tile", edge);
+		return;
+	}
+	
+	/* Store the edge being resized with overflow protection */
+	double temp_grabcx = round(cursor->x) - grabc->geom.x;
+	double temp_grabcy = round(cursor->y) - grabc->geom.y;
+	
+	/* Prevent integer overflow */
+	if (temp_grabcx > INT_MAX || temp_grabcx < INT_MIN || 
+	    temp_grabcy > INT_MAX || temp_grabcy < INT_MIN) {
+		wlr_log(WLR_ERROR, "[nixtile] tileresize: grab offset overflow (%.2f, %.2f)", temp_grabcx, temp_grabcy);
+		return;
+	}
+	
+	grabcx = (int)temp_grabcx;
+	grabcy = (int)temp_grabcy;
+	
+	/* Use the edge as the resize type */
+	grabedge = edge;
+	
+	/* Update cursor based on the edge being resized */
+	switch (edge) {
+	case EDGE_LEFT:
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "w-resize");
+		break;
+	case EDGE_RIGHT:
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "e-resize");
+		break;
+	case EDGE_TOP:
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "n-resize");
+		break;
+	case EDGE_BOTTOM:
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "s-resize");
+		break;
+	case EDGE_TOP | EDGE_LEFT:
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "nw-resize");
+		break;
+	case EDGE_TOP | EDGE_RIGHT:
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "ne-resize");
+		break;
+	case EDGE_BOTTOM | EDGE_LEFT:
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "sw-resize");
+		break;
+	case EDGE_BOTTOM | EDGE_RIGHT:
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "se-resize");
+		break;
+	default:
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
+	}
+	
+	cursor_mode = CurSmartResize;
+	wlr_log(WLR_DEBUG, "[nixtile] tileresize: started tile resize on edge %d", edge);
 }
 
 void
