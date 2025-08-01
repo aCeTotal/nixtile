@@ -340,6 +340,7 @@ static void motionnotify(uint32_t time, struct wlr_input_device *device, double 
 static void motionrelative(struct wl_listener *listener, void *data);
 static void moveresize(const Arg *arg);
 static void tileresize(const Arg *arg);
+static void incremental_tile_resize(Client *c, int edge, double dx, double dy);
 static void outputmgrapply(struct wl_listener *listener, void *data);
 static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test);
 static void outputmgrtest(struct wl_listener *listener, void *data);
@@ -2333,8 +2334,8 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			return;
 		}
 		
-		/* Use the smoothresize function for the detected edge */
-		smoothresize(local_grabc, local_grabedge, dx, dy);
+		/* Use incremental tile resizing similar to setmfact */
+		incremental_tile_resize(local_grabc, local_grabedge, dx, dy);
 		return;
 	} else if (cursor_mode == CurResize) {
 		/* Validate grabc before resizing */
@@ -2588,6 +2589,48 @@ tileresize(const Arg *arg)
 	
 	cursor_mode = CurSmartResize;
 	wlr_log(WLR_DEBUG, "[nixtile] tileresize: started tile resize on edge %d", edge);
+}
+
+void
+incremental_tile_resize(Client *c, int edge, double dx, double dy)
+{
+	/* Validate inputs */
+	if (!c || !c->mon || !c->mon->lt[c->mon->sellt] || !c->mon->lt[c->mon->sellt]->arrange) {
+		wlr_log(WLR_DEBUG, "[nixtile] incremental_tile_resize: invalid client or monitor");
+		return;
+	}
+
+	/* Convert mouse movement to factor change (similar to setmfact) */
+	/* Scale factor: larger values = more sensitive resizing */
+	float sensitivity = 0.002f; /* Adjust this to change resize sensitivity */
+	float factor_change = 0.0f;
+
+	/* Calculate factor change based on edge and mouse movement */
+	if (edge & EDGE_LEFT) {
+		/* Left edge: negative dx increases mfact (makes master larger) */
+		factor_change = -dx * sensitivity;
+	} else if (edge & EDGE_RIGHT) {
+		/* Right edge: positive dx increases mfact (makes master larger) */
+		factor_change = dx * sensitivity;
+	}
+
+	/* Only process horizontal resizing for now (similar to setmfact) */
+	if (factor_change != 0.0f) {
+		/* Calculate new mfact value */
+		float new_mfact = c->mon->mfact + factor_change;
+		
+		/* Clamp to reasonable bounds (same as setmfact) */
+		if (new_mfact < 0.1f) new_mfact = 0.1f;
+		if (new_mfact > 0.9f) new_mfact = 0.9f;
+		
+		/* Only update if the value actually changed */
+		if (new_mfact != c->mon->mfact) {
+			c->mon->mfact = new_mfact;
+			/* Trigger layout recalculation (same as setmfact) */
+			arrange(c->mon);
+			wlr_log(WLR_DEBUG, "[nixtile] incremental_tile_resize: mfact=%.3f", new_mfact);
+		}
+	}
 }
 
 void
