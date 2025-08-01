@@ -549,59 +549,148 @@ hasadjacenttile(Client *c, int edge)
 
 /*
  * Perform smooth resizing based on mouse movement.
- * Only resize in the direction of the edge being grabbed.
+ * Allows fluid adjustment of both width and height based on mouse movements.
+ * Maintains distinction between left/right edges while adding comprehensive error checking.
  */
 void
 smoothresize(Client *c, int edge, double dx, double dy)
 {
-	struct wlr_box geo = c->geom;
+	struct wlr_box geo;
 	float factor;
+	int min_width = 50;
+	int min_height = 50;
 	
-	/* Basic validation */
-	if (!c || !c->mon)
+	/* Comprehensive validation */
+	if (!c || !c->mon || !cursor)
 		return;
 	
-	/* Handle horizontal edges */
-	if (edge & EDGE_LEFT) {
-		/* Adjust position and width based on horizontal movement */
-		geo.x = (int)round(cursor->x - grabcx);
-		geo.width = c->geom.width + (c->geom.x - geo.x);
-		
-		/* Ensure minimum width */
-		if (geo.width < 50) {
-			geo.width = 50;
-			geo.x = c->geom.x + c->geom.width - 50;
-		}
-	}
-	else if (edge & EDGE_RIGHT) {
-		/* Adjust width based on horizontal movement */
-		geo.width = (int)round(cursor->x - c->geom.x);
-		
-		/* Ensure minimum width */
-		if (geo.width < 50)
-			geo.width = 50;
+	/* Safe initialization with current geometry */
+	if (c->geom.width <= 0 || c->geom.height <= 0) {
+		/* Protect against invalid dimensions */
+		return;
 	}
 	
-	/* Handle vertical edges */
-	if (edge & EDGE_TOP) {
-		/* Adjust position and height based on vertical movement */
-		geo.y = (int)round(cursor->y - grabcy);
-		geo.height = c->geom.height + (c->geom.y - geo.y);
-		
-		/* Ensure minimum height */
-		if (geo.height < 50) {
-			geo.height = 50;
-			geo.y = c->geom.y + c->geom.height - 50;
+	/* Copy current geometry as starting point */
+	geo = c->geom;
+	
+	/* 
+	 * Handle horizontal resizing
+	 * Allow horizontal mouse movement to adjust width regardless of which edge
+	 */
+	if (edge & EDGE_LEFT) {
+		/* For left edge: adjust both position and width based on horizontal movement */
+		if (cursor->x >= 0 && c->geom.x + c->geom.width > cursor->x) {
+			geo.x = (int)round(cursor->x - grabcx);
+			geo.width = c->geom.width + (c->geom.x - geo.x);
+			
+			/* Ensure minimum width and valid position */
+			if (geo.width < min_width) {
+				geo.width = min_width;
+				geo.x = c->geom.x + c->geom.width - min_width;
+			}
+			
+			/* Ensure we don't move beyond monitor boundaries */
+			if (geo.x < c->mon->w.x) {
+				geo.width = geo.width - (c->mon->w.x - geo.x);
+				geo.x = c->mon->w.x;
+			}
+		}
+	} else if (edge & EDGE_RIGHT) {
+		/* For right edge: adjust width only based on horizontal movement */
+		if (cursor->x >= c->geom.x) {
+			geo.width = (int)round(cursor->x - c->geom.x);
+			
+			/* Ensure minimum width */
+			if (geo.width < min_width)
+				geo.width = min_width;
+			
+			/* Ensure we don't extend beyond monitor boundaries */
+			if (geo.x + geo.width > c->mon->w.x + c->mon->w.width) {
+				geo.width = c->mon->w.x + c->mon->w.width - geo.x;
+			}
 		}
 	}
-	else if (edge & EDGE_BOTTOM) {
-		/* Adjust height based on vertical movement */
-		geo.height = (int)round(cursor->y - c->geom.y);
-		
-		/* Ensure minimum height */
-		if (geo.height < 50)
-			geo.height = 50;
+	
+	/* 
+	 * Handle vertical resizing
+	 * Always allow vertical mouse movement to adjust height
+	 */
+	if (edge & EDGE_TOP) {
+		/* For top edge: adjust both position and height based on vertical movement */
+		if (cursor->y >= 0 && c->geom.y + c->geom.height > cursor->y) {
+			geo.y = (int)round(cursor->y - grabcy);
+			geo.height = c->geom.height + (c->geom.y - geo.y);
+			
+			/* Ensure minimum height and valid position */
+			if (geo.height < min_height) {
+				geo.height = min_height;
+				geo.y = c->geom.y + c->geom.height - min_height;
+			}
+			
+			/* Ensure we don't move beyond monitor boundaries */
+			if (geo.y < c->mon->w.y) {
+				geo.height = geo.height - (c->mon->w.y - geo.y);
+				geo.y = c->mon->w.y;
+			}
+		}
+	} else if (edge & EDGE_BOTTOM) {
+		/* For bottom edge: adjust height only based on vertical movement */
+		if (cursor->y >= c->geom.y) {
+			geo.height = (int)round(cursor->y - c->geom.y);
+			
+			/* Ensure minimum height */
+			if (geo.height < min_height)
+				geo.height = min_height;
+			
+			/* Ensure we don't extend beyond monitor boundaries */
+			if (geo.y + geo.height > c->mon->w.y + c->mon->w.height) {
+				geo.height = c->mon->w.y + c->mon->w.height - geo.y;
+			}
+		}
 	}
+	
+	/* Fluid resize: Allow height adjustment even when grabbing left/right edges */
+	if ((edge & (EDGE_LEFT | EDGE_RIGHT)) && !edge & (EDGE_TOP | EDGE_BOTTOM)) {
+		/* Update height based on vertical mouse movement */
+		int new_height;
+		
+		if (dy != 0) {
+			/* Adjust height with vertical mouse movement */
+			new_height = geo.height + (int)round(dy);
+			
+			/* Apply with bounds checking */
+			if (new_height >= min_height && geo.y + new_height <= c->mon->w.y + c->mon->w.height) {
+				geo.height = new_height;
+			}
+		}
+	}
+	
+	/* Fluid resize: Allow width adjustment even when grabbing top/bottom edges */
+	if ((edge & (EDGE_TOP | EDGE_BOTTOM)) && !edge & (EDGE_LEFT | EDGE_RIGHT)) {
+		/* Update width based on horizontal mouse movement */
+		int new_width;
+		
+		if (dx != 0) {
+			/* Adjust width with horizontal mouse movement */
+			new_width = geo.width + (int)round(dx);
+			
+			/* Apply with bounds checking */
+			if (new_width >= min_width && geo.x + new_width <= c->mon->w.x + c->mon->w.width) {
+				geo.width = new_width;
+			}
+		}
+	}
+	
+	/* Final validation to ensure we have valid dimensions */
+	if (geo.width < min_width) geo.width = min_width;
+	if (geo.height < min_height) geo.height = min_height;
+	
+	/* Make sure window stays within monitor boundaries */
+	if (geo.x + geo.width > c->mon->w.x + c->mon->w.width)
+		geo.width = c->mon->w.x + c->mon->w.width - geo.x;
+	
+	if (geo.y + geo.height > c->mon->w.y + c->mon->w.height)
+		geo.height = c->mon->w.y + c->mon->w.height - geo.y;
 	
 	/* Apply resize with interaction flag */
 	resize(c, geo, 1);
@@ -615,7 +704,7 @@ smoothresize(Client *c, int edge, double dx, double dy)
 		if ((edge & EDGE_LEFT && dx > 0) || (edge & EDGE_RIGHT && dx < 0))
 			factor = -factor;
 		
-		/* Apply the change to mfact */
+		/* Apply the change to mfact with bounds checking */
 		if (c->mon->mfact + factor >= 0.1 && c->mon->mfact + factor <= 0.9) {
 			c->mon->mfact += factor;
 			arrange(c->mon);
