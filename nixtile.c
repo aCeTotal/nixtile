@@ -498,18 +498,26 @@ detectresizeedge(Client *c, double x, double y)
 {
 	int edge = EDGE_NONE;
 	
-	/* Validate client */
-	if (!c) {
+	/* Validate client and its dimensions */
+	if (!c || !c->geom.width || !c->geom.height) {
 		return EDGE_NONE;
 	}
 	
-	/* Check if cursor is near the left edge */
-	if (x >= c->geom.x && x <= c->geom.x + EDGE_THRESHOLD)
-		edge |= EDGE_LEFT;
+	/* Check if the point is within the window boundaries */
+	if (x < c->geom.x || x > c->geom.x + c->geom.width ||
+	    y < c->geom.y || y > c->geom.y + c->geom.height) {
+		return EDGE_NONE;
+	}
 	
-	/* Check if cursor is near the right edge */
-	else if (x >= c->geom.x + c->geom.width - EDGE_THRESHOLD && x <= c->geom.x + c->geom.width)
+	/* Extended left edge detection - from middle to left edge */
+	if (IS_LEFT_HALF(x, c)) {
+		edge |= EDGE_LEFT;
+	}
+	
+	/* Extended right edge detection - from middle to right edge */
+	else if (IS_RIGHT_HALF(x, c)) {
 		edge |= EDGE_RIGHT;
+	}
 	
 	/* Check if cursor is near the top edge */
 	if (y >= c->geom.y && y <= c->geom.y + EDGE_THRESHOLD)
@@ -557,8 +565,9 @@ smoothresize(Client *c, int edge, double dx, double dy)
 {
 	struct wlr_box geo;
 	float factor;
-	int min_width = 50;
-	int min_height = 50;
+	/* Use the constants from resize_edge.h for consistency */
+	int min_width = MIN_WINDOW_WIDTH;
+	int min_height = MIN_WINDOW_HEIGHT;
 	
 	/* Comprehensive validation */
 	if (!c || !c->mon || !cursor)
@@ -567,6 +576,11 @@ smoothresize(Client *c, int edge, double dx, double dy)
 	/* Safe initialization with current geometry */
 	if (c->geom.width <= 0 || c->geom.height <= 0) {
 		/* Protect against invalid dimensions */
+		return;
+	}
+	
+	/* Additional null pointer checks */
+	if (!c->scene || !c->scene_surface) {
 		return;
 	}
 	
@@ -650,7 +664,7 @@ smoothresize(Client *c, int edge, double dx, double dy)
 	}
 	
 	/* Fluid resize: Allow height adjustment even when grabbing left/right edges */
-	if ((edge & (EDGE_LEFT | EDGE_RIGHT)) && !edge & (EDGE_TOP | EDGE_BOTTOM)) {
+	if ((edge & (EDGE_LEFT | EDGE_RIGHT)) && !(edge & (EDGE_TOP | EDGE_BOTTOM))) {
 		/* Update height based on vertical mouse movement */
 		int new_height;
 		
@@ -666,7 +680,7 @@ smoothresize(Client *c, int edge, double dx, double dy)
 	}
 	
 	/* Fluid resize: Allow width adjustment even when grabbing top/bottom edges */
-	if ((edge & (EDGE_TOP | EDGE_BOTTOM)) && !edge & (EDGE_LEFT | EDGE_RIGHT)) {
+	if ((edge & (EDGE_TOP | EDGE_BOTTOM)) && !(edge & (EDGE_LEFT | EDGE_RIGHT))) {
 		/* Update width based on horizontal mouse movement */
 		int new_width;
 		
@@ -685,12 +699,30 @@ smoothresize(Client *c, int edge, double dx, double dy)
 	if (geo.width < min_width) geo.width = min_width;
 	if (geo.height < min_height) geo.height = min_height;
 	
-	/* Make sure window stays within monitor boundaries */
+	/* Add safety margin to prevent size-related crashes */
+	geo.width += RESIZE_SAFETY_MARGIN;
+	geo.height += RESIZE_SAFETY_MARGIN;
+	
+	/* Make sure window stays within monitor boundaries with safety margin */
+	if (geo.x < c->mon->w.x) {
+		geo.width -= (c->mon->w.x - geo.x);
+		geo.x = c->mon->w.x;
+	}
+	
 	if (geo.x + geo.width > c->mon->w.x + c->mon->w.width)
 		geo.width = c->mon->w.x + c->mon->w.width - geo.x;
 	
+	if (geo.y < c->mon->w.y) {
+		geo.height -= (c->mon->w.y - geo.y);
+		geo.y = c->mon->w.y;
+	}
+	
 	if (geo.y + geo.height > c->mon->w.y + c->mon->w.height)
 		geo.height = c->mon->w.y + c->mon->w.height - geo.y;
+	
+	/* Final sanity check to ensure minimum size after all adjustments */
+	if (geo.width < min_width) geo.width = min_width;
+	if (geo.height < min_height) geo.height = min_height;
 	
 	/* Apply resize with interaction flag */
 	resize(c, geo, 1);
@@ -716,10 +748,24 @@ smoothresize(Client *c, int edge, double dx, double dy)
 void
 applybounds(Client *c, struct wlr_box *bbox)
 {
-	/* set minimum possible */
-	c->geom.width = MAX(1 + 2 * (int)c->bw, c->geom.width);
-	c->geom.height = MAX(1 + 2 * (int)c->bw, c->geom.height);
-
+	/* Comprehensive validation to prevent crashes */
+	if (!c || !bbox) {
+		return;
+	}
+	
+	/* Validate bbox dimensions */
+	if (bbox->width <= 0 || bbox->height <= 0) {
+		return;
+	}
+	
+	/* Ensure minimum window dimensions using our constants */
+	int min_width = MAX(MIN_WINDOW_WIDTH, 1 + 2 * (int)c->bw);
+	int min_height = MAX(MIN_WINDOW_HEIGHT, 1 + 2 * (int)c->bw);
+	
+	c->geom.width = MAX(min_width, c->geom.width);
+	c->geom.height = MAX(min_height, c->geom.height);
+	
+	/* Ensure window stays within bounds with safety checks */
 	if (c->geom.x >= bbox->x + bbox->width)
 		c->geom.x = bbox->x + bbox->width - c->geom.width;
 	if (c->geom.y >= bbox->y + bbox->height)
@@ -728,6 +774,14 @@ applybounds(Client *c, struct wlr_box *bbox)
 		c->geom.x = bbox->x;
 	if (c->geom.y + c->geom.height <= bbox->y)
 		c->geom.y = bbox->y;
+	
+	/* Final validation to ensure we didn't create invalid geometry */
+	if (c->geom.width < min_width) c->geom.width = min_width;
+	if (c->geom.height < min_height) c->geom.height = min_height;
+	
+	/* Ensure position is not negative */
+	if (c->geom.x < 0) c->geom.x = 0;
+	if (c->geom.y < 0) c->geom.y = 0;
 }
 
 void
@@ -912,14 +966,25 @@ buttonpress(struct wl_listener *listener, void *data)
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		/* TODO: should reset to the pointer focus's current setcursor */
 		if (!locked && cursor_mode != CurNormal && cursor_mode != CurPressed) {
-			wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
+			/* Safely reset cursor */
+			if (cursor && cursor_mgr) {
+				wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
+			}
 			cursor_mode = CurNormal;
-			/* Drop the window off on its new monitor */
-			selmon = xytomon(cursor->x, cursor->y);
-			setmon(grabc, selmon, 0);
-			/* Force rearrange to snap window to tiled layout */
-			arrange(selmon);
+			/* Drop the window off on its new monitor with safety checks */
+			if (grabc && cursor) {
+				selmon = xytomon(cursor->x, cursor->y);
+				if (selmon && grabc->mon) {
+					setmon(grabc, selmon, 0);
+					/* Force rearrange to snap window to tiled layout */
+					arrange(selmon);
+				}
+			}
+			/* Reset grab variables safely */
 			grabc = NULL;
+			grabedge = EDGE_NONE;
+			grabcx = 0;
+			grabcy = 0;
 			return;
 		}
 		cursor_mode = CurNormal;
@@ -2225,17 +2290,38 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 
 	/* If we are currently grabbing the mouse, handle and return */
 	if (cursor_mode == CurMove) {
+		/* Validate grabc before moving */
+		if (!grabc || !grabc->mon || !grabc->scene) {
+			cursor_mode = CurNormal;
+			return;
+		}
 		/* Move the grabbed client to the new position. */
 		resize(grabc, (struct wlr_box){.x = (int)round(cursor->x) - grabcx, .y = (int)round(cursor->y) - grabcy,
 			.width = grabc->geom.width, .height = grabc->geom.height}, 1);
 		return;
 	} else if (cursor_mode == CurSmartResize) {
+		/* Validate grabc and edge before resizing */
+		if (!grabc || !grabc->mon || !grabc->scene || grabedge == EDGE_NONE) {
+			cursor_mode = CurNormal;
+			return;
+		}
 		/* Use the smoothresize function for the detected edge */
 		smoothresize(grabc, grabedge, dx, dy);
 		return;
 	} else if (cursor_mode == CurResize) {
+		/* Validate grabc before resizing */
+		if (!grabc || !grabc->mon || !grabc->scene) {
+			cursor_mode = CurNormal;
+			return;
+		}
+		/* Calculate new dimensions with safety checks */
+		int new_width = (int)round(cursor->x) - grabc->geom.x;
+		int new_height = (int)round(cursor->y) - grabc->geom.y;
+		/* Ensure minimum dimensions */
+		if (new_width < MIN_WINDOW_WIDTH) new_width = MIN_WINDOW_WIDTH;
+		if (new_height < MIN_WINDOW_HEIGHT) new_height = MIN_WINDOW_HEIGHT;
 		resize(grabc, (struct wlr_box){.x = grabc->geom.x, .y = grabc->geom.y,
-			.width = (int)round(cursor->x) - grabc->geom.x, .height = (int)round(cursor->y) - grabc->geom.y}, 1);
+			.width = new_width, .height = new_height}, 1);
 		return;
 	}
 
@@ -2858,8 +2944,20 @@ resize(Client *c, struct wlr_box geo, int interact)
 	struct wlr_box *bbox;
 	struct wlr_box clip;
 
-	if (!c->mon || !client_surface(c)->mapped)
+	/* Enhanced validation to prevent crashes */
+	if (!c || !c->mon || !client_surface(c) || !client_surface(c)->mapped)
 		return;
+	
+	/* Validate geometry dimensions */
+	if (geo.width < MIN_WINDOW_WIDTH || geo.height < MIN_WINDOW_HEIGHT) {
+		geo.width = MAX(geo.width, MIN_WINDOW_WIDTH);
+		geo.height = MAX(geo.height, MIN_WINDOW_HEIGHT);
+	}
+	
+	/* Validate scene nodes exist */
+	if (!c->scene || !c->scene_surface) {
+		return;
+	}
 
 	bbox = interact ? &sgeom : &c->mon->w;
 
@@ -2867,16 +2965,32 @@ resize(Client *c, struct wlr_box geo, int interact)
 	c->geom = geo;
 	applybounds(c, bbox);
 
-	/* Update scene-graph, including borders */
-	wlr_scene_node_set_position(&c->scene->node, c->geom.x, c->geom.y);
-	wlr_scene_node_set_position(&c->scene_surface->node, c->bw, c->bw);
-	wlr_scene_rect_set_size(c->border[0], c->geom.width, c->bw);
-	wlr_scene_rect_set_size(c->border[1], c->geom.width, c->bw);
-	wlr_scene_rect_set_size(c->border[2], c->bw, c->geom.height - 2 * c->bw);
-	wlr_scene_rect_set_size(c->border[3], c->bw, c->geom.height - 2 * c->bw);
-	wlr_scene_node_set_position(&c->border[1]->node, 0, c->geom.height - c->bw);
-	wlr_scene_node_set_position(&c->border[2]->node, 0, c->bw);
-	wlr_scene_node_set_position(&c->border[3]->node, c->geom.width - c->bw, c->bw);
+	/* Update scene-graph, including borders with safety checks */
+	if (c->scene && c->scene_surface) {
+		wlr_scene_node_set_position(&c->scene->node, c->geom.x, c->geom.y);
+		wlr_scene_node_set_position(&c->scene_surface->node, c->bw, c->bw);
+		
+		/* Update borders with validation */
+		for (int i = 0; i < 4; i++) {
+			if (!c->border[i]) continue;
+		}
+		
+		if (c->border[0]) {
+			wlr_scene_rect_set_size(c->border[0], c->geom.width, c->bw);
+		}
+		if (c->border[1]) {
+			wlr_scene_rect_set_size(c->border[1], c->geom.width, c->bw);
+			wlr_scene_node_set_position(&c->border[1]->node, 0, c->geom.height - c->bw);
+		}
+		if (c->border[2]) {
+			wlr_scene_rect_set_size(c->border[2], c->bw, c->geom.height - 2 * c->bw);
+			wlr_scene_node_set_position(&c->border[2]->node, 0, c->bw);
+		}
+		if (c->border[3]) {
+			wlr_scene_rect_set_size(c->border[3], c->bw, c->geom.height - 2 * c->bw);
+			wlr_scene_node_set_position(&c->border[3]->node, c->geom.width - c->bw, c->bw);
+		}
+	}
 
 	/* this is a no-op if size hasn't changed */
 	c->resize = client_set_size(c, c->geom.width - 2 * c->bw,
