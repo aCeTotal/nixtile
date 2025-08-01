@@ -3,6 +3,7 @@
  */
 #include <getopt.h>
 #include <libinput.h>
+#include <limits.h>
 #include <math.h>
 #include <linux/input-event-codes.h>
 #include <math.h>
@@ -572,6 +573,12 @@ smoothresize(Client *c, int edge, double dx, double dy)
 	/* Comprehensive validation */
 	if (!c || !c->mon || !cursor)
 		return;
+	
+	/* Validate cursor position to prevent extreme values */
+	if (cursor->x < -10000 || cursor->x > 10000 || cursor->y < -10000 || cursor->y > 10000) {
+		wlr_log(WLR_ERROR, "[nixtile] smoothresize: cursor position out of bounds (%.2f, %.2f)", cursor->x, cursor->y);
+		return;
+	}
 	
 	/* Safe initialization with current geometry */
 	if (c->geom.width <= 0 || c->geom.height <= 0) {
@@ -2302,11 +2309,31 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 	} else if (cursor_mode == CurSmartResize) {
 		/* Validate grabc and edge before resizing */
 		if (!grabc || !grabc->mon || !grabc->scene || grabedge == EDGE_NONE) {
+			/* Safely reset all grab variables atomically */
+			grabc = NULL;
+			grabedge = EDGE_NONE;
+			grabcx = 0;
+			grabcy = 0;
 			cursor_mode = CurNormal;
 			return;
 		}
+		/* Store local reference to prevent race conditions */
+		Client *local_grabc = grabc;
+		int local_grabedge = grabedge;
+		
+		/* Additional validation of local references */
+		if (!local_grabc || !local_grabc->mon || !local_grabc->scene) {
+			/* Reset state if validation fails */
+			grabc = NULL;
+			grabedge = EDGE_NONE;
+			grabcx = 0;
+			grabcy = 0;
+			cursor_mode = CurNormal;
+			return;
+		}
+		
 		/* Use the smoothresize function for the detected edge */
-		smoothresize(grabc, grabedge, dx, dy);
+		smoothresize(local_grabc, local_grabedge, dx, dy);
 		return;
 	} else if (cursor_mode == CurResize) {
 		/* Validate grabc before resizing */
@@ -2403,9 +2430,19 @@ moveresize(const Arg *arg)
 			return;
 		}
 		
-		/* Store the edge being resized */
-		grabcx = (int)round(cursor->x) - grabc->geom.x;
-		grabcy = (int)round(cursor->y) - grabc->geom.y;
+		/* Store the edge being resized with overflow protection */
+		double temp_grabcx = round(cursor->x) - grabc->geom.x;
+		double temp_grabcy = round(cursor->y) - grabc->geom.y;
+		
+		/* Prevent integer overflow */
+		if (temp_grabcx > INT_MAX || temp_grabcx < INT_MIN || 
+		    temp_grabcy > INT_MAX || temp_grabcy < INT_MIN) {
+			wlr_log(WLR_ERROR, "[nixtile] CurSmartResize: grab offset overflow (%.2f, %.2f)", temp_grabcx, temp_grabcy);
+			return;
+		}
+		
+		grabcx = (int)temp_grabcx;
+		grabcy = (int)temp_grabcy;
 		
 		/* Use the edge as the resize type */
 		grabedge = edge;
