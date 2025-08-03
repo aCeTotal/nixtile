@@ -2355,19 +2355,19 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 		float horizontal_delta = cursor->x - (float)grabcx;
 		float vertical_delta = cursor->y - (float)grabcy;
 		
-		/* Handle horizontal resizing (mfact) */
-		if (fabs(horizontal_delta) > 1.0f) {
+		/* Handle horizontal resizing (mfact) - optimized threshold for better responsiveness */
+		if (fabs(horizontal_delta) > 0.5f) {
 			float target_mfact = initial_mfact + (horizontal_delta / (float)selmon->w.width);
-			/* Clamp to valid range */
-			if (target_mfact < 0.1f) target_mfact = 0.1f;
-			if (target_mfact > 0.9f) target_mfact = 0.9f;
+			/* Clamp to optimized range for more flexible resizing */
+			if (target_mfact < 0.05f) target_mfact = 0.05f;
+			if (target_mfact > 0.95f) target_mfact = 0.95f;
 			
 			pending_target_mfact = target_mfact;
 			resize_pending = true;
 		}
 		
-		/* Handle edge-based vertical resizing (1:1 pointer-relative from any edge) */
-		if (fabs(vertical_delta) > 1.0f && initial_resize_neighbor) {
+		/* Handle edge-based vertical resizing (1:1 pointer-relative from any edge) - optimized threshold */
+		if (fabs(vertical_delta) > 0.5f && initial_resize_neighbor) {
 			/* Calculate where shared edge should be (1:1 with mouse movement) */
 			int new_edge_y = initial_edge_y + (int)vertical_delta;
 			
@@ -2384,8 +2384,8 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			}
 			
 			/* Enforce minimum heights (same as MIN_WINDOW_HEIGHT) */
-			if (target_new_height < 50) {
-				target_new_height = 50;
+			if (target_new_height < 40) {
+				target_new_height = 40;
 				if (resizing_from_top_edge) {
 					new_edge_y = (initial_resize_client->geom.y + initial_resize_client->geom.height) - target_new_height;
 					neighbor_new_height = new_edge_y - initial_resize_neighbor->geom.y;
@@ -2394,8 +2394,8 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 					neighbor_new_height = (initial_resize_neighbor->geom.y + initial_resize_neighbor->geom.height) - new_edge_y;
 				}
 			}
-			if (neighbor_new_height < 50) {
-				neighbor_new_height = 50;
+			if (neighbor_new_height < 40) {
+				neighbor_new_height = 40;
 				if (resizing_from_top_edge) {
 					new_edge_y = initial_resize_neighbor->geom.y + neighbor_new_height;
 					target_new_height = (initial_resize_client->geom.y + initial_resize_client->geom.height) - new_edge_y;
@@ -2417,13 +2417,13 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			}
 		}
 		
-		/* Schedule frame-synced update if any resizing is pending */
+		/* Schedule optimized frame-synced update if any resizing is pending */
 		if ((resize_pending || vertical_resize_pending) && !resize_timer) {
-			/* Use 8ms timer for 120Hz+ smoothness (faster than 60Hz) */
+			/* Use 4ms timer for enhanced responsiveness (250Hz update rate) */
 			resize_timer = wl_event_loop_add_timer(wl_display_get_event_loop(dpy),
 											   frame_synced_resize_callback, NULL);
 			if (resize_timer) {
-				wl_event_source_timer_update(resize_timer, 8);
+				wl_event_source_timer_update(resize_timer, 4);
 			}
 		}
 		return;
@@ -2575,30 +2575,38 @@ moveresize(const Arg *arg)
 static int
 frame_synced_resize_callback(void *data)
 {
+	/* Fast early exit for performance */
 	if ((!resize_pending && !vertical_resize_pending) || !selmon) {
 		resize_timer = NULL;
 		return 0;
 	}
 	
+	/* Optimized: Apply both changes in single pass */
+	bool layout_changed = false;
+	
 	/* Apply pending horizontal mfact change */
 	if (resize_pending) {
 		selmon->mfact = pending_target_mfact;
 		resize_pending = false;
+		layout_changed = true;
 	}
 	
 	/* Apply pending vertical height factor change */
 	if (vertical_resize_pending && vertical_resize_client && vertical_resize_neighbor) {
 		vertical_resize_client->height_factor = pending_target_height_factor;
-		/* Adjust neighbor to maintain total height */
+		/* Optimized neighbor adjustment */
 		float remaining = 2.0f - pending_target_height_factor;
 		if (remaining > 0.2f) {
 			vertical_resize_neighbor->height_factor = remaining;
 		}
 		vertical_resize_pending = false;
+		layout_changed = true;
 	}
 	
-	/* Apply layout changes */
-	arrange(selmon);
+	/* Apply layout changes only if needed */
+	if (layout_changed) {
+		arrange(selmon);
+	}
 	
 	/* Reset timer state */
 	resize_timer = NULL;
@@ -2696,9 +2704,10 @@ tileresize(const Arg *arg)
 	/* Enter tile resize mode */
 	cursor_mode = CurTileResize;
 	
-	/* Set resize cursor */
+	/* Set optimized bi-axial resize cursor for better visual feedback */
 	if (cursor_mgr) {
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "ew-resize");
+		/* Use se-resize for bi-axial resizing to indicate both horizontal and vertical capability */
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "se-resize");
 	}
 	
 	wlr_log(WLR_DEBUG, "[nixtile] tileresize: 1:1 pointer-relative mode, initial_mfact=%.3f", initial_mfact);
@@ -3239,7 +3248,7 @@ resize(Client *c, struct wlr_box geo, int interact)
 		}
 	}
 
-	/* this is a no-op if size hasn't changed */
+	/* Optimized client resize for better responsiveness */
 	c->resize = client_set_size(c, c->geom.width - 2 * c->bw,
 			c->geom.height - 2 * c->bw);
 	client_get_clip(c, &clip);

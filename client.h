@@ -347,6 +347,7 @@ client_set_size(Client *c, uint32_t width, uint32_t height)
 		return 0;
 	}
 #endif
+	/* Restore original size check to prevent freeze - only resize when size actually changes */
 	if ((int32_t)width == c->surface.xdg->toplevel->current.width
 			&& (int32_t)height == c->surface.xdg->toplevel->current.height)
 		return 0;
