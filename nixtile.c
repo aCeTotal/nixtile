@@ -442,6 +442,7 @@ static int initial_edge_x; /* for pointer-relative resizing */
 static int initial_edge_y; /* for vertical pointer-relative resizing */
 static Client *initial_resize_client; /* client being resized vertically */
 static Client *initial_resize_neighbor; /* neighbor client for vertical resizing */
+static bool resizing_from_top_edge; /* true if resizing from top edge of a tile */
 
 /* Frame-synced resizing variables */
 static bool resize_pending = false;
@@ -2365,26 +2366,43 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			resize_pending = true;
 		}
 		
-		/* Handle vertical resizing (1:1 pointer-relative exactly like horizontal) */
+		/* Handle edge-based vertical resizing (1:1 pointer-relative from any edge) */
 		if (fabs(vertical_delta) > 1.0f && initial_resize_neighbor) {
-			/* Calculate where vertical edge should be (1:1 with mouse movement) */
+			/* Calculate where shared edge should be (1:1 with mouse movement) */
 			int new_edge_y = initial_edge_y + (int)vertical_delta;
 			
-			/* Calculate new heights for target and neighbor tiles */
-			int target_new_height = new_edge_y - initial_resize_client->geom.y;
-			int neighbor_old_bottom = initial_resize_neighbor->geom.y + initial_resize_neighbor->geom.height;
-			int neighbor_new_height = neighbor_old_bottom - new_edge_y;
+			int target_new_height, neighbor_new_height;
+			
+			if (resizing_from_top_edge) {
+				/* Resizing from top edge of lower tile - neighbor is above */
+				target_new_height = (initial_resize_client->geom.y + initial_resize_client->geom.height) - new_edge_y;
+				neighbor_new_height = new_edge_y - initial_resize_neighbor->geom.y;
+			} else {
+				/* Resizing from bottom edge of upper tile - neighbor is below */
+				target_new_height = new_edge_y - initial_resize_client->geom.y;
+				neighbor_new_height = (initial_resize_neighbor->geom.y + initial_resize_neighbor->geom.height) - new_edge_y;
+			}
 			
 			/* Enforce minimum heights (same as MIN_WINDOW_HEIGHT) */
 			if (target_new_height < 50) {
 				target_new_height = 50;
-				new_edge_y = initial_resize_client->geom.y + target_new_height;
-				neighbor_new_height = neighbor_old_bottom - new_edge_y;
+				if (resizing_from_top_edge) {
+					new_edge_y = (initial_resize_client->geom.y + initial_resize_client->geom.height) - target_new_height;
+					neighbor_new_height = new_edge_y - initial_resize_neighbor->geom.y;
+				} else {
+					new_edge_y = initial_resize_client->geom.y + target_new_height;
+					neighbor_new_height = (initial_resize_neighbor->geom.y + initial_resize_neighbor->geom.height) - new_edge_y;
+				}
 			}
 			if (neighbor_new_height < 50) {
 				neighbor_new_height = 50;
-				new_edge_y = neighbor_old_bottom - neighbor_new_height;
-				target_new_height = new_edge_y - initial_resize_client->geom.y;
+				if (resizing_from_top_edge) {
+					new_edge_y = initial_resize_neighbor->geom.y + neighbor_new_height;
+					target_new_height = (initial_resize_client->geom.y + initial_resize_client->geom.height) - new_edge_y;
+				} else {
+					new_edge_y = (initial_resize_neighbor->geom.y + initial_resize_neighbor->geom.height) - neighbor_new_height;
+					target_new_height = new_edge_y - initial_resize_client->geom.y;
+				}
 			}
 			
 			/* Convert to height factors for layout system */
@@ -2611,34 +2629,68 @@ tileresize(const Arg *arg)
 	int master_width = (int)(selmon->w.width * selmon->mfact);
 	initial_edge_x = selmon->w.x + master_width;
 	
-	/* Initialize vertical resizing state */
+	/* Initialize edge-based vertical resizing */
 	initial_resize_client = grabc;
 	initial_resize_neighbor = NULL;
-	initial_edge_y = grabc->geom.y + grabc->geom.height; /* Bottom edge of current tile */
+	resizing_from_top_edge = false;
 	
-	/* Find vertical neighbor for potential vertical resizing */
+	/* Find which edge is closest to cursor for edge-based resizing */
 	Client *c;
-	int current_index = 0, target_index = 0;
+	Client *stack_tiles[16]; /* Max 16 tiles in stack */
+	int stack_count = 0;
+	int current_index = 0;
+	
+	/* Build list of stack tiles */
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, selmon) || c->isfloating || c->isfullscreen)
 			continue;
-		if (c == grabc) {
-			target_index = current_index;
-			break;
+		if (current_index > 0) { /* Skip master tile */
+			stack_tiles[stack_count] = c;
+			stack_count++;
 		}
 		current_index++;
 	}
 	
-	/* Find neighbor (next client in stack) */
-	current_index = 0;
-	wl_list_for_each(c, &clients, link) {
-		if (!VISIBLEON(c, selmon) || c->isfloating || c->isfullscreen)
-			continue;
-		if (current_index == target_index + 1) {
-			initial_resize_neighbor = c;
-			break;
+	/* Find closest shared edge to cursor */
+	int cursor_y = (int)cursor->y;
+	int closest_edge_distance = INT_MAX;
+	int closest_edge_y = 0;
+	Client *edge_tile_above = NULL, *edge_tile_below = NULL;
+	
+	/* Check all shared edges between adjacent stack tiles */
+	for (int i = 0; i < stack_count - 1; i++) {
+		Client *tile_above = stack_tiles[i];
+		Client *tile_below = stack_tiles[i + 1];
+		int edge_y = tile_above->geom.y + tile_above->geom.height;
+		
+		int distance = abs(cursor_y - edge_y);
+		if (distance < closest_edge_distance) {
+			closest_edge_distance = distance;
+			closest_edge_y = edge_y;
+			edge_tile_above = tile_above;
+			edge_tile_below = tile_below;
 		}
-		current_index++;
+	}
+	
+	/* Set up resizing based on which side of edge cursor is on */
+	if (edge_tile_above && edge_tile_below) {
+		initial_edge_y = closest_edge_y;
+		
+		/* Determine if cursor is closer to top or bottom tile */
+		int distance_to_above = abs(cursor_y - (edge_tile_above->geom.y + edge_tile_above->geom.height / 2));
+		int distance_to_below = abs(cursor_y - (edge_tile_below->geom.y + edge_tile_below->geom.height / 2));
+		
+		if (distance_to_above < distance_to_below) {
+			/* Resizing from bottom edge of upper tile */
+			initial_resize_client = edge_tile_above;
+			initial_resize_neighbor = edge_tile_below;
+			resizing_from_top_edge = false;
+		} else {
+			/* Resizing from top edge of lower tile */
+			initial_resize_client = edge_tile_below;
+			initial_resize_neighbor = edge_tile_above;
+			resizing_from_top_edge = true;
+		}
 	}
 	
 	/* Enter tile resize mode */
