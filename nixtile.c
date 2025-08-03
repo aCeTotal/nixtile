@@ -112,6 +112,9 @@ static const float launcher_tab_active_color[4] = {0.22, 0.24, 0.32, 1.0};
 #define LISTEN(E, L, H)         wl_signal_add((E), ((L)->notify = (H), (L)))
 #define LISTEN_STATIC(E, H)     do { struct wl_listener *_l = ecalloc(1, sizeof(*_l)); _l->notify = (H); wl_signal_add((E), _l); } while (0)
 
+/* global variables */
+int statusbar_visible = 1; /* 1 = visible, 0 = hidden */
+
 /* enums */
 enum { CurNormal, CurPressed, CurMove, CurResize, CurSmartResize, CurTileResize }; /* cursor */
 enum { XDGShell, LayerShell, X11 }; /* client types */
@@ -351,6 +354,9 @@ static void motionnotify(uint32_t time, struct wlr_input_device *device, double 
 static void motionrelative(struct wl_listener *listener, void *data);
 static void moveresize(const Arg *arg);
 static void tileresize(const Arg *arg);
+static void handletiledrop(Client *c, double x, double y);
+static void swap_tiles_in_list(Client *c1, Client *c2);
+static void handletiledrop_old(Client *c, double x, double y);
 static void outputmgrapply(struct wl_listener *listener, void *data);
 static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test);
 static void outputmgrtest(struct wl_listener *listener, void *data);
@@ -1014,14 +1020,27 @@ buttonpress(struct wl_listener *listener, void *data)
 				wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
 			}
 			cursor_mode = CurNormal;
-			/* Drop the window off on its new monitor with safety checks */
+			/* Handle tile drop - either to new monitor or within same monitor for column switching */
 			if (grabc && cursor) {
 				selmon = xytomon(cursor->x, cursor->y);
+				wlr_log(WLR_DEBUG, "[nixtile] Button release: grabc=%p, cursor=%.1f,%.1f, selmon=%p, grabc->mon=%p", 
+					(void*)grabc, cursor->x, cursor->y, (void*)selmon, (void*)(grabc ? grabc->mon : NULL));
 				if (selmon && grabc->mon) {
-					setmon(grabc, selmon, 0);
-					/* Force rearrange to snap window to tiled layout */
-					arrange(selmon);
+					if (selmon != grabc->mon) {
+						/* Moving to different monitor */
+						wlr_log(WLR_DEBUG, "[nixtile] Moving tile to different monitor");
+						setmon(grabc, selmon, 0);
+						arrange(selmon);
+					} else {
+						/* Same monitor - handle column-to-column dragging */
+						wlr_log(WLR_DEBUG, "[nixtile] Same monitor - calling handletiledrop");
+						handletiledrop(grabc, cursor->x, cursor->y);
+					}
+				} else {
+					wlr_log(WLR_DEBUG, "[nixtile] Button release: selmon or grabc->mon is NULL");
 				}
+			} else {
+				wlr_log(WLR_DEBUG, "[nixtile] Button release: grabc or cursor is NULL");
 			}
 			/* Reset grab variables safely */
 			grabc = NULL;
@@ -1557,6 +1576,409 @@ createnotify(struct wl_listener *listener, void *data)
 	
 	/* Ensure equal width distribution for new workspaces */
 	ensure_equal_width_distribution(c);
+}
+
+void
+handletiledrop(Client *c, double x, double y)
+{
+	Monitor *m;
+	struct wlr_box adjusted_area;
+	double adjusted_center_x;
+	int target_column;
+	Client *target_tile = NULL;
+	double closest_distance = INFINITY;
+	Client *temp_c;
+	int temp_column;
+	int tiles_in_target_column = 0;
+	
+	if (!c || !c->mon || c->isfloating) {
+		return;
+	}
+
+	/* Use adjusted monitor area (accounting for gaps and statusbar) */
+	m = c->mon;
+	adjusted_area = m->w;
+	
+	/* Adjust for statusbar */
+	if (statusbar_visible) {
+		if (strcmp(statusbar_position, "top") == 0) {
+			adjusted_area.y += statusbar_height + outergappx;
+			adjusted_area.height -= statusbar_height + outergappx;
+		} else if (strcmp(statusbar_position, "bottom") == 0) {
+			adjusted_area.height -= statusbar_height + outergappx;
+		} else if (strcmp(statusbar_position, "left") == 0) {
+			adjusted_area.x += statusbar_height + outergappx;
+			adjusted_area.width -= statusbar_height + outergappx;
+		} else if (strcmp(statusbar_position, "right") == 0) {
+			adjusted_area.width -= statusbar_height + outergappx;
+		}
+	}
+	
+	/* Apply outer gaps */
+	adjusted_area.x += outergappx;
+	adjusted_area.y += outergappx;
+	adjusted_area.width -= 2 * outergappx;
+	adjusted_area.height -= 2 * outergappx;
+	
+	adjusted_center_x = adjusted_area.x + (adjusted_area.width / 2.0);
+	target_column = (x < adjusted_center_x) ? 0 : 1; /* 0 = left, 1 = right */
+	
+	wlr_log(WLR_DEBUG, "[nixtile] Tile movement: x=%.1f, center=%.1f, current_column=%d, target_column=%d", 
+		x, adjusted_center_x, c->column_group, target_column);
+	
+	/* Count tiles in target column and find closest tile */
+	wl_list_for_each(temp_c, &clients, link) {
+		if (temp_c == c || temp_c->mon != m || temp_c->isfloating) {
+			continue;
+		}
+		
+		if (temp_c->column_group == target_column) {
+			tiles_in_target_column++;
+			
+			/* Calculate distance from drop point to tile center */
+			double tile_center_x = temp_c->geom.x + (temp_c->geom.width / 2.0);
+			double tile_center_y = temp_c->geom.y + (temp_c->geom.height / 2.0);
+			double distance = sqrt(pow(x - tile_center_x, 2) + pow(y - tile_center_y, 2));
+			
+			if (distance < closest_distance) {
+				closest_distance = distance;
+				target_tile = temp_c;
+			}
+		}
+	}
+	
+	/* Count tiles in source column */
+	int tiles_in_source_column = 0;
+	wl_list_for_each(temp_c, &clients, link) {
+		if (temp_c != c && temp_c->mon == m && !temp_c->isfloating && temp_c->column_group == c->column_group) {
+			tiles_in_source_column++;
+		}
+	}
+	
+	if (c->column_group == target_column) {
+		/* INTRA-COLUMN MOVEMENT: Reorder within same column */
+		if (!target_tile) {
+			wlr_log(WLR_DEBUG, "[nixtile] Intra-column: No target tile found");
+			return;
+		}
+		
+		wlr_log(WLR_DEBUG, "[nixtile] Intra-column reordering in column %d", target_column);
+		
+		/* Direct list manipulation for intra-column reordering */
+		wl_list_remove(&c->link);
+		if (y < target_tile->geom.y + (target_tile->geom.height / 2.0)) {
+			/* Insert before target tile */
+			wl_list_insert(target_tile->link.prev, &c->link);
+			wlr_log(WLR_DEBUG, "[nixtile] Inserted before target tile");
+		} else {
+			/* Insert after target tile */
+			wl_list_insert(&target_tile->link, &c->link);
+			wlr_log(WLR_DEBUG, "[nixtile] Inserted after target tile");
+		}
+		
+		/* Reset height factors */
+		c->height_factor = 1.0f;
+		target_tile->height_factor = 1.0f;
+		
+	} else {
+		/* INTER-COLUMN MOVEMENT: Intelligent movement based on source and target */
+		if (tiles_in_target_column == 0) {
+			/* Target column is empty - simple column change */
+			wlr_log(WLR_DEBUG, "[nixtile] Moving to empty column %d", target_column);
+			c->column_group = target_column;
+			c->height_factor = 1.0f;
+			
+		} else if (tiles_in_source_column == 0 && tiles_in_target_column == 1) {
+			/* SINGLE TILE vs SINGLE TILE: Simple swap */
+			wlr_log(WLR_DEBUG, "[nixtile] Swapping single tiles between columns");
+			int temp_column = c->column_group;
+			c->column_group = target_tile->column_group;
+			target_tile->column_group = temp_column;
+			
+			/* Reset height factors */
+			c->height_factor = 1.0f;
+			target_tile->height_factor = 1.0f;
+			
+		} else if (tiles_in_source_column == 0 && tiles_in_target_column > 1) {
+			/* SINGLE TILE to MULTI-TILE COLUMN: Entire column swap */
+			wlr_log(WLR_DEBUG, "[nixtile] Swapping single tile with entire column %d", target_column);
+			
+			/* Swap all tiles in target column to source column */
+		wl_list_for_each(temp_c, &clients, link) {
+				if (temp_c != c && temp_c->mon == m && !temp_c->isfloating && temp_c->column_group == target_column) {
+					temp_c->column_group = c->column_group;
+					temp_c->height_factor = 1.0f;
+				}
+			}
+			
+			/* Move single tile to target column */
+			c->column_group = target_column;
+			c->height_factor = 1.0f;
+			
+		} else if (tiles_in_target_column == 1) {
+			/* MULTI-TILE to SINGLE TILE: Add to single tile column */
+			wlr_log(WLR_DEBUG, "[nixtile] Adding to single-tile column %d", target_column);
+			c->column_group = target_column;
+			c->height_factor = 1.0f;
+			target_tile->height_factor = 1.0f;
+			
+			/* Position relative to target tile based on drop position */
+			wl_list_remove(&c->link);
+			if (y < target_tile->geom.y + (target_tile->geom.height / 2.0)) {
+				/* Insert before target tile */
+				wl_list_insert(target_tile->link.prev, &c->link);
+				wlr_log(WLR_DEBUG, "[nixtile] Positioned before single tile");
+			} else {
+				/* Insert after target tile */
+				wl_list_insert(&target_tile->link, &c->link);
+				wlr_log(WLR_DEBUG, "[nixtile] Positioned after single tile");
+			}
+			
+		} else {
+			/* MULTI-TILE to MULTI-TILE: Insert into target column */
+			wlr_log(WLR_DEBUG, "[nixtile] Inserting into multi-tile column %d", target_column);
+			c->column_group = target_column;
+			c->height_factor = 1.0f;
+			
+			/* Position relative to closest target tile */
+			if (target_tile) {
+				wl_list_remove(&c->link);
+				if (y < target_tile->geom.y + (target_tile->geom.height / 2.0)) {
+					/* Insert before target tile */
+					wl_list_insert(target_tile->link.prev, &c->link);
+				} else {
+					/* Insert after target tile */
+					wl_list_insert(&target_tile->link, &c->link);
+				}
+			}
+		}
+	}
+	
+	/* CRITICAL: Ensure tile remains tiled */
+	c->isfloating = 0;
+	if (target_tile) {
+		target_tile->isfloating = 0;
+	}
+	
+	/* Force layout update to reflect the movement */
+	arrange(m);
+	
+	wlr_log(WLR_DEBUG, "[nixtile] Tile movement completed: tiles remain tiled");
+}
+
+void
+swap_tiles_in_list(Client *c1, Client *c2)
+{
+	struct wl_list *c1_prev, *c1_next, *c2_prev, *c2_next;
+	
+	if (!c1 || !c2 || c1 == c2) {
+		return;
+	}
+	
+	/* Store the link pointers */
+	c1_prev = c1->link.prev;
+	c1_next = c1->link.next;
+	c2_prev = c2->link.prev;
+	c2_next = c2->link.next;
+	
+	/* Remove both from list */
+	wl_list_remove(&c1->link);
+	wl_list_remove(&c2->link);
+	
+	/* Insert c1 where c2 was */
+	wl_list_insert(c2_prev, &c1->link);
+	
+	/* Insert c2 where c1 was */
+	wl_list_insert(c1_prev, &c2->link);
+	
+	wlr_log(WLR_DEBUG, "[nixtile] Swapped tile positions in list");
+}
+
+void
+handletiledrop_old(Client *c, double x, double y)
+{
+	if (!c || !c->mon || c->isfloating) {
+		return;
+	}
+
+	/* Use adjusted monitor area (accounting for gaps and statusbar) */
+	Monitor *m = c->mon;
+	struct wlr_box adjusted_area = m->w;
+	
+	/* Adjust for statusbar */
+	if (statusbar_visible) {
+		if (strcmp(statusbar_position, "top") == 0) {
+			adjusted_area.y += statusbar_height + outergappx;
+			adjusted_area.height -= statusbar_height + outergappx;
+		} else if (strcmp(statusbar_position, "bottom") == 0) {
+			adjusted_area.height -= statusbar_height + outergappx;
+		} else if (strcmp(statusbar_position, "left") == 0) {
+			adjusted_area.x += statusbar_height + outergappx;
+			adjusted_area.width -= statusbar_height + outergappx;
+		} else if (strcmp(statusbar_position, "right") == 0) {
+			adjusted_area.width -= statusbar_height + outergappx;
+		}
+	}
+	
+	/* Apply outer gaps */
+	adjusted_area.x += outergappx;
+	adjusted_area.y += outergappx;
+	adjusted_area.width -= 2 * outergappx;
+	adjusted_area.height -= 2 * outergappx;
+	
+	double adjusted_center_x = adjusted_area.x + (adjusted_area.width / 2.0);
+	int target_column = (x < adjusted_center_x) ? 0 : 1; /* 0 = left, 1 = right */
+	
+	wlr_log(WLR_DEBUG, "[nixtile] Tile drop: x=%.1f, adjusted_center=%.1f, current_column=%d, target_column=%d", 
+		x, adjusted_center_x, c->column_group, target_column);
+	
+	/* If already in target column, determine insertion position within column */
+	if (c->column_group == target_column) {
+		/* Same column - find insertion position based on Y coordinate */
+		Client *insert_after = NULL;
+		Client *temp_c;
+		
+		/* Find tiles in same column and determine insertion point based on Y position */
+		Client *closest_tile = NULL;
+		double closest_distance = INFINITY;
+		
+		wl_list_for_each(temp_c, &clients, link) {
+			if (temp_c == c || temp_c->mon != m || temp_c->isfloating || 
+			    temp_c->column_group != target_column) {
+				continue;
+			}
+			
+			/* Calculate distance from drop point to tile center */
+			double tile_center_y = temp_c->geom.y + (temp_c->geom.height / 2.0);
+			double distance = fabs(y - tile_center_y);
+			
+			if (distance < closest_distance) {
+				closest_distance = distance;
+				closest_tile = temp_c;
+			}
+		}
+		
+		/* Determine if we should insert before or after closest tile */
+		if (closest_tile) {
+			double tile_center_y = closest_tile->geom.y + (closest_tile->geom.height / 2.0);
+			if (y > tile_center_y) {
+				insert_after = closest_tile; /* Drop below center = insert after */
+			} else {
+				insert_after = NULL; /* Drop above center = insert before (handled later) */
+			}
+		}
+		
+		/* Reorder within same column */
+		if (insert_after && insert_after != c) {
+			/* Remove c from current position */
+			wl_list_remove(&c->link);
+			/* Insert after target position */
+			wl_list_insert(&insert_after->link, &c->link);
+			wlr_log(WLR_DEBUG, "[nixtile] Reordered tile within column %d (intra-column)", target_column);
+		} else if (!insert_after) {
+			/* Drop at top of column or insert before closest tile */
+			if (closest_tile) {
+				/* Insert before closest tile */
+				wl_list_remove(&c->link);
+				wl_list_insert(closest_tile->link.prev, &c->link);
+				wlr_log(WLR_DEBUG, "[nixtile] Moved tile before closest tile in column %d (intra-column)", target_column);
+			} else {
+				/* No tiles in column or no closest tile - find first tile and insert before it */
+				Client *first_in_column = NULL;
+				Client *temp_c;
+				wl_list_for_each(temp_c, &clients, link) {
+					if (temp_c != c && temp_c->mon == m && !temp_c->isfloating && 
+					    temp_c->column_group == target_column) {
+						first_in_column = temp_c;
+						break;
+					}
+				}
+				
+				if (first_in_column && first_in_column != c) {
+					/* Remove c from current position */
+					wl_list_remove(&c->link);
+					/* Insert before first tile in column */
+					wl_list_insert(first_in_column->link.prev, &c->link);
+					wlr_log(WLR_DEBUG, "[nixtile] Moved tile to top of column %d (intra-column)", target_column);
+				}
+			}
+		}
+	} else {
+		/* Different column - move to target column */
+		int old_column = c->column_group;
+		c->column_group = target_column;
+		
+		/* Find insertion position in target column based on Y coordinate */
+		Client *insert_after = NULL;
+		Client *temp_c;
+		Client *closest_tile = NULL;
+		double closest_distance = INFINITY;
+		
+		wl_list_for_each(temp_c, &clients, link) {
+			if (temp_c == c || temp_c->mon != m || temp_c->isfloating || 
+			    temp_c->column_group != target_column) {
+				continue;
+			}
+			
+			/* Calculate distance from drop point to tile center */
+			double tile_center_y = temp_c->geom.y + (temp_c->geom.height / 2.0);
+			double distance = fabs(y - tile_center_y);
+			
+			if (distance < closest_distance) {
+				closest_distance = distance;
+				closest_tile = temp_c;
+			}
+		}
+		
+		/* Determine if we should insert before or after closest tile */
+		if (closest_tile) {
+			double tile_center_y = closest_tile->geom.y + (closest_tile->geom.height / 2.0);
+			if (y > tile_center_y) {
+				insert_after = closest_tile; /* Drop below center = insert after */
+			} else {
+				insert_after = NULL; /* Drop above center = insert before (handled later) */
+			}
+		}
+		
+		/* Remove from current position */
+		wl_list_remove(&c->link);
+		
+		if (insert_after) {
+			/* Insert after target position in target column */
+			wl_list_insert(&insert_after->link, &c->link);
+		} else {
+			/* Insert at beginning of target column */
+			Client *first_in_column = NULL;
+			wl_list_for_each(temp_c, &clients, link) {
+				if (temp_c->mon == m && !temp_c->isfloating && 
+				    temp_c->column_group == target_column) {
+					first_in_column = temp_c;
+					break;
+				}
+			}
+			
+			if (first_in_column) {
+				/* Insert before first tile in target column */
+				wl_list_insert(first_in_column->link.prev, &c->link);
+			} else {
+				/* Target column is empty, add to end of list */
+				wl_list_insert(clients.prev, &c->link);
+			}
+		}
+		
+		/* Reset height factors for both columns */
+		wl_list_for_each(temp_c, &clients, link) {
+			if (temp_c->mon == m && !temp_c->isfloating && 
+			    (temp_c->column_group == old_column || temp_c->column_group == target_column)) {
+				temp_c->height_factor = 1.0f;
+			}
+		}
+		
+		wlr_log(WLR_DEBUG, "[nixtile] Moved tile from column %d to column %d (cross-column swap)", old_column, target_column);
+	}
+	
+	/* Force layout update */
+	arrange(m);
 }
 
 void
@@ -2387,6 +2809,7 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 	if (cursor_mode == CurMove) {
 		/* Validate grabc before moving */
 		if (!grabc || !grabc->mon || !grabc->scene) {
+			wlr_log(WLR_DEBUG, "[nixtile] CurMove: Invalid grabc, resetting to CurNormal");
 			cursor_mode = CurNormal;
 			return;
 		}
@@ -2619,6 +3042,8 @@ moveresize(const Arg *arg)
 		grabcx = (int)round(cursor->x) - grabc->geom.x;
 		grabcy = (int)round(cursor->y) - grabc->geom.y;
 		wlr_cursor_set_xcursor(cursor, cursor_mgr, "all-scroll");
+		wlr_log(WLR_DEBUG, "[nixtile] Started tile dragging: client=%p, column=%d, cursor=%.1f,%.1f", 
+			(void*)grabc, grabc->column_group, cursor->x, cursor->y);
 		break;
 		
 	case CurSmartResize: {
@@ -3056,7 +3481,6 @@ quit(const Arg *arg)
 
 // --- Status bar implementation ---
 
-int statusbar_visible = 1; // 1 = visible, 0 = hidden
 static struct wlr_scene_rect *statusbar_rect = NULL;
 
 int launcher_just_closed = 0;
@@ -3977,32 +4401,41 @@ tile(Monitor *m)
 		}
 	} else if (n == 2) {
 		/* Two tiles: 50/50 horizontal split with mfact resizing support */
+		/* CRITICAL FIX: Respect column_group assignments for proper tile swapping */
 		int left_width = (int)roundf(adjusted_area.width * m->mfact);
 		int right_width = adjusted_area.width - left_width - innergappx;
 		
-		i = 0;
+		Client *left_tile = NULL, *right_tile = NULL;
+		
+		/* Find tiles based on column_group, not list order */
 		wl_list_for_each(c, &clients, link) {
 			if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 				continue;
 			
-			if (i == 0) {
-				/* Left tile */
-				resize(c, (struct wlr_box){
-					.x = adjusted_area.x,
-					.y = adjusted_area.y,
-					.width = left_width,
-					.height = adjusted_area.height
-				}, 0);
+			if (c->column_group == 0) {
+				left_tile = c;
 			} else {
-				/* Right tile */
-				resize(c, (struct wlr_box){
-					.x = adjusted_area.x + left_width + innergappx,
-					.y = adjusted_area.y,
-					.width = right_width,
-					.height = adjusted_area.height
-				}, 0);
+				right_tile = c;
 			}
-			i++;
+		}
+		
+		/* Place tiles based on column_group */
+		if (left_tile) {
+			resize(left_tile, (struct wlr_box){
+				.x = adjusted_area.x,
+				.y = adjusted_area.y,
+				.width = left_width,
+				.height = adjusted_area.height
+			}, 0);
+		}
+		
+		if (right_tile) {
+			resize(right_tile, (struct wlr_box){
+				.x = adjusted_area.x + left_width + innergappx,
+				.y = adjusted_area.y,
+				.width = right_width,
+				.height = adjusted_area.height
+			}, 0);
 		}
 	} else {
 		/* TRUE DUAL-STACK LAYOUT - BOTH COLUMNS ARE INDEPENDENT */
