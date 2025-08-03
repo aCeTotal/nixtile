@@ -167,6 +167,7 @@ typedef struct {
 	uint32_t tags;
 	int isfloating, isurgent, isfullscreen;
 	uint32_t resize; /* configure serial of a pending resize */
+	float height_factor; /* for vertical resizing - default 1.0 */
 } Client;
 
 typedef struct {
@@ -438,10 +439,17 @@ static Client *grabc;
 static int grabcx, grabcy, grabedge; /* client-relative */
 static float initial_mfact; /* for pointer-relative resizing */
 static int initial_edge_x; /* for pointer-relative resizing */
+static int initial_edge_y; /* for vertical pointer-relative resizing */
+static Client *initial_resize_client; /* client being resized vertically */
+static Client *initial_resize_neighbor; /* neighbor client for vertical resizing */
 
 /* Frame-synced resizing variables */
 static bool resize_pending = false;
 static float pending_target_mfact = 0.0f;
+static bool vertical_resize_pending = false;
+static float pending_target_height_factor = 0.0f;
+static Client *vertical_resize_client = NULL;
+static Client *vertical_resize_neighbor = NULL;
 static struct wl_event_source *resize_timer = NULL;
 
 static struct wlr_output_layout *output_layout;
@@ -1487,6 +1495,7 @@ createnotify(struct wl_listener *listener, void *data)
 	c = toplevel->base->data = ecalloc(1, sizeof(*c));
 	c->surface.xdg = toplevel->base;
 	c->bw = borderpx;
+	c->height_factor = 1.0f; /* Initialize height factor for vertical resizing */
 
 	LISTEN(&toplevel->base->surface->events.commit, &c->commit, commitnotify);
 	LISTEN(&toplevel->base->surface->events.map, &c->map, mapnotify);
@@ -2335,28 +2344,63 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			.width = new_width, .height = new_height}, 1);
 		return;
 	} else if (cursor_mode == CurTileResize) {
-		/* Frame-synced 1:1 pointer-relative resizing - butter-smooth at all speeds */
+		/* Frame-synced bi-axial 1:1 pointer-relative resizing - butter-smooth at all speeds */
 		if (!selmon || !grabc) {
 			cursor_mode = CurNormal;
 			return;
 		}
 		
-		/* Calculate how much mouse has moved from initial position */
-		float mouse_delta = cursor->x - (float)grabcx;
+		/* Calculate horizontal mouse movement */
+		float horizontal_delta = cursor->x - (float)grabcx;
+		float vertical_delta = cursor->y - (float)grabcy;
 		
-		/* Calculate target mfact based on 1:1 mouse movement */
-		float target_mfact = initial_mfact + (mouse_delta / (float)selmon->w.width);
+		/* Handle horizontal resizing (mfact) */
+		if (fabs(horizontal_delta) > 1.0f) {
+			float target_mfact = initial_mfact + (horizontal_delta / (float)selmon->w.width);
+			/* Clamp to valid range */
+			if (target_mfact < 0.1f) target_mfact = 0.1f;
+			if (target_mfact > 0.9f) target_mfact = 0.9f;
+			
+			pending_target_mfact = target_mfact;
+			resize_pending = true;
+		}
 		
-		/* Clamp to valid range */
-		if (target_mfact < 0.1f) target_mfact = 0.1f;
-		if (target_mfact > 0.9f) target_mfact = 0.9f;
+		/* Handle vertical resizing (1:1 pointer-relative exactly like horizontal) */
+		if (fabs(vertical_delta) > 1.0f && initial_resize_neighbor) {
+			/* Calculate where vertical edge should be (1:1 with mouse movement) */
+			int new_edge_y = initial_edge_y + (int)vertical_delta;
+			
+			/* Calculate new heights for target and neighbor tiles */
+			int target_new_height = new_edge_y - initial_resize_client->geom.y;
+			int neighbor_old_bottom = initial_resize_neighbor->geom.y + initial_resize_neighbor->geom.height;
+			int neighbor_new_height = neighbor_old_bottom - new_edge_y;
+			
+			/* Enforce minimum heights (same as MIN_WINDOW_HEIGHT) */
+			if (target_new_height < 50) {
+				target_new_height = 50;
+				new_edge_y = initial_resize_client->geom.y + target_new_height;
+				neighbor_new_height = neighbor_old_bottom - new_edge_y;
+			}
+			if (neighbor_new_height < 50) {
+				neighbor_new_height = 50;
+				new_edge_y = neighbor_old_bottom - neighbor_new_height;
+				target_new_height = new_edge_y - initial_resize_client->geom.y;
+			}
+			
+			/* Convert to height factors for layout system */
+			int total_height = target_new_height + neighbor_new_height;
+			if (total_height > 0) {
+				float target_factor = (2.0f * target_new_height) / (float)total_height;
+				
+				pending_target_height_factor = target_factor;
+				vertical_resize_client = initial_resize_client;
+				vertical_resize_neighbor = initial_resize_neighbor;
+				vertical_resize_pending = true;
+			}
+		}
 		
-		/* Always update pending target for smooth tracking at all speeds */
-		pending_target_mfact = target_mfact;
-		resize_pending = true;
-		
-		/* Schedule frame-synced update if not already scheduled */
-		if (!resize_timer) {
+		/* Schedule frame-synced update if any resizing is pending */
+		if ((resize_pending || vertical_resize_pending) && !resize_timer) {
 			/* Use 8ms timer for 120Hz+ smoothness (faster than 60Hz) */
 			resize_timer = wl_event_loop_add_timer(wl_display_get_event_loop(dpy),
 											   frame_synced_resize_callback, NULL);
@@ -2509,21 +2553,36 @@ moveresize(const Arg *arg)
 	}
 }
 
-/* Frame-synced resize callback - matches screen Hz for butter-smooth resizing */
+/* Frame-synced resize callback - matches screen Hz for butter-smooth bi-axial resizing */
 static int
 frame_synced_resize_callback(void *data)
 {
-	if (!resize_pending || !selmon) {
+	if ((!resize_pending && !vertical_resize_pending) || !selmon) {
 		resize_timer = NULL;
 		return 0;
 	}
 	
-	/* Apply the pending mfact change */
-	selmon->mfact = pending_target_mfact;
+	/* Apply pending horizontal mfact change */
+	if (resize_pending) {
+		selmon->mfact = pending_target_mfact;
+		resize_pending = false;
+	}
+	
+	/* Apply pending vertical height factor change */
+	if (vertical_resize_pending && vertical_resize_client && vertical_resize_neighbor) {
+		vertical_resize_client->height_factor = pending_target_height_factor;
+		/* Adjust neighbor to maintain total height */
+		float remaining = 2.0f - pending_target_height_factor;
+		if (remaining > 0.2f) {
+			vertical_resize_neighbor->height_factor = remaining;
+		}
+		vertical_resize_pending = false;
+	}
+	
+	/* Apply layout changes */
 	arrange(selmon);
 	
-	/* Reset pending state */
-	resize_pending = false;
+	/* Reset timer state */
 	resize_timer = NULL;
 	
 	return 0;
@@ -2551,6 +2610,36 @@ tileresize(const Arg *arg)
 	/* Calculate initial tile edge position for 1:1 tracking */
 	int master_width = (int)(selmon->w.width * selmon->mfact);
 	initial_edge_x = selmon->w.x + master_width;
+	
+	/* Initialize vertical resizing state */
+	initial_resize_client = grabc;
+	initial_resize_neighbor = NULL;
+	initial_edge_y = grabc->geom.y + grabc->geom.height; /* Bottom edge of current tile */
+	
+	/* Find vertical neighbor for potential vertical resizing */
+	Client *c;
+	int current_index = 0, target_index = 0;
+	wl_list_for_each(c, &clients, link) {
+		if (!VISIBLEON(c, selmon) || c->isfloating || c->isfullscreen)
+			continue;
+		if (c == grabc) {
+			target_index = current_index;
+			break;
+		}
+		current_index++;
+	}
+	
+	/* Find neighbor (next client in stack) */
+	current_index = 0;
+	wl_list_for_each(c, &clients, link) {
+		if (!VISIBLEON(c, selmon) || c->isfloating || c->isfullscreen)
+			continue;
+		if (current_index == target_index + 1) {
+			initial_resize_neighbor = c;
+			break;
+		}
+		current_index++;
+	}
 	
 	/* Enter tile resize mode */
 	cursor_mode = CurTileResize;
@@ -3654,10 +3743,34 @@ tile(Monitor *m)
 
 			my += c->geom.height + innergappx;
 		} else {
-			/* Stack area */
+			/* Stack area with height_factor support for vertical resizing */
 			int stack_x = adjusted_area.x + mw + innergappx;
 			int stack_width = adjusted_area.width - mw - innergappx;
-			int height = (adjusted_area.height - ty) / (n - i);
+			
+			/* Calculate height using height_factor for smooth vertical resizing */
+			int available_height = adjusted_area.height - ty;
+			int remaining_windows = n - i;
+			
+			/* Calculate total height factors for remaining windows */
+			float total_factors = 0.0f;
+			Client *temp_c;
+			int temp_i = 0;
+			wl_list_for_each(temp_c, &clients, link) {
+				if (!VISIBLEON(temp_c, m) || temp_c->isfloating || temp_c->isfullscreen)
+					continue;
+				if (temp_i >= i) {
+					total_factors += temp_c->height_factor;
+				}
+				temp_i++;
+			}
+			
+			/* Calculate proportional height based on height_factor */
+			int height;
+			if (total_factors > 0.0f) {
+				height = (int)((available_height * c->height_factor) / total_factors);
+			} else {
+				height = available_height / remaining_windows;
+			}
 			
 			/* Apply inner gap between windows, but not after the last window */
 			if (i < n - 1)
@@ -4064,6 +4177,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->surface.xwayland = xsurface;
 	c->type = X11;
 	c->bw = client_is_unmanaged(c) ? 0 : borderpx;
+	c->height_factor = 1.0f; /* Initialize height factor for vertical resizing */
 
 	/* Listen to the various events it can emit */
 	LISTEN(&xsurface->events.associate, &c->associate, associatex11);
