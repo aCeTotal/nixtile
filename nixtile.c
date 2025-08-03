@@ -1015,15 +1015,19 @@ buttonpress(struct wl_listener *listener, void *data)
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		/* TODO: should reset to the pointer focus's current setcursor */
 		if (!locked && cursor_mode != CurNormal && cursor_mode != CurPressed) {
+			/* MOUSE BUTTON ISOLATION: Store original cursor mode before reset */
+			int original_cursor_mode = cursor_mode;
+			
 			/* Safely reset cursor */
 			if (cursor && cursor_mgr) {
 				wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
 			}
 			cursor_mode = CurNormal;
-			/* Handle tile drop - either to new monitor or within same monitor for column switching */
-			if (grabc && cursor) {
+			
+			/* MOUSE BUTTON ISOLATION: Only handle tile movement from left mouse button (CurMove) */
+			if (grabc && cursor && original_cursor_mode == CurMove) {
 				selmon = xytomon(cursor->x, cursor->y);
-				wlr_log(WLR_DEBUG, "[nixtile] Button release: grabc=%p, cursor=%.1f,%.1f, selmon=%p, grabc->mon=%p", 
+				wlr_log(WLR_DEBUG, "[nixtile] Button release (CurMove): grabc=%p, cursor=%.1f,%.1f, selmon=%p, grabc->mon=%p", 
 					(void*)grabc, cursor->x, cursor->y, (void*)selmon, (void*)(grabc ? grabc->mon : NULL));
 				if (selmon && grabc->mon) {
 					if (selmon != grabc->mon) {
@@ -1039,6 +1043,9 @@ buttonpress(struct wl_listener *listener, void *data)
 				} else {
 					wlr_log(WLR_DEBUG, "[nixtile] Button release: selmon or grabc->mon is NULL");
 				}
+			} else if (grabc && cursor && original_cursor_mode != CurMove) {
+				/* RIGHT MOUSE BUTTON ISOLATION: Resize mode - no tile movement allowed */
+				wlr_log(WLR_DEBUG, "[nixtile] Button release (resize mode): tile movement blocked, original_cursor_mode=%d", original_cursor_mode);
 			} else {
 				wlr_log(WLR_DEBUG, "[nixtile] Button release: grabc or cursor is NULL");
 			}
@@ -1581,6 +1588,42 @@ createnotify(struct wl_listener *listener, void *data)
 void
 handletiledrop(Client *c, double x, double y)
 {
+	wlr_log(WLR_DEBUG, "[nixtile] *** HANDLETILEDROP CALLED *** x=%.1f y=%.1f client=%p", x, y, (void*)c);
+	
+	/* BOUNDARY CONSTRAINTS: Prevent dragging outside monitor edges */
+	Monitor *drag_monitor = selmon; /* Use selected monitor for boundary constraints */
+	
+	/* Clamp coordinates to monitor boundaries */
+	double min_x = drag_monitor->w.x;
+	double max_x = drag_monitor->w.x + drag_monitor->w.width;
+	double min_y = drag_monitor->w.y;
+	double max_y = drag_monitor->w.y + drag_monitor->w.height;
+	
+	/* Apply boundary constraints */
+	if (x < min_x) {
+		x = min_x;
+		wlr_log(WLR_DEBUG, "[nixtile] BOUNDARY: Clamped x to left edge: %.1f", x);
+	}
+	if (x > max_x) {
+		x = max_x;
+		wlr_log(WLR_DEBUG, "[nixtile] BOUNDARY: Clamped x to right edge: %.1f", x);
+	}
+	if (y < min_y) {
+		y = min_y;
+		wlr_log(WLR_DEBUG, "[nixtile] BOUNDARY: Clamped y to top edge: %.1f", y);
+	}
+	if (y > max_y) {
+		y = max_y;
+		wlr_log(WLR_DEBUG, "[nixtile] BOUNDARY: Clamped y to bottom edge: %.1f", y);
+	}
+	
+	wlr_log(WLR_DEBUG, "[nixtile] BOUNDARY: Final coordinates x=%.1f y=%.1f", x, y);
+	
+	/* SAFETY: Store original position in case we need to restore it */
+	struct wlr_box original_geom = c->geom;
+	int original_column = c->column_group;
+	float original_height_factor = c->height_factor;
+	
 	Monitor *m;
 	struct wlr_box adjusted_area;
 	double adjusted_center_x;
@@ -1621,30 +1664,181 @@ handletiledrop(Client *c, double x, double y)
 	adjusted_area.height -= 2 * outergappx;
 	
 	adjusted_center_x = adjusted_area.x + (adjusted_area.width / 2.0);
-	target_column = (x < adjusted_center_x) ? 0 : 1; /* 0 = left, 1 = right */
 	
-	wlr_log(WLR_DEBUG, "[nixtile] Tile movement: x=%.1f, center=%.1f, current_column=%d, target_column=%d", 
-		x, adjusted_center_x, c->column_group, target_column);
+	/* INTRA-COLUMN DETECTION: Check for tile-to-tile overlap in same column */
+	bool prefer_intra_column = false;
+	Client *potential_intra_target = NULL;
+	int same_column_tiles = 0;
 	
-	/* Count tiles in target column and find closest tile */
+	wlr_log(WLR_ERROR, "[nixtile] VERTICAL DEBUG: Starting intra-column detection for client %p in column %d", (void*)c, c->column_group);
+	wlr_log(WLR_ERROR, "[nixtile] VERTICAL DEBUG: Mouse position x=%.1f, y=%.1f", x, y);
+	wlr_log(WLR_ERROR, "[nixtile] DRAGGED TILE GEOMETRY: x=%.1f y=%.1f w=%.1f h=%.1f", (double)c->geom.x, (double)c->geom.y, (double)c->geom.width, (double)c->geom.height);
+	
+	/* Calculate the current position of the dragged tile during drag */
+	double dragged_x = (double)((int)round(x) - grabcx);
+	double dragged_y = (double)((int)round(y) - grabcy);
+	double dragged_width = (double)c->geom.width;
+	double dragged_height = (double)c->geom.height;
+	
+	wlr_log(WLR_ERROR, "[nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=%.1f y=%.1f w=%.1f h=%.1f", 
+	        dragged_x, dragged_y, dragged_width, dragged_height);
+	
+	/* Check for tile-to-tile overlap in same column (VERTICAL movement only) */
 	wl_list_for_each(temp_c, &clients, link) {
-		if (temp_c == c || temp_c->mon != m || temp_c->isfloating) {
+		if (temp_c == c || temp_c->mon != m || temp_c->isfloating)
 			continue;
-		}
 		
-		if (temp_c->column_group == target_column) {
-			tiles_in_target_column++;
+		if (temp_c->column_group == c->column_group) {
+			same_column_tiles++;
 			
-			/* Calculate distance from drop point to tile center */
-			double tile_center_x = temp_c->geom.x + (temp_c->geom.width / 2.0);
-			double tile_center_y = temp_c->geom.y + (temp_c->geom.height / 2.0);
-			double distance = sqrt(pow(x - tile_center_x, 2) + pow(y - tile_center_y, 2));
+			/* Skip tiles with invalid geometry */
+			if (temp_c->geom.width <= 0 || temp_c->geom.height <= 0) {
+				wlr_log(WLR_ERROR, "[nixtile] SKIPPING: Invalid geometry for tile %p", (void*)temp_c);
+				continue;
+			}
 			
-			if (distance < closest_distance) {
-				closest_distance = distance;
-				target_tile = temp_c;
+			wlr_log(WLR_ERROR, "[nixtile] VERTICAL OVERLAP CHECK: Target tile %p at x=%.1f y=%.1f w=%.1f h=%.1f", 
+			        (void*)temp_c, (double)temp_c->geom.x, (double)temp_c->geom.y, (double)temp_c->geom.width, (double)temp_c->geom.height);
+			
+			/* Pure rectangle overlap test for VERTICAL movement */
+			bool tiles_overlap = !(dragged_x >= temp_c->geom.x + temp_c->geom.width ||  /* dragged is completely right of target */
+			                       dragged_x + dragged_width <= temp_c->geom.x ||      /* dragged is completely left of target */
+			                       dragged_y >= temp_c->geom.y + temp_c->geom.height || /* dragged is completely below target */
+			                       dragged_y + dragged_height <= temp_c->geom.y);       /* dragged is completely above target */
+			
+			if (tiles_overlap) {
+				wlr_log(WLR_ERROR, "[nixtile] VERTICAL TILE OVERLAP DETECTED! Dragged tile overlaps target %p", (void*)temp_c);
+				prefer_intra_column = true;
+				potential_intra_target = temp_c;
+				break;
 			}
 		}
+	}
+	
+	wlr_log(WLR_DEBUG, "[nixtile] VERTICAL DEBUG: Found %d tiles in same column, prefer_intra_column=%d", same_column_tiles, prefer_intra_column);
+	
+	/* INTELLIGENT TARGET COLUMN SELECTION WITH DRAG DIRECTION PRIORITY */
+	int normal_target_column = (x < adjusted_center_x) ? 0 : 1; /* Normal horizontal logic */
+	
+	/* Calculate drag direction to determine user intent */
+	double drag_delta_x = x - grabcx;
+	double drag_delta_y = y - grabcy;
+	double abs_delta_x = fabs(drag_delta_x);
+	double abs_delta_y = fabs(drag_delta_y);
+	
+	/* MAXIMUM OVERLAP PRIORITY: Choose movement based on largest overlap area */
+	if (prefer_intra_column && normal_target_column != c->column_group) {
+		/* CONFLICT: Both vertical and horizontal movement detected - calculate overlap areas */
+		wlr_log(WLR_ERROR, "[nixtile] MOVEMENT CONFLICT: Calculating overlap areas to determine priority");
+		
+		/* Calculate vertical overlap area (already have potential_intra_target) */
+		double vertical_overlap_area = 0.0;
+		if (potential_intra_target) {
+			/* Calculate intersection rectangle */
+			double left = fmax(dragged_x, potential_intra_target->geom.x);
+			double right = fmin(dragged_x + dragged_width, potential_intra_target->geom.x + potential_intra_target->geom.width);
+			double top = fmax(dragged_y, potential_intra_target->geom.y);
+			double bottom = fmin(dragged_y + dragged_height, potential_intra_target->geom.y + potential_intra_target->geom.height);
+			
+			if (right > left && bottom > top) {
+				vertical_overlap_area = (right - left) * (bottom - top);
+			}
+		}
+		
+		/* Find horizontal overlap area by checking tiles in target column */
+		double horizontal_overlap_area = 0.0;
+		Client *horizontal_target = NULL;
+		wl_list_for_each(temp_c, &clients, link) {
+			if (temp_c == c || temp_c->mon != m || temp_c->isfloating || temp_c->column_group != normal_target_column) {
+				continue;
+			}
+			
+			/* Calculate intersection rectangle with this horizontal target */
+			double left = fmax(dragged_x, temp_c->geom.x);
+			double right = fmin(dragged_x + dragged_width, temp_c->geom.x + temp_c->geom.width);
+			double top = fmax(dragged_y, temp_c->geom.y);
+			double bottom = fmin(dragged_y + dragged_height, temp_c->geom.y + temp_c->geom.height);
+			
+			if (right > left && bottom > top) {
+				double overlap_area = (right - left) * (bottom - top);
+				if (overlap_area > horizontal_overlap_area) {
+					horizontal_overlap_area = overlap_area;
+					horizontal_target = temp_c;
+				}
+			}
+		}
+		
+		wlr_log(WLR_ERROR, "[nixtile] OVERLAP AREAS: vertical=%.1f, horizontal=%.1f", 
+			vertical_overlap_area, horizontal_overlap_area);
+		
+		if (horizontal_overlap_area > vertical_overlap_area) {
+			/* Horizontal overlap is larger - prefer horizontal movement */
+			target_column = normal_target_column;
+			prefer_intra_column = false; /* Override intra-column preference */
+			target_tile = horizontal_target; /* Set horizontal target for positioning */
+			wlr_log(WLR_ERROR, "[nixtile] CONFLICT RESOLVED: Horizontal movement preferred (larger overlap: %.1f > %.1f)", 
+				horizontal_overlap_area, vertical_overlap_area);
+		} else {
+			/* Vertical overlap is larger or equal - prefer vertical movement */
+			target_column = c->column_group;
+			target_tile = potential_intra_target;
+			wlr_log(WLR_ERROR, "[nixtile] CONFLICT RESOLVED: Vertical movement preferred (larger overlap: %.1f >= %.1f)", 
+				vertical_overlap_area, horizontal_overlap_area);
+		}
+	} else if (prefer_intra_column) {
+		/* Pure vertical movement - no conflict */
+		target_column = c->column_group;
+		target_tile = potential_intra_target;
+		wlr_log(WLR_DEBUG, "[nixtile] PURE VERTICAL: target_column=%d, target_tile=%p", target_column, (void*)target_tile);
+	} else {
+		/* Pure horizontal movement - no conflict */
+		target_column = normal_target_column;
+		wlr_log(WLR_DEBUG, "[nixtile] PURE HORIZONTAL: target_column=%d", target_column);
+	}
+	
+	wlr_log(WLR_DEBUG, "[nixtile] Tile movement: current_column=%d, target_column=%d, prefer_intra=%d", 
+		c->column_group, target_column, prefer_intra_column);
+	
+	/* INTER-COLUMN DETECTION: Only run if we haven't found an intra-column target */
+	if (!prefer_intra_column) {
+		wlr_log(WLR_DEBUG, "[nixtile] Running inter-column detection (horizontal movement)");
+		wl_list_for_each(temp_c, &clients, link) {
+			if (temp_c == c || temp_c->mon != m || temp_c->isfloating) {
+				continue;
+			}
+			
+			if (temp_c->column_group == target_column) {
+				tiles_in_target_column++;
+				
+				/* RESTORE WORKING HORIZONTAL: Keep 50px for horizontal movement */
+				double edge_sensitivity = 50.0; /* 50px expansion - working horizontal sensitivity */
+				
+				/* Expanded detection zones around all tile edges */
+				double expanded_left = temp_c->geom.x - edge_sensitivity;
+				double expanded_right = temp_c->geom.x + temp_c->geom.width + edge_sensitivity;
+				double expanded_top = temp_c->geom.y - edge_sensitivity;
+				double expanded_bottom = temp_c->geom.y + temp_c->geom.height + edge_sensitivity;
+				
+				/* WORKING HORIZONTAL: Check if mouse is near any edge */
+				bool mouse_near_edges = (x >= expanded_left && x <= expanded_right &&
+				                         y >= expanded_top && y <= expanded_bottom);
+				
+				if (mouse_near_edges) {
+					/* Calculate distance for prioritization (closest wins if multiple overlaps) */
+					double tile_center_x = temp_c->geom.x + (temp_c->geom.width / 2.0);
+					double tile_center_y = temp_c->geom.y + (temp_c->geom.height / 2.0);
+					double distance = sqrt(pow(x - tile_center_x, 2) + pow(y - tile_center_y, 2));
+					
+					if (distance < closest_distance) {
+						closest_distance = distance;
+						target_tile = temp_c;
+						wlr_log(WLR_DEBUG, "[nixtile] HORIZONTAL: Target found near edge, distance=%.1f", distance);
+					}
+				}
+			}
+		}
+	} else {
+		wlr_log(WLR_DEBUG, "[nixtile] Skipping inter-column detection - intra-column target already found");
 	}
 	
 	/* Count tiles in source column */
@@ -1658,22 +1852,34 @@ handletiledrop(Client *c, double x, double y)
 	if (c->column_group == target_column) {
 		/* INTRA-COLUMN MOVEMENT: Reorder within same column */
 		if (!target_tile) {
-			wlr_log(WLR_DEBUG, "[nixtile] Intra-column: No target tile found");
+			wlr_log(WLR_DEBUG, "[nixtile] No target tile found for intra-column movement");
 			return;
 		}
 		
 		wlr_log(WLR_DEBUG, "[nixtile] Intra-column reordering in column %d", target_column);
 		
-		/* Direct list manipulation for intra-column reordering */
+		/* DRAG DIRECTION-BASED POSITIONING: Position based on drag direction, not absolute position */
 		wl_list_remove(&c->link);
-		if (y < target_tile->geom.y + (target_tile->geom.height / 2.0)) {
-			/* Insert before target tile */
+		
+		/* Calculate drag direction from initial grab position to current mouse position */
+		double drag_delta_y = y - grabcy;
+		
+		/* Get original tile position before drag started */
+		double original_tile_center_y = c->geom.y + (c->geom.height / 2.0);
+		double target_center_y = target_tile->geom.y + (target_tile->geom.height / 2.0);
+		
+		wlr_log(WLR_ERROR, "[nixtile] DRAG POSITIONING: drag_delta_y=%.1f, original_center=%.1f, target_center=%.1f", 
+			drag_delta_y, original_tile_center_y, target_center_y);
+		
+		/* Determine placement based on original tile position relative to target */
+		if (original_tile_center_y > target_center_y) {
+			/* Dragged tile was originally BELOW target - dragging UP means insert BEFORE */
 			wl_list_insert(target_tile->link.prev, &c->link);
-			wlr_log(WLR_DEBUG, "[nixtile] Inserted before target tile");
+			wlr_log(WLR_ERROR, "[nixtile] DRAG POSITIONING: Insert BEFORE - dragging up from below");
 		} else {
-			/* Insert after target tile */
+			/* Dragged tile was originally ABOVE target - dragging DOWN means insert AFTER */
 			wl_list_insert(&target_tile->link, &c->link);
-			wlr_log(WLR_DEBUG, "[nixtile] Inserted after target tile");
+			wlr_log(WLR_ERROR, "[nixtile] DRAG POSITIONING: Insert AFTER - dragging down from above");
 		}
 		
 		/* Reset height factors */
@@ -1762,6 +1968,96 @@ handletiledrop(Client *c, double x, double y)
 	
 	/* Force layout update to reflect the movement */
 	arrange(m);
+	
+	/* FULL TILE VISIBILITY CHECK: Ensure entire tile remains visible on screen */
+	bool tile_fully_visible = true;
+	
+	/* Check if entire tile is within monitor bounds */
+	if (c->geom.x < m->w.x || 
+	    c->geom.x + c->geom.width > m->w.x + m->w.width ||
+	    c->geom.y < m->w.y || 
+	    c->geom.y + c->geom.height > m->w.y + m->w.height) {
+		tile_fully_visible = false;
+		wlr_log(WLR_ERROR, "[nixtile] VISIBILITY VIOLATION: Tile partially off-screen");
+		wlr_log(WLR_ERROR, "[nixtile] Tile bounds: x=%d y=%d w=%d h=%d", 
+			c->geom.x, c->geom.y, c->geom.width, c->geom.height);
+		wlr_log(WLR_ERROR, "[nixtile] Monitor bounds: x=%d y=%d w=%d h=%d", 
+			m->w.x, m->w.y, m->w.width, m->w.height);
+	}
+	
+	if (!tile_fully_visible) {
+		/* VISIBILITY VIOLATION: Restore tile to original position and force proper grid placement */
+		wlr_log(WLR_ERROR, "[nixtile] VISIBILITY VIOLATION: Snapping tile back to grid");
+		
+		/* Restore original state completely */
+		c->column_group = original_column;
+		c->height_factor = original_height_factor;
+		c->geom = original_geom;
+		c->isfloating = 0; /* Force tiled */
+		
+		/* Force immediate layout update to restore proper grid positioning */
+		arrange(m);
+		
+		wlr_log(WLR_ERROR, "[nixtile] VISIBILITY VIOLATION: Tile snapped back to valid grid position");
+		return; /* Exit early - tile has been restored */
+	} else {
+		wlr_log(WLR_DEBUG, "[nixtile] VISIBILITY CHECK: Entire tile remains visible on screen");
+	}
+	
+	/* DEBUG: Verify tile order after arrange */
+	wlr_log(WLR_ERROR, "[nixtile] AFTER ARRANGE: Verifying tile order in column %d", c->column_group);
+	int tile_index = 0;
+	wl_list_for_each(temp_c, &clients, link) {
+		if (temp_c->mon == m && !temp_c->isfloating && temp_c->column_group == c->column_group) {
+			wlr_log(WLR_ERROR, "[nixtile] TILE ORDER: Index %d = Client %p (dragged=%s)", 
+				tile_index++, (void*)temp_c, (temp_c == c) ? "YES" : "NO");
+		}
+	}
+	
+	/* STRICT GRID VALIDATION: Ensure tile is always part of the proper grid */
+	bool tile_is_valid = false;
+	
+	/* Check if tile is properly positioned within the tiling grid */
+	if (c->isfloating) {
+		/* Tile became floating - this is invalid */
+		wlr_log(WLR_ERROR, "[nixtile] GRID VIOLATION: Tile became floating");
+		tile_is_valid = false;
+	} else {
+		/* Check if tile geometry is within reasonable bounds */
+		bool within_monitor = (c->geom.x >= m->w.x - 100 && 
+		                      c->geom.x + c->geom.width <= m->w.x + m->w.width + 100 &&
+		                      c->geom.y >= m->w.y - 100 && 
+		                      c->geom.y + c->geom.height <= m->w.y + m->w.height + 100);
+		
+		/* Check if tile has reasonable size */
+		bool reasonable_size = (c->geom.width > 50 && c->geom.height > 50);
+		
+		/* Check if tile is in a valid column (0 or 1) */
+		bool valid_column = (c->column_group == 0 || c->column_group == 1);
+		
+		tile_is_valid = within_monitor && reasonable_size && valid_column;
+		
+		wlr_log(WLR_ERROR, "[nixtile] GRID CHECK: within_monitor=%d, reasonable_size=%d, valid_column=%d", 
+			within_monitor, reasonable_size, valid_column);
+	}
+	
+	if (!tile_is_valid) {
+		/* GRID VIOLATION: Restore tile to original position */
+		wlr_log(WLR_ERROR, "[nixtile] GRID VIOLATION: Tile outside grid, restoring original position");
+		
+		/* Restore original state completely */
+		c->column_group = original_column;
+		c->height_factor = original_height_factor;
+		c->geom = original_geom;
+		c->isfloating = 0; /* Force tiled */
+		
+		/* Force immediate layout update to restore proper grid positioning */
+		arrange(m);
+		
+		wlr_log(WLR_ERROR, "[nixtile] GRID VIOLATION: Tile forcibly restored to grid");
+	} else {
+		wlr_log(WLR_DEBUG, "[nixtile] GRID VALIDATION: Tile properly positioned in grid");
+	}
 	
 	wlr_log(WLR_DEBUG, "[nixtile] Tile movement completed: tiles remain tiled");
 }
@@ -1858,13 +2154,36 @@ handletiledrop_old(Client *c, double x, double y)
 			}
 		}
 		
-		/* Determine if we should insert before or after closest tile */
+		/* ULTRA-SENSITIVE VERTICAL POSITIONING: Trigger movement near tile edges */
 		if (closest_tile) {
-			double tile_center_y = closest_tile->geom.y + (closest_tile->geom.height / 2.0);
-			if (y > tile_center_y) {
-				insert_after = closest_tile; /* Drop below center = insert after */
+			/* Use top 25% and bottom 25% of tile for ultra-sensitive positioning */
+			double tile_top = closest_tile->geom.y;
+			double tile_bottom = closest_tile->geom.y + closest_tile->geom.height;
+			double tile_height = closest_tile->geom.height;
+			double sensitive_zone = tile_height * 0.25; /* 25% of tile height */
+			
+			double top_trigger_zone = tile_top + sensitive_zone;
+			double bottom_trigger_zone = tile_bottom - sensitive_zone;
+			
+			wlr_log(WLR_DEBUG, "[nixtile] ULTRA-SENSITIVE POSITIONING: y=%.1f, top_trigger=%.1f, bottom_trigger=%.1f", 
+				y, top_trigger_zone, bottom_trigger_zone);
+			
+			if (y < top_trigger_zone) {
+				insert_after = NULL; /* Drop near top = insert before */
+				wlr_log(WLR_DEBUG, "[nixtile] ULTRA-SENSITIVE: Insert BEFORE (top 25%)");
+			} else if (y > bottom_trigger_zone) {
+				insert_after = closest_tile; /* Drop near bottom = insert after */
+				wlr_log(WLR_DEBUG, "[nixtile] ULTRA-SENSITIVE: Insert AFTER (bottom 25%)");
 			} else {
-				insert_after = NULL; /* Drop above center = insert before (handled later) */
+				/* Middle 50% - use center as fallback */
+				double tile_center_y = closest_tile->geom.y + (closest_tile->geom.height / 2.0);
+				if (y > tile_center_y) {
+					insert_after = closest_tile;
+					wlr_log(WLR_DEBUG, "[nixtile] ULTRA-SENSITIVE: Insert AFTER (center fallback)");
+				} else {
+					insert_after = NULL;
+					wlr_log(WLR_DEBUG, "[nixtile] ULTRA-SENSITIVE: Insert BEFORE (center fallback)");
+				}
 			}
 		}
 		
@@ -1930,13 +2249,36 @@ handletiledrop_old(Client *c, double x, double y)
 			}
 		}
 		
-		/* Determine if we should insert before or after closest tile */
+		/* ULTRA-SENSITIVE VERTICAL POSITIONING: Trigger movement near tile edges */
 		if (closest_tile) {
-			double tile_center_y = closest_tile->geom.y + (closest_tile->geom.height / 2.0);
-			if (y > tile_center_y) {
-				insert_after = closest_tile; /* Drop below center = insert after */
+			/* Use top 25% and bottom 25% of tile for ultra-sensitive positioning */
+			double tile_top = closest_tile->geom.y;
+			double tile_bottom = closest_tile->geom.y + closest_tile->geom.height;
+			double tile_height = closest_tile->geom.height;
+			double sensitive_zone = tile_height * 0.25; /* 25% of tile height */
+			
+			double top_trigger_zone = tile_top + sensitive_zone;
+			double bottom_trigger_zone = tile_bottom - sensitive_zone;
+			
+			wlr_log(WLR_DEBUG, "[nixtile] ULTRA-SENSITIVE POSITIONING 2: y=%.1f, top_trigger=%.1f, bottom_trigger=%.1f", 
+				y, top_trigger_zone, bottom_trigger_zone);
+			
+			if (y < top_trigger_zone) {
+				insert_after = NULL; /* Drop near top = insert before */
+				wlr_log(WLR_DEBUG, "[nixtile] ULTRA-SENSITIVE 2: Insert BEFORE (top 25%)");
+			} else if (y > bottom_trigger_zone) {
+				insert_after = closest_tile; /* Drop near bottom = insert after */
+				wlr_log(WLR_DEBUG, "[nixtile] ULTRA-SENSITIVE 2: Insert AFTER (bottom 25%)");
 			} else {
-				insert_after = NULL; /* Drop above center = insert before (handled later) */
+				/* Middle 50% - use center as fallback */
+				double tile_center_y = closest_tile->geom.y + (closest_tile->geom.height / 2.0);
+				if (y > tile_center_y) {
+					insert_after = closest_tile;
+					wlr_log(WLR_DEBUG, "[nixtile] ULTRA-SENSITIVE 2: Insert AFTER (center fallback)");
+				} else {
+					insert_after = NULL;
+					wlr_log(WLR_DEBUG, "[nixtile] ULTRA-SENSITIVE 2: Insert BEFORE (center fallback)");
+				}
 			}
 		}
 		
@@ -2847,22 +3189,38 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 		float horizontal_delta = cursor->x - (float)grabcx;
 		float vertical_delta = cursor->y - (float)grabcy;
 		
-		/* PER-COLUMN INDEPENDENT HORIZONTAL RESIZING */
+		/* COLUMN-ISOLATED HORIZONTAL RESIZING: Only resize within current column */
 		if (fabs(horizontal_delta) > 0.1f) {
 			/* Determine which column the tile being resized belongs to */
 			int resizing_column = grabc->column_group;
 			
-			/* CONSISTENT HORIZONTAL RESIZING: All columns have same resize direction */
-			/* Both columns adjust mfact in the same direction for consistent behavior */
-			float target_mfact = initial_mfact + (horizontal_delta / (float)selmon->w.width);
+			/* COLUMN ISOLATION: Only allow horizontal resizing if there are tiles in both columns */
+			int left_tiles = 0, right_tiles = 0;
+			Client *temp_c;
+			wl_list_for_each(temp_c, &clients, link) {
+				if (VISIBLEON(temp_c, selmon) && !temp_c->isfloating && !temp_c->isfullscreen) {
+					if (temp_c->column_group == 0) left_tiles++;
+					else if (temp_c->column_group == 1) right_tiles++;
+				}
+			}
 			
-			/* UNIVERSAL BOUNDARY PROTECTION: Works for all tile counts */
-			if (target_mfact < 0.1f) target_mfact = 0.1f;
-			if (target_mfact > 0.9f) target_mfact = 0.9f;
-			
-			/* Store for frame-synced update */
-			pending_target_mfact = target_mfact;
-			resize_pending = true;
+			/* Only allow horizontal resizing if both columns have tiles */
+			if (left_tiles > 0 && right_tiles > 0) {
+				/* CONSISTENT HORIZONTAL RESIZING: All columns have same resize direction */
+				/* Both columns adjust mfact in the same direction for consistent behavior */
+				float target_mfact = initial_mfact + (horizontal_delta / (float)selmon->w.width);
+				
+				/* UNIVERSAL BOUNDARY PROTECTION: Works for all tile counts */
+				if (target_mfact < 0.1f) target_mfact = 0.1f;
+				if (target_mfact > 0.9f) target_mfact = 0.9f;
+				
+				/* Store for frame-synced update */
+				pending_target_mfact = target_mfact;
+				resize_pending = true;
+			} else {
+				/* COLUMN ISOLATION: Prevent horizontal resizing when only one column has tiles */
+				wlr_log(WLR_DEBUG, "[nixtile] Column isolation: horizontal resize blocked (left_tiles=%d, right_tiles=%d)", left_tiles, right_tiles);
+			}
 		}
 		
 		/* MONITOR REFRESH RATE SYNCHRONIZED TIMER - PREVENTS CHOPPINESS */

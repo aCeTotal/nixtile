@@ -1,0 +1,1038 @@
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 0
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+[nixtile] keybinding: mods=0x40, sym=0xff0d
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x40, sym=0xff0d
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x40, sym=0xff0d
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:07.319 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x30ce3f80 in column 1
+00:00:07.319 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=521.5, y=810.1
+00:00:07.319 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=331.0 y=597.0 w=952.0 h=517.0
+00:00:07.319 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=331.0 y=597.0 w=952.0 h=517.0
+00:00:07.319 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x3185a020 at x=964.0 y=38.0 w=952.0 h=517.0
+00:00:07.320 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:07.320 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=NO)
+00:00:07.320 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x30ce3f80 (dragged=YES)
+00:00:07.994 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x30ce3f80 in column 0
+00:00:07.994 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=1203.6, y=818.1
+00:00:07.994 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=687.0 y=570.0 w=956.0 h=517.0
+00:00:07.994 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=687.0 y=570.0 w=956.0 h=517.0
+00:00:07.994 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=4.0 y=38.0 w=956.0 h=517.0
+00:00:07.995 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 1
+00:00:07.995 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x3185a020 (dragged=NO)
+00:00:07.995 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x30ce3f80 (dragged=YES)
+00:00:08.553 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x30ce3f80 in column 1
+00:00:08.553 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=532.4, y=803.0
+00:00:08.553 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=284.0 y=546.0 w=952.0 h=517.0
+00:00:08.553 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=284.0 y=546.0 w=952.0 h=517.0
+00:00:08.553 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x3185a020 at x=964.0 y=38.0 w=952.0 h=517.0
+00:00:08.553 [ERROR] [nixtile.c:1681] [nixtile] VERTICAL TILE OVERLAP DETECTED! Dragged tile overlaps target 0x3185a020
+00:00:08.553 [ERROR] [nixtile.c:1703] [nixtile] MOVEMENT CONFLICT: Calculating overlap areas to determine priority
+00:00:08.553 [ERROR] [nixtile.c:1742] [nixtile] OVERLAP AREAS: vertical=2448.0, horizontal=349492.0
+00:00:08.553 [ERROR] [nixtile.c:1750] [nixtile] CONFLICT RESOLVED: Horizontal movement preferred (larger overlap: 349492.0 > 2448.0)
+00:00:08.554 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:08.554 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=NO)
+00:00:08.554 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x30ce3f80 (dragged=YES)
+00:00:09.248 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x30ce3f80 in column 0
+00:00:09.248 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=547.2, y=368.6
+00:00:09.248 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=39.0 y=126.0 w=956.0 h=517.0
+00:00:09.248 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=39.0 y=126.0 w=956.0 h=517.0
+00:00:09.248 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=4.0 y=38.0 w=956.0 h=517.0
+00:00:09.248 [ERROR] [nixtile.c:1681] [nixtile] VERTICAL TILE OVERLAP DETECTED! Dragged tile overlaps target 0x318f0140
+00:00:09.248 [ERROR] [nixtile.c:1842] [nixtile] DRAG POSITIONING: drag_delta_y=125.6, original_center=384.5, target_center=296.5
+00:00:09.248 [ERROR] [nixtile.c:1849] [nixtile] DRAG POSITIONING: Insert BEFORE - dragging up from below
+00:00:09.249 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:09.249 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x30ce3f80 (dragged=YES)
+00:00:09.249 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x318f0140 (dragged=NO)
+00:00:10.132 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x30ce3f80 in column 0
+00:00:10.132 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=460.2, y=867.5
+00:00:10.132 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=39.0 y=491.0 w=956.0 h=517.0
+00:00:10.132 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=39.0 y=491.0 w=956.0 h=517.0
+00:00:10.132 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=4.0 y=559.0 w=956.0 h=517.0
+00:00:10.132 [ERROR] [nixtile.c:1681] [nixtile] VERTICAL TILE OVERLAP DETECTED! Dragged tile overlaps target 0x318f0140
+00:00:10.132 [ERROR] [nixtile.c:1842] [nixtile] DRAG POSITIONING: drag_delta_y=490.5, original_center=749.5, target_center=817.5
+00:00:10.132 [ERROR] [nixtile.c:1853] [nixtile] DRAG POSITIONING: Insert AFTER - dragging down from above
+00:00:10.132 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:10.133 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=NO)
+00:00:10.133 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x30ce3f80 (dragged=YES)
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0x64
+[nixtile] launcher_just_closed reset on MOD release
+[nixtile] keybinding: mods=0x0, sym=0x64
+[nixtile] launcher_just_closed reset on MOD release
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+00:00:11.777 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:00:11.777 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=280.9, y=663.7
+00:00:11.777 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=316.0 w=956.0 h=517.0
+00:00:11.777 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-3.0 y=316.0 w=956.0 h=517.0
+00:00:11.777 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x30ce3f80 at x=4.0 y=559.0 w=956.0 h=517.0
+00:00:11.777 [ERROR] [nixtile.c:1681] [nixtile] VERTICAL TILE OVERLAP DETECTED! Dragged tile overlaps target 0x30ce3f80
+00:00:11.777 [ERROR] [nixtile.c:1842] [nixtile] DRAG POSITIONING: drag_delta_y=315.7, original_center=574.5, target_center=817.5
+00:00:11.777 [ERROR] [nixtile.c:1853] [nixtile] DRAG POSITIONING: Insert AFTER - dragging down from above
+00:00:11.777 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:11.777 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x30ce3f80 (dragged=NO)
+00:00:11.777 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x318f0140 (dragged=YES)
+00:00:12.420 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:00:12.421 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=319.4, y=475.4
+00:00:12.421 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=32.0 y=227.0 w=956.0 h=517.0
+00:00:12.421 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=32.0 y=227.0 w=956.0 h=517.0
+00:00:12.421 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x30ce3f80 at x=4.0 y=38.0 w=956.0 h=517.0
+00:00:12.421 [ERROR] [nixtile.c:1681] [nixtile] VERTICAL TILE OVERLAP DETECTED! Dragged tile overlaps target 0x30ce3f80
+00:00:12.421 [ERROR] [nixtile.c:1842] [nixtile] DRAG POSITIONING: drag_delta_y=227.4, original_center=485.5, target_center=296.5
+00:00:12.421 [ERROR] [nixtile.c:1849] [nixtile] DRAG POSITIONING: Insert BEFORE - dragging up from below
+00:00:12.421 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:12.421 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=YES)
+00:00:12.421 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x30ce3f80 (dragged=NO)
+00:00:12.940 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:00:12.941 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=283.9, y=810.3
+00:00:12.941 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=307.0 w=956.0 h=517.0
+00:00:12.941 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-14.0 y=307.0 w=956.0 h=517.0
+00:00:12.941 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x30ce3f80 at x=4.0 y=559.0 w=956.0 h=517.0
+00:00:12.941 [ERROR] [nixtile.c:1681] [nixtile] VERTICAL TILE OVERLAP DETECTED! Dragged tile overlaps target 0x30ce3f80
+00:00:12.941 [ERROR] [nixtile.c:1842] [nixtile] DRAG POSITIONING: drag_delta_y=307.3, original_center=565.5, target_center=817.5
+00:00:12.941 [ERROR] [nixtile.c:1853] [nixtile] DRAG POSITIONING: Insert AFTER - dragging down from above
+00:00:12.941 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:12.941 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x30ce3f80 (dragged=NO)
+00:00:12.941 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x318f0140 (dragged=YES)
+00:00:13.570 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:00:13.570 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=316.5, y=442.0
+00:00:13.570 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=41.0 y=174.0 w=956.0 h=517.0
+00:00:13.570 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=41.0 y=174.0 w=956.0 h=517.0
+00:00:13.570 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x30ce3f80 at x=4.0 y=38.0 w=956.0 h=517.0
+00:00:13.570 [ERROR] [nixtile.c:1681] [nixtile] VERTICAL TILE OVERLAP DETECTED! Dragged tile overlaps target 0x30ce3f80
+00:00:13.570 [ERROR] [nixtile.c:1842] [nixtile] DRAG POSITIONING: drag_delta_y=174.0, original_center=432.5, target_center=296.5
+00:00:13.570 [ERROR] [nixtile.c:1849] [nixtile] DRAG POSITIONING: Insert BEFORE - dragging up from below
+00:00:13.570 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:13.570 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=YES)
+00:00:13.571 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x30ce3f80 (dragged=NO)
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:14.934 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x30ce3f80 in column 0
+00:00:14.934 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=590.0, y=559.5
+00:00:14.934 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=76.0 y=378.0 w=956.0 h=517.0
+00:00:14.934 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=76.0 y=378.0 w=956.0 h=517.0
+00:00:14.934 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=4.0 y=38.0 w=956.0 h=517.0
+00:00:14.934 [ERROR] [nixtile.c:1681] [nixtile] VERTICAL TILE OVERLAP DETECTED! Dragged tile overlaps target 0x318f0140
+00:00:14.934 [ERROR] [nixtile.c:1842] [nixtile] DRAG POSITIONING: drag_delta_y=378.5, original_center=636.5, target_center=296.5
+00:00:14.934 [ERROR] [nixtile.c:1849] [nixtile] DRAG POSITIONING: Insert BEFORE - dragging up from below
+00:00:14.934 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:14.934 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x30ce3f80 (dragged=YES)
+00:00:14.934 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x318f0140 (dragged=NO)
+00:00:16.197 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x30ce3f80 in column 0
+00:00:16.197 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=616.7, y=709.3
+00:00:16.197 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=35.0 y=236.0 w=956.0 h=517.0
+00:00:16.197 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=35.0 y=236.0 w=956.0 h=517.0
+00:00:16.197 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=4.0 y=559.0 w=956.0 h=517.0
+00:00:16.197 [ERROR] [nixtile.c:1681] [nixtile] VERTICAL TILE OVERLAP DETECTED! Dragged tile overlaps target 0x318f0140
+00:00:16.197 [ERROR] [nixtile.c:1842] [nixtile] DRAG POSITIONING: drag_delta_y=236.3, original_center=494.5, target_center=817.5
+00:00:16.197 [ERROR] [nixtile.c:1853] [nixtile] DRAG POSITIONING: Insert AFTER - dragging down from above
+00:00:16.197 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:16.197 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=NO)
+00:00:16.197 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x30ce3f80 (dragged=YES)
+00:00:17.297 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x30ce3f80 in column 0
+00:00:17.298 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=645.5, y=471.0
+00:00:17.298 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=48.0 y=301.0 w=956.0 h=517.0
+00:00:17.298 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=48.0 y=301.0 w=956.0 h=517.0
+00:00:17.298 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=4.0 y=38.0 w=956.0 h=517.0
+00:00:17.298 [ERROR] [nixtile.c:1681] [nixtile] VERTICAL TILE OVERLAP DETECTED! Dragged tile overlaps target 0x318f0140
+00:00:17.298 [ERROR] [nixtile.c:1842] [nixtile] DRAG POSITIONING: drag_delta_y=301.0, original_center=559.5, target_center=296.5
+00:00:17.298 [ERROR] [nixtile.c:1849] [nixtile] DRAG POSITIONING: Insert BEFORE - dragging up from below
+00:00:17.298 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:17.298 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x30ce3f80 (dragged=YES)
+00:00:17.298 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x318f0140 (dragged=NO)
+00:00:18.456 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x30ce3f80 in column 0
+00:00:18.456 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=1273.0, y=305.2
+00:00:18.456 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=768.0 y=6.0 w=956.0 h=517.0
+00:00:18.456 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=768.0 y=6.0 w=956.0 h=517.0
+00:00:18.457 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=4.0 y=559.0 w=956.0 h=517.0
+00:00:18.457 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 1
+00:00:18.457 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x30ce3f80 (dragged=YES)
+00:00:18.457 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x3185a020 (dragged=NO)
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:19.645 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:00:19.645 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=1524.8, y=669.3
+00:00:19.645 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=982.0 y=9.0 w=956.0 h=1038.0
+00:00:19.645 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=982.0 y=9.0 w=956.0 h=1038.0
+00:00:19.646 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 1
+00:00:19.646 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=YES)
+00:00:20.280 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 1
+00:00:20.280 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=700.0, y=688.6
+00:00:20.280 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=225.0 y=40.0 w=952.0 h=1038.0
+00:00:20.280 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=225.0 y=40.0 w=952.0 h=1038.0
+00:00:20.281 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:20.281 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=YES)
+00:00:20.884 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:00:20.884 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=1582.0, y=680.2
+00:00:20.884 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=986.0 y=50.0 w=956.0 h=1038.0
+00:00:20.884 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=986.0 y=50.0 w=956.0 h=1038.0
+00:00:20.884 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 1
+00:00:20.884 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=YES)
+00:00:21.414 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 1
+00:00:21.414 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=693.1, y=669.9
+00:00:21.414 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=184.0 y=20.0 w=952.0 h=1038.0
+00:00:21.414 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=184.0 y=20.0 w=952.0 h=1038.0
+00:00:21.414 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:21.414 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=YES)
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:32.046 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:00:32.046 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=1388.1, y=558.8
+00:00:32.046 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=927.0 y=68.0 w=763.0 h=1038.0
+00:00:32.046 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=927.0 y=68.0 w=763.0 h=1038.0
+00:00:32.046 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 1
+00:00:32.046 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=YES)
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:33.225 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 1
+00:00:33.225 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=418.8, y=654.2
+00:00:33.225 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=51.0 w=1145.0 h=1038.0
+00:00:33.225 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-136.0 y=51.0 w=1145.0 h=1038.0
+00:00:33.225 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:33.225 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=YES)
+00:00:33.959 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:00:33.959 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=1471.5, y=599.4
+00:00:33.959 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=1118.0 y=0.0 w=763.0 h=1038.0
+00:00:33.959 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=1118.0 y=-16.0 w=763.0 h=1038.0
+00:00:33.959 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 1
+00:00:33.959 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=YES)
+00:00:34.734 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 1
+00:00:34.734 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=388.0, y=632.8
+00:00:34.734 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=58.0 w=1145.0 h=1038.0
+00:00:34.734 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-302.0 y=58.0 w=1145.0 h=1038.0
+00:00:34.734 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:34.734 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=YES)
+00:00:35.887 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:00:35.887 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=1406.7, y=563.5
+00:00:35.887 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=1127.0 y=0.0 w=763.0 h=1038.0
+00:00:35.887 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=1127.0 y=-30.0 w=763.0 h=1038.0
+00:00:35.887 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 1
+00:00:35.887 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=YES)
+00:00:37.996 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 1
+00:00:37.996 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=186.1, y=638.4
+00:00:37.996 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=0.0 w=1145.0 h=1038.0
+00:00:37.996 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-188.0 y=-12.0 w=1145.0 h=1038.0
+00:00:37.996 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:37.996 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=YES)
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+00:00:44.850 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x3185a020 in column 1
+00:00:44.850 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=294.7, y=1080.0
+00:00:44.850 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=100.0 y=951.0 w=1145.0 h=517.0
+00:00:44.850 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=100.0 y=951.0 w=1145.0 h=517.0
+00:00:44.850 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x30ce3f80 at x=771.0 y=38.0 w=1145.0 h=517.0
+00:00:44.850 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:44.850 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=NO)
+00:00:44.850 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x3185a020 (dragged=YES)
+00:00:46.979 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x3185a020 in column 0
+00:00:46.979 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=1289.2, y=1080.0
+00:00:46.979 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=951.0 y=785.0 w=763.0 h=517.0
+00:00:46.979 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=951.0 y=785.0 w=763.0 h=517.0
+00:00:46.979 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=4.0 y=38.0 w=763.0 h=517.0
+00:00:46.979 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 1
+00:00:46.979 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x30ce3f80 (dragged=NO)
+00:00:46.979 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x3185a020 (dragged=YES)
+00:00:48.872 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x3185a020 in column 1
+00:00:48.872 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=271.1, y=1080.0
+00:00:48.872 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=794.0 w=1145.0 h=517.0
+00:00:48.872 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-198.0 y=794.0 w=1145.0 h=517.0
+00:00:48.872 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x30ce3f80 at x=771.0 y=38.0 w=1145.0 h=517.0
+00:00:48.872 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:48.872 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x318f0140 (dragged=NO)
+00:00:48.872 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x3185a020 (dragged=YES)
+00:00:50.496 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x3185a020 in column 0
+00:00:50.496 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=420.0, y=1080.0
+00:00:50.496 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=884.0 w=763.0 h=517.0
+00:00:50.496 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-148.0 y=884.0 w=763.0 h=517.0
+00:00:50.496 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=4.0 y=38.0 w=763.0 h=517.0
+00:00:51.915 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x3185a020 in column 0
+00:00:51.915 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=369.5, y=1080.0
+00:00:51.915 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=930.0 w=763.0 h=517.0
+00:00:51.915 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-35.0 y=930.0 w=763.0 h=517.0
+00:00:51.915 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=4.0 y=38.0 w=763.0 h=517.0
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+00:00:53.559 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x3185a020 in column 0
+00:00:53.559 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=494.4, y=1080.0
+00:00:53.559 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=1044.0 w=763.0 h=517.0
+00:00:53.559 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-14.0 y=1044.0 w=763.0 h=517.0
+00:00:53.559 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=4.0 y=38.0 w=763.0 h=517.0
+00:00:55.223 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x3185a020 in column 0
+00:00:55.223 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=507.5, y=553.2
+00:00:55.223 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=3.0 y=539.0 w=763.0 h=517.0
+00:00:55.223 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=3.0 y=539.0 w=763.0 h=517.0
+00:00:55.223 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=4.0 y=38.0 w=763.0 h=517.0
+00:00:55.223 [ERROR] [nixtile.c:1681] [nixtile] VERTICAL TILE OVERLAP DETECTED! Dragged tile overlaps target 0x318f0140
+00:00:55.223 [ERROR] [nixtile.c:1842] [nixtile] DRAG POSITIONING: drag_delta_y=539.2, original_center=797.5, target_center=296.5
+00:00:55.223 [ERROR] [nixtile.c:1849] [nixtile] DRAG POSITIONING: Insert BEFORE - dragging up from below
+00:00:55.223 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:00:55.223 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x3185a020 (dragged=YES)
+00:00:55.223 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x318f0140 (dragged=NO)
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+00:00:57.981 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:00:57.981 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=603.1, y=953.3
+00:00:57.981 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=849.0 w=763.0 h=517.0
+00:00:57.981 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-50.0 y=849.0 w=763.0 h=517.0
+00:00:57.981 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x3185a020 at x=4.0 y=38.0 w=763.0 h=517.0
+[nixtile] keybinding: mods=0x0, sym=0xffe3
+[nixtile] launcher_just_closed reset on MOD release
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+00:01:03.067 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:01:03.067 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=617.1, y=649.5
+00:01:03.067 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=11.0 y=557.0 w=763.0 h=517.0
+00:01:03.067 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=11.0 y=557.0 w=763.0 h=517.0
+00:01:03.067 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x3185a020 at x=4.0 y=38.0 w=763.0 h=517.0
+00:01:03.756 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:01:03.756 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=578.6, y=678.4
+00:01:03.756 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=569.0 w=763.0 h=517.0
+00:01:03.756 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-17.0 y=569.0 w=763.0 h=517.0
+00:01:03.756 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x3185a020 at x=4.0 y=38.0 w=763.0 h=517.0
+00:01:04.351 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:01:04.351 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=1442.5, y=691.8
+00:01:04.351 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=867.0 y=585.0 w=763.0 h=517.0
+00:01:04.351 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=867.0 y=585.0 w=763.0 h=517.0
+00:01:04.351 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x3185a020 at x=4.0 y=38.0 w=763.0 h=517.0
+00:01:04.351 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 1
+00:01:04.351 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x30ce3f80 (dragged=NO)
+00:01:04.351 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x318f0140 (dragged=YES)
+00:01:05.585 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 1
+00:01:05.585 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=368.4, y=879.5
+00:01:05.585 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=657.0 w=1145.0 h=517.0
+00:01:05.585 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-173.0 y=657.0 w=1145.0 h=517.0
+00:01:05.585 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x30ce3f80 at x=771.0 y=38.0 w=1145.0 h=517.0
+00:01:05.585 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:01:05.585 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x3185a020 (dragged=NO)
+00:01:05.585 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x318f0140 (dragged=YES)
+00:01:06.560 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:01:06.560 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=1266.8, y=863.2
+00:01:06.560 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=807.0 y=563.0 w=763.0 h=517.0
+00:01:06.560 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=807.0 y=563.0 w=763.0 h=517.0
+00:01:06.560 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x3185a020 at x=4.0 y=38.0 w=763.0 h=517.0
+00:01:06.560 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 1
+00:01:06.560 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x30ce3f80 (dragged=NO)
+00:01:06.560 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x318f0140 (dragged=YES)
+00:01:07.314 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 1
+00:01:07.314 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=371.6, y=861.4
+00:01:07.314 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=563.0 w=1145.0 h=517.0
+00:01:07.314 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-56.0 y=563.0 w=1145.0 h=517.0
+00:01:07.314 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x30ce3f80 at x=771.0 y=38.0 w=1145.0 h=517.0
+00:01:07.314 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 0
+00:01:07.314 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x3185a020 (dragged=NO)
+00:01:07.314 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x318f0140 (dragged=YES)
+00:01:08.498 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:01:08.498 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=477.4, y=928.2
+00:01:08.498 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=670.0 w=763.0 h=517.0
+00:01:08.498 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-30.0 y=670.0 w=763.0 h=517.0
+00:01:08.498 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x3185a020 at x=4.0 y=38.0 w=763.0 h=517.0
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+[nixtile] keybinding: mods=0x40, sym=0x32
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 1 2 0 0
+eDP-1 layout []=
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 1 2 0 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x40, sym=0x31
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+00:01:14.559 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x318f0140 in column 0
+00:01:14.559 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=488.6, y=927.9
+00:01:14.559 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=827.0 w=763.0 h=517.0
+00:01:14.559 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-77.0 y=827.0 w=763.0 h=517.0
+00:01:14.559 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x3185a020 at x=4.0 y=38.0 w=763.0 h=517.0
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+00:01:17.482 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x3185a020 in column 0
+00:01:17.482 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=456.3, y=455.8
+00:01:17.482 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=132.0 w=763.0 h=517.0
+00:01:17.482 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-10.0 y=132.0 w=763.0 h=517.0
+00:01:17.482 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=0.0 y=827.0 w=763.0 h=517.0
+00:01:18.076 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x3185a020 in column 0
+00:01:18.076 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=494.4, y=471.0
+00:01:18.076 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=12.0 y=57.0 w=763.0 h=517.0
+00:01:18.076 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=12.0 y=57.0 w=763.0 h=517.0
+00:01:18.076 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=0.0 y=827.0 w=763.0 h=517.0
+00:01:18.986 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x3185a020 in column 0
+00:01:18.986 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=779.6, y=637.3
+00:01:18.986 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=300.0 y=234.0 w=763.0 h=517.0
+00:01:18.986 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=300.0 y=234.0 w=763.0 h=517.0
+00:01:18.986 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=0.0 y=827.0 w=763.0 h=517.0
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+00:01:22.343 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x3185a020 in column 0
+00:01:22.343 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=144.6, y=299.3
+00:01:22.343 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=0.0 y=30.0 w=763.0 h=517.0
+00:01:22.343 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=-100.0 y=30.0 w=763.0 h=517.0
+00:01:22.343 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=0.0 y=827.0 w=763.0 h=517.0
+00:01:23.717 [ERROR] [nixtile.c:1644] [nixtile] VERTICAL DEBUG: Starting intra-column detection for client 0x3185a020 in column 0
+00:01:23.717 [ERROR] [nixtile.c:1645] [nixtile] VERTICAL DEBUG: Mouse position x=1179.4, y=578.5
+00:01:23.717 [ERROR] [nixtile.c:1646] [nixtile] DRAGGED TILE GEOMETRY: x=855.0 y=284.0 w=763.0 h=517.0
+00:01:23.717 [ERROR] [nixtile.c:1654] [nixtile] TILE OVERLAP DEBUG: Dragged tile position: x=855.0 y=284.0 w=763.0 h=517.0
+00:01:23.717 [ERROR] [nixtile.c:1671] [nixtile] VERTICAL OVERLAP CHECK: Target tile 0x318f0140 at x=0.0 y=827.0 w=763.0 h=517.0
+00:01:23.717 [ERROR] [nixtile.c:1944] [nixtile] AFTER ARRANGE: Verifying tile order in column 1
+00:01:23.717 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 0 = Client 0x30ce3f80 (dragged=NO)
+00:01:23.717 [ERROR] [nixtile.c:1948] [nixtile] TILE ORDER: Index 1 = Client 0x3185a020 (dragged=YES)
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+[nixtile] keybinding: mods=0x40, sym=0x32
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 1 2 0 0
+eDP-1 layout []=
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 1 2 0 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x40, sym=0x31
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0xffe9
+[nixtile] keybinding: mods=0x8, sym=0xffe3
+[nixtile] keybinding: mods=0xc, sym=0x1008fe03
+[nixtile] launcher_just_closed reset on MOD release
+[nixtile] keybinding: mods=0xc, sym=0x1008fe02
+00:01:34.110 [ERROR] [backend/drm/atomic.c:81] connector eDP-1: Atomic commit failed: Permission denied
+[nixtile] launcher_just_closed reset on MOD release
+[nixtile] launcher_just_closed reset on MOD release
+[nixtile] launcher_just_closed reset on MOD release
+00:01:34.135 [ERROR] [backend/drm/drm.c:1349] connector eDP-1: Failed to disable CRTC 53
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 0
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+[nixtile] keybinding: mods=0x40, sym=0xffe1
+[nixtile] keybinding: mods=0x41, sym=0x51
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[247,504] [glfw error 65544]: Wayland: fatal display error: Broken pipe
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+[246,451] [glfw error 65544]: Wayland: fatal display error: Broken pipe
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+[245,689] [glfw error 65544]: Wayland: fatal display error: Broken pipe
