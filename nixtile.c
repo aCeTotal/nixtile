@@ -361,6 +361,7 @@ static void setfullscreen(Client *c, int fullscreen);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m, uint32_t newtags);
+static int frame_synced_resize_callback(void *data);
 static void setpsel(struct wl_listener *listener, void *data);
 static void setsel(struct wl_listener *listener, void *data);
 static void setup(void);
@@ -435,6 +436,13 @@ static KeyboardGroup *kb_group;
 static unsigned int cursor_mode;
 static Client *grabc;
 static int grabcx, grabcy, grabedge; /* client-relative */
+static float initial_mfact; /* for pointer-relative resizing */
+static int initial_edge_x; /* for pointer-relative resizing */
+
+/* Frame-synced resizing variables */
+static bool resize_pending = false;
+static float pending_target_mfact = 0.0f;
+static struct wl_event_source *resize_timer = NULL;
 
 static struct wlr_output_layout *output_layout;
 static struct wlr_box sgeom;
@@ -2327,24 +2335,34 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			.width = new_width, .height = new_height}, 1);
 		return;
 	} else if (cursor_mode == CurTileResize) {
-		/* Absolutely minimal tile resizing - no validation that could crash */
-		if (!selmon) {
+		/* Frame-synced 1:1 pointer-relative resizing - butter-smooth at all speeds */
+		if (!selmon || !grabc) {
 			cursor_mode = CurNormal;
 			return;
 		}
 		
-		/* Convert horizontal mouse movement to setmfact .f value */
-		/* Left movement = negative, Right movement = positive */
-		float sensitivity = 0.005f;
-		float f_value = dx * sensitivity;
+		/* Calculate how much mouse has moved from initial position */
+		float mouse_delta = cursor->x - (float)grabcx;
 		
-		/* Only proceed if there's meaningful movement */
-		if (fabs(f_value) > 0.001f) {
-			/* Create Arg structure exactly like keyboard setmfact */
-			Arg setmfact_arg = { .f = f_value };
-			
-			/* Directly call setmfact - same as keyboard shortcuts */
-			setmfact(&setmfact_arg);
+		/* Calculate target mfact based on 1:1 mouse movement */
+		float target_mfact = initial_mfact + (mouse_delta / (float)selmon->w.width);
+		
+		/* Clamp to valid range */
+		if (target_mfact < 0.1f) target_mfact = 0.1f;
+		if (target_mfact > 0.9f) target_mfact = 0.9f;
+		
+		/* Always update pending target for smooth tracking at all speeds */
+		pending_target_mfact = target_mfact;
+		resize_pending = true;
+		
+		/* Schedule frame-synced update if not already scheduled */
+		if (!resize_timer) {
+			/* Use 8ms timer for 120Hz+ smoothness (faster than 60Hz) */
+			resize_timer = wl_event_loop_add_timer(wl_display_get_event_loop(dpy),
+											   frame_synced_resize_callback, NULL);
+			if (resize_timer) {
+				wl_event_source_timer_update(resize_timer, 8);
+			}
 		}
 		return;
 	}
@@ -2491,23 +2509,58 @@ moveresize(const Arg *arg)
 	}
 }
 
+/* Frame-synced resize callback - matches screen Hz for butter-smooth resizing */
+static int
+frame_synced_resize_callback(void *data)
+{
+	if (!resize_pending || !selmon) {
+		resize_timer = NULL;
+		return 0;
+	}
+	
+	/* Apply the pending mfact change */
+	selmon->mfact = pending_target_mfact;
+	arrange(selmon);
+	
+	/* Reset pending state */
+	resize_pending = false;
+	resize_timer = NULL;
+	
+	return 0;
+}
+
 void
 tileresize(const Arg *arg)
 {
-	/* Absolute minimal implementation - avoid all potentially problematic code */
+	/* Initialize 1:1 pointer-relative resizing */
 	if (!cursor || !selmon) {
 		return;
 	}
 	
-	/* Simply enter tile resize mode - no complex validation */
+	/* Find client under cursor for validation */
+	xytonode(cursor->x, cursor->y, NULL, &grabc, NULL, NULL, NULL);
+	if (!grabc || grabc->isfloating || grabc->isfullscreen) {
+		return;
+	}
+	
+	/* Store initial state for 1:1 pointer-relative resizing */
+	grabcx = (int)cursor->x;
+	grabcy = (int)cursor->y;
+	initial_mfact = selmon->mfact;
+	
+	/* Calculate initial tile edge position for 1:1 tracking */
+	int master_width = (int)(selmon->w.width * selmon->mfact);
+	initial_edge_x = selmon->w.x + master_width;
+	
+	/* Enter tile resize mode */
 	cursor_mode = CurTileResize;
 	
 	/* Set resize cursor */
 	if (cursor_mgr) {
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "e-resize");
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "ew-resize");
 	}
 	
-	wlr_log(WLR_DEBUG, "[nixtile] tileresize: entered tile resize mode");
+	wlr_log(WLR_DEBUG, "[nixtile] tileresize: 1:1 pointer-relative mode, initial_mfact=%.3f", initial_mfact);
 }
 
 void
