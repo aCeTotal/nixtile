@@ -1,0 +1,182 @@
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 0
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title kitty
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title bash
+eDP-1 appid kitty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=

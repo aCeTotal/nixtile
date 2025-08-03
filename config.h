@@ -7,8 +7,10 @@
 static const int sloppyfocus               = 1;  /* focus follows mouse */
 static const int bypass_surface_visibility = 0;  /* 1 means idle inhibitors will disable idle tracking even if it's surface isn't visible  */
 static const unsigned int borderpx         = 1;  /* border pixel of windows */
-static const unsigned int innergappx       = 6;  /* inner gap in pixels between windows */
-static const unsigned int outergappx       = 8;  /* outer gap in pixels between windows and screen edge/statusbar */
+static const unsigned int innergappx       = 4;  /* inner gap in pixels between windows */
+static const unsigned int outergappx       = 4;  /* outer gap in pixels between windows and screen edge/statusbar */
+static const unsigned int statusbar_side_gap = 4;  /* gap between statusbar and screen sides */
+static const unsigned int statusbar_top_gap  = 4;  /* gap between statusbar and screen top */
 static const float rootcolor[]             = COLOR(0x222222ff);
 static const float bordercolor[]           = COLOR(0x444444ff);
 static const float focuscolor[]            = COLOR(0x005577ff);
@@ -55,7 +57,7 @@ static const MonitorRule monrules[] = {
 	{ "eDP-1",    0.5f,  1,      2,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
 	*/
 	/* defaults */
-	{ NULL,       0.55f, 1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
+	{ NULL,       0.5f,  1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
 };
 
 /* keyboard */

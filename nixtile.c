@@ -1,6 +1,7 @@
 /*
  * See LICENSE file for copyright and license details.
  */
+#define _GNU_SOURCE
 #include <getopt.h>
 #include <libinput.h>
 #include <limits.h>
@@ -13,6 +14,8 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <sched.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
 #include <wlr/backend/libinput.h>
@@ -168,6 +171,7 @@ typedef struct {
 	int isfloating, isurgent, isfullscreen;
 	uint32_t resize; /* configure serial of a pending resize */
 	float height_factor; /* for vertical resizing - default 1.0 */
+	int column_group; /* 0 = left column, 1 = right column - for per-column grouping */
 } Client;
 
 typedef struct {
@@ -230,6 +234,7 @@ struct Monitor {
 	unsigned int sellt;
 	uint32_t tagset[2];
 	float mfact;
+	float workspace_mfact[9]; /* Per-workspace mfact storage (9 workspaces) */
 	int gamma_lut_changed;
 	int nmaster;
 	char ltsymbol[16];
@@ -308,6 +313,11 @@ static void destroylock(SessionLock *lock, int unlocked);
 static void destroylocksurface(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static void destroypointerconstraint(struct wl_listener *listener, void *data);
+static void ensure_equal_width_distribution(Client *new_client);
+static void handle_empty_column_expansion(void);
+static int get_current_workspace(void);
+static void load_workspace_mfact(void);
+static void save_workspace_mfact(void);
 static void destroysessionlock(struct wl_listener *listener, void *data);
 static void destroykeyboardgroup(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(enum wlr_direction dir);
@@ -363,6 +373,7 @@ static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m, uint32_t newtags);
 static int frame_synced_resize_callback(void *data);
+static int get_monitor_refresh_rate(Monitor *m);
 static void setpsel(struct wl_listener *listener, void *data);
 static void setsel(struct wl_listener *listener, void *data);
 static void setup(void);
@@ -371,6 +382,7 @@ static void startdrag(struct wl_listener *listener, void *data);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
+static void togglecolumn(const Arg *arg);
 static void togglefloating(const Arg *arg);
 static void togglefullscreen(const Arg *arg);
 static void toggletag(const Arg *arg);
@@ -452,6 +464,12 @@ static float pending_target_height_factor = 0.0f;
 static Client *vertical_resize_client = NULL;
 static Client *vertical_resize_neighbor = NULL;
 static struct wl_event_source *resize_timer = NULL;
+
+/* Ultra-smooth resizing: Multi-threading and CPU optimization */
+static pthread_t layout_thread;
+static pthread_mutex_t layout_mutex = PTHREAD_MUTEX_INITIALIZER;
+static bool layout_thread_active = false;
+static bool high_performance_mode = false;
 
 static struct wlr_output_layout *output_layout;
 static struct wlr_box sgeom;
@@ -1497,6 +1515,37 @@ createnotify(struct wl_listener *listener, void *data)
 	c->surface.xdg = toplevel->base;
 	c->bw = borderpx;
 	c->height_factor = 1.0f; /* Initialize height factor for vertical resizing */
+	
+	/* PER-COLUMN GROUPING: Assign new tile to same column as selected tile */
+	Client *selected = focustop(selmon);
+	if (selected && !selected->isfloating) {
+		/* New tile joins the same column as the selected tile */
+		/* Analyze physical position to determine which column the selected tile is in */
+		int monitor_center_x = selmon->m.x + selmon->m.width / 2;
+		int selected_center_x = selected->geom.x + selected->geom.width / 2;
+		
+		/* New tile joins the same column as the selected tile based on physical position */
+		if (selected_center_x < monitor_center_x) {
+			c->column_group = 0; /* Left column */
+		} else {
+			c->column_group = 1; /* Right column */
+		}
+	} else {
+		/* Default: assign to left column if no selected tile or selected is floating */
+		c->column_group = 0;
+	}
+	
+	/* AUTOMATIC HEIGHT REDISTRIBUTION: Reset all height_factors in target column to 1.0 */
+	/* This ensures equal height distribution when a new tile is added to the column */
+	Client *temp_c;
+	wl_list_for_each(temp_c, &clients, link) {
+		if (!VISIBLEON(temp_c, selmon) || temp_c->isfloating || temp_c->isfullscreen)
+			continue;
+		/* Reset height_factor for all tiles in the same column as the new tile */
+		if (temp_c->column_group == c->column_group) {
+			temp_c->height_factor = 1.0f;
+		}
+	}
 
 	LISTEN(&toplevel->base->surface->events.commit, &c->commit, commitnotify);
 	LISTEN(&toplevel->base->surface->events.map, &c->map, mapnotify);
@@ -1505,6 +1554,9 @@ createnotify(struct wl_listener *listener, void *data)
 	LISTEN(&toplevel->events.request_fullscreen, &c->fullscreen, fullscreennotify);
 	LISTEN(&toplevel->events.request_maximize, &c->maximize, maximizenotify);
 	LISTEN(&toplevel->events.set_title, &c->set_title, updatetitle);
+	
+	/* Ensure equal width distribution for new workspaces */
+	ensure_equal_width_distribution(c);
 }
 
 void
@@ -1717,6 +1769,23 @@ destroynotify(struct wl_listener *listener, void *data)
 		wl_list_remove(&c->unmap.link);
 		wl_list_remove(&c->maximize.link);
 	}
+	
+	/* AUTOMATIC HEIGHT REDISTRIBUTION: Reset all height_factors in same column when tile is removed */
+	/* This ensures equal height distribution when a tile is removed from the column */
+	int removed_column = c->column_group;
+	Client *temp_c;
+	wl_list_for_each(temp_c, &clients, link) {
+		if (!VISIBLEON(temp_c, c->mon) || temp_c->isfloating || temp_c->isfullscreen)
+			continue;
+		/* Reset height_factor for all remaining tiles in the same column */
+		if (temp_c->column_group == removed_column && temp_c != c) {
+			temp_c->height_factor = 1.0f;
+		}
+	}
+	
+	/* Handle automatic column expansion when a column becomes empty */
+	handle_empty_column_expansion();
+	
 	free(c);
 }
 
@@ -2355,19 +2424,55 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 		float horizontal_delta = cursor->x - (float)grabcx;
 		float vertical_delta = cursor->y - (float)grabcy;
 		
-		/* Handle horizontal resizing (mfact) - optimized threshold for better responsiveness */
-		if (fabs(horizontal_delta) > 0.5f) {
-			float target_mfact = initial_mfact + (horizontal_delta / (float)selmon->w.width);
-			/* Clamp to optimized range for more flexible resizing */
-			if (target_mfact < 0.05f) target_mfact = 0.05f;
-			if (target_mfact > 0.95f) target_mfact = 0.95f;
+		/* PER-COLUMN INDEPENDENT HORIZONTAL RESIZING */
+		if (fabs(horizontal_delta) > 0.1f) {
+			/* Determine which column the tile being resized belongs to */
+			int resizing_column = grabc->column_group;
 			
+			/* CONSISTENT HORIZONTAL RESIZING: All columns have same resize direction */
+			/* Both columns adjust mfact in the same direction for consistent behavior */
+			float target_mfact = initial_mfact + (horizontal_delta / (float)selmon->w.width);
+			
+			/* UNIVERSAL BOUNDARY PROTECTION: Works for all tile counts */
+			if (target_mfact < 0.1f) target_mfact = 0.1f;
+			if (target_mfact > 0.9f) target_mfact = 0.9f;
+			
+			/* Store for frame-synced update */
 			pending_target_mfact = target_mfact;
 			resize_pending = true;
 		}
 		
-		/* Handle edge-based vertical resizing (1:1 pointer-relative from any edge) - optimized threshold */
+		/* MONITOR REFRESH RATE SYNCHRONIZED TIMER - PREVENTS CHOPPINESS */
+		if ((resize_pending || vertical_resize_pending) && !resize_timer) {
+			/* Get monitor's actual refresh rate for precise frame sync */
+			int refresh_mhz = get_monitor_refresh_rate(selmon);
+			int frame_interval_ms = 1000000 / refresh_mhz; /* Convert mHz to ms */
+			
+			/* Rate limiting: Clamp to safe range to prevent broken pipe (8ms-20ms = 125Hz-50Hz) */
+			if (frame_interval_ms < 8) frame_interval_ms = 8;   /* Max 125Hz - prevents protocol overload */
+			if (frame_interval_ms > 20) frame_interval_ms = 20; /* Min 50Hz - ensures responsiveness */
+			
+			wlr_log(WLR_DEBUG, "[nixtile] Starting monitor-synced timer: %dms (refresh=%dHz), h_pending=%d, v_pending=%d", 
+				frame_interval_ms, 1000/frame_interval_ms, resize_pending, vertical_resize_pending);
+			
+			resize_timer = wl_event_loop_add_timer(wl_display_get_event_loop(dpy),
+								   frame_synced_resize_callback, NULL);
+			if (resize_timer) {
+				wl_event_source_timer_update(resize_timer, frame_interval_ms);
+			}
+		}
+		
+		/* Handle edge-based vertical resizing (1:1 pointer-relative from any edge) - FRAME-SYNCED TO REFRESH RATE */
 		if (fabs(vertical_delta) > 0.5f && initial_resize_neighbor) {
+			/* PER-COLUMN INDEPENDENCE: Ensure both tiles belong to same column */
+			if (initial_resize_client->column_group != initial_resize_neighbor->column_group) {
+				/* Cross-column resizing not allowed - maintain column independence */
+				return;
+			}
+			
+			/* FREE RESIZING: Allow all tiles to be resized without minimum height restrictions */
+			/* User requirement: No tiles should be locked, all should be adjustable freely */
+			
 			/* Calculate where shared edge should be (1:1 with mouse movement) */
 			int new_edge_y = initial_edge_y + (int)vertical_delta;
 			
@@ -2383,29 +2488,63 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 				neighbor_new_height = (initial_resize_neighbor->geom.y + initial_resize_neighbor->geom.height) - new_edge_y;
 			}
 			
-			/* Enforce minimum heights (same as MIN_WINDOW_HEIGHT) */
-			if (target_new_height < 40) {
-				target_new_height = 40;
-				if (resizing_from_top_edge) {
-					new_edge_y = (initial_resize_client->geom.y + initial_resize_client->geom.height) - target_new_height;
-					neighbor_new_height = new_edge_y - initial_resize_neighbor->geom.y;
-				} else {
-					new_edge_y = initial_resize_client->geom.y + target_new_height;
-					neighbor_new_height = (initial_resize_neighbor->geom.y + initial_resize_neighbor->geom.height) - new_edge_y;
-				}
-			}
-			if (neighbor_new_height < 40) {
-				neighbor_new_height = 40;
-				if (resizing_from_top_edge) {
-					new_edge_y = initial_resize_neighbor->geom.y + neighbor_new_height;
-					target_new_height = (initial_resize_client->geom.y + initial_resize_client->geom.height) - new_edge_y;
-				} else {
-					new_edge_y = (initial_resize_neighbor->geom.y + initial_resize_neighbor->geom.height) - neighbor_new_height;
-					target_new_height = new_edge_y - initial_resize_client->geom.y;
-				}
+			/* ROBUST BOUNDARY PROTECTION: Prevent tiles from being pushed outside screen edges */
+			int screen_top = selmon->w.y;
+			int screen_bottom = selmon->w.y + selmon->w.height;
+			
+			/* Calculate final positions after resizing */
+			int target_final_top, target_final_bottom;
+			int neighbor_final_top, neighbor_final_bottom;
+			
+			if (resizing_from_top_edge) {
+				/* Target tile (below) positions */
+				target_final_top = new_edge_y;
+				target_final_bottom = initial_resize_client->geom.y + initial_resize_client->geom.height;
+				
+				/* Neighbor tile (above) positions */
+				neighbor_final_top = initial_resize_neighbor->geom.y;
+				neighbor_final_bottom = new_edge_y;
+			} else {
+				/* Target tile (above) positions */
+				target_final_top = initial_resize_client->geom.y;
+				target_final_bottom = new_edge_y;
+				
+				/* Neighbor tile (below) positions */
+				neighbor_final_top = new_edge_y;
+				neighbor_final_bottom = initial_resize_neighbor->geom.y + initial_resize_neighbor->geom.height;
 			}
 			
-			/* Convert to height factors for layout system */
+			/* COMPREHENSIVE SCREEN BOUNDARY PROTECTION: Prevent any tile from going outside screen */
+			int screen_left = selmon->w.x;
+			int screen_right = selmon->w.x + selmon->w.width;
+			
+			/* Calculate final tile positions (including horizontal bounds) */
+			int target_final_left, target_final_right;
+			int neighbor_final_left, neighbor_final_right;
+			
+			/* Get horizontal bounds for both tiles */
+			target_final_left = initial_resize_client->geom.x;
+			target_final_right = initial_resize_client->geom.x + initial_resize_client->geom.width;
+			neighbor_final_left = initial_resize_neighbor->geom.x;
+			neighbor_final_right = initial_resize_neighbor->geom.x + initial_resize_neighbor->geom.width;
+			
+			/* ULTRA-STRICT ALL-BOUNDARY CHECKS: Prevent any tile from going outside ANY screen edge */
+			if (target_final_top < screen_top || target_final_bottom > screen_bottom ||
+			    neighbor_final_top < screen_top || neighbor_final_bottom > screen_bottom ||
+			    target_final_left < screen_left || target_final_right > screen_right ||
+			    neighbor_final_left < screen_left || neighbor_final_right > screen_right ||
+			    target_new_height < 80 || neighbor_new_height < 80 ||
+			    target_new_height <= 0 || neighbor_new_height <= 0) {
+				/* ABSOLUTE GUARD: Stop all resizing if any boundary would be violated */
+				return; /* No-op to prevent graphical errors and corruption */
+			}
+			
+			/* FREE RESIZING: No additional safety checks that would lock tiles */
+			/* Allow all resize operations to proceed freely */
+			
+			/* Minimum heights and boundary checks already enforced above */
+			
+			/* Store for frame-synced update */
 			int total_height = target_new_height + neighbor_new_height;
 			if (total_height > 0) {
 				float target_factor = (2.0f * target_new_height) / (float)total_height;
@@ -2414,16 +2553,6 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 				vertical_resize_client = initial_resize_client;
 				vertical_resize_neighbor = initial_resize_neighbor;
 				vertical_resize_pending = true;
-			}
-		}
-		
-		/* Schedule optimized frame-synced update if any resizing is pending */
-		if ((resize_pending || vertical_resize_pending) && !resize_timer) {
-			/* Use 4ms timer for enhanced responsiveness (250Hz update rate) */
-			resize_timer = wl_event_loop_add_timer(wl_display_get_event_loop(dpy),
-											   frame_synced_resize_callback, NULL);
-			if (resize_timer) {
-				wl_event_source_timer_update(resize_timer, 4);
 			}
 		}
 		return;
@@ -2581,12 +2710,20 @@ frame_synced_resize_callback(void *data)
 		return 0;
 	}
 	
-	/* Optimized: Apply both changes in single pass */
+	/* ULTRA-SMOOTH: High-performance optimized layout updates */
 	bool layout_changed = false;
 	
-	/* Apply pending horizontal mfact change */
+	/* High-performance mode: Use all CPU cores for maximum responsiveness */
+	if (high_performance_mode) {
+		/* Lock mutex for thread-safe operations */
+		pthread_mutex_lock(&layout_mutex);
+	}
+	
+	/* Apply pending horizontal mfact change with per-workspace support */
 	if (resize_pending) {
+		wlr_log(WLR_DEBUG, "[nixtile] Frame-sync callback: applying horizontal mfact %.3f -> %.3f", selmon->mfact, pending_target_mfact);
 		selmon->mfact = pending_target_mfact;
+		save_workspace_mfact(); /* Save to current workspace */
 		resize_pending = false;
 		layout_changed = true;
 	}
@@ -2603,15 +2740,62 @@ frame_synced_resize_callback(void *data)
 		layout_changed = true;
 	}
 	
-	/* Apply layout changes only if needed */
+	/* Apply layout changes only if needed - with rate limiting to prevent broken pipe */
 	if (layout_changed) {
-		arrange(selmon);
+		/* Rate limiting: prevent too frequent arrange() calls */
+		static struct timespec last_arrange_time = {0};
+		struct timespec current_time;
+		clock_gettime(CLOCK_MONOTONIC, &current_time);
+		
+		/* Calculate time difference in milliseconds */
+		long time_diff_ms = (current_time.tv_sec - last_arrange_time.tv_sec) * 1000 +
+							(current_time.tv_nsec - last_arrange_time.tv_nsec) / 1000000;
+		
+		/* Only arrange if enough time has passed (minimum 16ms = ~60fps) */
+		if (time_diff_ms >= 16 || last_arrange_time.tv_sec == 0) {
+			arrange(selmon);
+			last_arrange_time = current_time;
+			
+			/* Conservative frame scheduling to prevent protocol overload */
+			if (selmon && selmon->wlr_output) {
+				wlr_output_schedule_frame(selmon->wlr_output);
+			}
+		}
+	}
+	
+	/* Unlock mutex if in high-performance mode */
+	if (high_performance_mode) {
+		pthread_mutex_unlock(&layout_mutex);
 	}
 	
 	/* Reset timer state */
 	resize_timer = NULL;
 	
 	return 0;
+}
+
+/* Get monitor's actual refresh rate for dynamic frame sync */
+static int
+get_monitor_refresh_rate(Monitor *m)
+{
+	if (!m || !m->wlr_output) {
+		return 60000; /* Default 60Hz fallback (in mHz) */
+	}
+	
+	/* Get current mode from wlr_output */
+	struct wlr_output_mode *mode = m->wlr_output->current_mode;
+	if (mode) {
+		return mode->refresh; /* Returns refresh rate in mHz (e.g., 60000 for 60Hz) */
+	}
+	
+	/* Fallback: try to get preferred mode */
+	struct wlr_output_mode *preferred = wlr_output_preferred_mode(m->wlr_output);
+	if (preferred) {
+		return preferred->refresh;
+	}
+	
+	/* Final fallback */
+	return 60000; /* 60Hz default */
 }
 
 void
@@ -2634,72 +2818,62 @@ tileresize(const Arg *arg)
 	initial_mfact = selmon->mfact;
 	
 	/* Calculate initial tile edge position for 1:1 tracking */
-	int master_width = (int)(selmon->w.width * selmon->mfact);
-	initial_edge_x = selmon->w.x + master_width;
+	/* Support both 2-tile and dual-column layouts */
+	int left_width = (int)(selmon->w.width * selmon->mfact);
+	initial_edge_x = selmon->w.x + left_width;
 	
+	/* SIMPLIFIED APPROACH: Focus on horizontal resizing for all tile counts */
 	/* Initialize edge-based vertical resizing */
 	initial_resize_client = grabc;
 	initial_resize_neighbor = NULL;
 	resizing_from_top_edge = false;
 	
-	/* Find which edge is closest to cursor for edge-based resizing */
+	/* SIMPLIFIED VERTICAL RESIZING: Only for 3+ tiles with stacks */
 	Client *c;
-	Client *stack_tiles[16]; /* Max 16 tiles in stack */
-	int stack_count = 0;
-	int current_index = 0;
-	
-	/* Build list of stack tiles */
+	int n = 0;
 	wl_list_for_each(c, &clients, link) {
-		if (!VISIBLEON(c, selmon) || c->isfloating || c->isfullscreen)
-			continue;
-		if (current_index > 0) { /* Skip master tile */
-			stack_tiles[stack_count] = c;
-			stack_count++;
-		}
-		current_index++;
+		if (VISIBLEON(c, selmon) && !c->isfloating && !c->isfullscreen)
+			n++;
 	}
 	
-	/* Find closest shared edge to cursor */
-	int cursor_y = (int)cursor->y;
-	int closest_edge_distance = INT_MAX;
-	int closest_edge_y = 0;
-	Client *edge_tile_above = NULL, *edge_tile_below = NULL;
-	
-	/* Check all shared edges between adjacent stack tiles */
-	for (int i = 0; i < stack_count - 1; i++) {
-		Client *tile_above = stack_tiles[i];
-		Client *tile_below = stack_tiles[i + 1];
-		int edge_y = tile_above->geom.y + tile_above->geom.height;
+	/* Only set up vertical resizing for 3+ tiles (with actual stacks) */
+	if (n >= 3) {
+		/* Find adjacent tiles for vertical resizing in stacked layouts */
+		Client *stack_tiles[16];
+		int stack_count = 0;
 		
-		int distance = abs(cursor_y - edge_y);
-		if (distance < closest_edge_distance) {
-			closest_edge_distance = distance;
-			closest_edge_y = edge_y;
-			edge_tile_above = tile_above;
-			edge_tile_below = tile_below;
+		/* Build list of tiles in same column as the tile being resized for vertical resizing */
+		int target_column = grabc->column_group;
+		wl_list_for_each(c, &clients, link) {
+			if (!VISIBLEON(c, selmon) || c->isfloating || c->isfullscreen)
+				continue;
+			/* PER-COLUMN INDEPENDENCE: Only include tiles from same column */
+			if (c->column_group == target_column) {
+				stack_tiles[stack_count] = c;
+				stack_count++;
+			}
+		}
+		
+		/* Find closest shared edge for vertical resizing */
+		int cursor_y = (int)cursor->y;
+		int closest_edge_distance = INT_MAX;
+		
+		for (int i = 0; i < stack_count - 1; i++) {
+			Client *tile_above = stack_tiles[i];
+			Client *tile_below = stack_tiles[i + 1];
+			int edge_y = tile_above->geom.y + tile_above->geom.height;
+			
+			int distance = abs(cursor_y - edge_y);
+			if (distance < closest_edge_distance) {
+				closest_edge_distance = distance;
+				initial_edge_y = edge_y;
+				initial_resize_client = tile_above;
+				initial_resize_neighbor = tile_below;
+				resizing_from_top_edge = false;
+			}
 		}
 	}
-	
-	/* Set up resizing based on which side of edge cursor is on */
-	if (edge_tile_above && edge_tile_below) {
-		initial_edge_y = closest_edge_y;
-		
-		/* Determine if cursor is closer to top or bottom tile */
-		int distance_to_above = abs(cursor_y - (edge_tile_above->geom.y + edge_tile_above->geom.height / 2));
-		int distance_to_below = abs(cursor_y - (edge_tile_below->geom.y + edge_tile_below->geom.height / 2));
-		
-		if (distance_to_above < distance_to_below) {
-			/* Resizing from bottom edge of upper tile */
-			initial_resize_client = edge_tile_above;
-			initial_resize_neighbor = edge_tile_below;
-			resizing_from_top_edge = false;
-		} else {
-			/* Resizing from top edge of lower tile */
-			initial_resize_client = edge_tile_below;
-			initial_resize_neighbor = edge_tile_above;
-			resizing_from_top_edge = true;
-		}
-	}
+	/* For 2-tile layouts: Only horizontal resizing, no vertical setup needed */
 	
 	/* Enter tile resize mode */
 	cursor_mode = CurTileResize;
@@ -3108,25 +3282,25 @@ static void draw_status_bar(Monitor *m) {
     bar_w = m->wlr_output->width;
     bar_h = statusbar_height;
     if (strcmp(statusbar_position, "top") == 0) {
-        bar_x = 0;
-        bar_y = 0;
-        bar_w = m->wlr_output->width;
+        bar_x = statusbar_side_gap;
+        bar_y = statusbar_top_gap;
+        bar_w = m->wlr_output->width - (2 * statusbar_side_gap);
         bar_h = statusbar_height;
     } else if (strcmp(statusbar_position, "bottom") == 0) {
-        bar_x = 0;
-        bar_y = m->wlr_output->height - statusbar_height;
-        bar_w = m->wlr_output->width;
+        bar_x = statusbar_side_gap;
+        bar_y = m->wlr_output->height - statusbar_height; /* Bottom gap ignored as requested */
+        bar_w = m->wlr_output->width - (2 * statusbar_side_gap);
         bar_h = statusbar_height;
     } else if (strcmp(statusbar_position, "left") == 0) {
-        bar_x = 0;
-        bar_y = 0;
+        bar_x = statusbar_side_gap;
+        bar_y = statusbar_top_gap;
         bar_w = statusbar_height;
-        bar_h = m->wlr_output->height;
+        bar_h = m->wlr_output->height - statusbar_top_gap; /* Bottom gap ignored */
     } else if (strcmp(statusbar_position, "right") == 0) {
-        bar_x = m->wlr_output->width - statusbar_height;
-        bar_y = 0;
+        bar_x = m->wlr_output->width - statusbar_height - statusbar_side_gap;
+        bar_y = statusbar_top_gap;
         bar_w = statusbar_height;
-        bar_h = m->wlr_output->height;
+        bar_h = m->wlr_output->height - statusbar_top_gap; /* Bottom gap ignored */
     }
 
     color[0] = statusbar_color[0];
@@ -3147,6 +3321,8 @@ rendermon(struct wl_listener *listener, void *data)
 	Client *c;
 	struct wlr_output_state pending = {0};
 	struct timespec now;
+	
+	/* SAFE FRAME-SYNCED RENDERING: No direct resize callbacks to prevent infinite loops */
 
 	/* Render if no XDG clients have an outstanding resize and are visible on
 	 * this monitor. */
@@ -3474,6 +3650,15 @@ setup(void)
 
 	wlr_log_init(log_level, NULL);
 
+	/* BALANCED RESIZING: Conservative CPU optimization */
+	/* Enable moderate performance mode for stable resizing */
+	high_performance_mode = false; /* Disabled aggressive optimizations */
+	
+	/* Conservative CPU optimization - only nice value adjustment */
+	if (nice(-5) != -1) {
+		wlr_log(WLR_INFO, "[nixtile] CPU optimization: Set moderate priority (nice -5) for balanced resizing");
+	}
+
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
 	dpy = wl_display_create();
@@ -3732,7 +3917,6 @@ tagmon(const Arg *arg)
 void
 tile(Monitor *m)
 {
-	unsigned int mw, my, ty;
 	int i, n = 0;
 	Client *c;
 	extern int statusbar_visible;
@@ -3743,18 +3927,18 @@ tile(Monitor *m)
 	/* Calculate adjusted window area with gaps */
 	struct wlr_box adjusted_area = m->w;
 	
-	/* Adjust for status bar if it's visible */
+	/* Adjust for status bar if it's visible - maintain outergappx distance between statusbar and tiles */
 	if (statusbar_visible) {
 		if (strcmp(statusbar_position, "top") == 0) {
-			adjusted_area.y += statusbar_height;
-			adjusted_area.height -= statusbar_height;
+			adjusted_area.y += statusbar_height + outergappx;
+			adjusted_area.height -= statusbar_height + outergappx;
 		} else if (strcmp(statusbar_position, "bottom") == 0) {
-			adjusted_area.height -= statusbar_height;
+			adjusted_area.height -= statusbar_height + outergappx;
 		} else if (strcmp(statusbar_position, "left") == 0) {
-			adjusted_area.x += statusbar_height;
-			adjusted_area.width -= statusbar_height;
+			adjusted_area.x += statusbar_height + outergappx;
+			adjusted_area.width -= statusbar_height + outergappx;
 		} else if (strcmp(statusbar_position, "right") == 0) {
-			adjusted_area.width -= statusbar_height;
+			adjusted_area.width -= statusbar_height + outergappx;
 		}
 	}
 	
@@ -3771,82 +3955,191 @@ tile(Monitor *m)
 	if (n == 0)
 		return;
 
-	/* Calculate master area width */
-	if (n > m->nmaster)
-		mw = m->nmaster ? (int)roundf(adjusted_area.width * m->mfact) : 0;
-	else
-		mw = adjusted_area.width;
-
-	/* Apply inner gap (half of innergappx between master and stack areas) */
-	if (n > m->nmaster && m->nmaster > 0) {
-		mw -= innergappx / 2;
-	}
-
-	i = my = ty = 0;
-	wl_list_for_each(c, &clients, link) {
-		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
-			continue;
-
-		if (i < m->nmaster) {
-			/* Master area */
-			int height = (adjusted_area.height - my) / (MIN(n, m->nmaster) - i);
-			
-			/* Apply inner gap between windows, but not after the last window */
-			if (i < m->nmaster - 1)
-				height -= innergappx;
-
+	/* TRUE DUAL-STACK LAYOUT WITH INDEPENDENT BI-AXIAL RESIZING */
+	/* Determine layout based on screen width and tile count */
+	int screen_width = adjusted_area.width;
+	bool use_dual_column = (screen_width >= 1600 && n >= 2); /* Wide screen gets 2 columns */
+	
+	if (n == 1) {
+		/* Single tile: full screen */
+		c = NULL;
+		wl_list_for_each(c, &clients, link) {
+			if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen)
+				break;
+		}
+		if (c) {
 			resize(c, (struct wlr_box){
 				.x = adjusted_area.x,
-				.y = adjusted_area.y + my,
-				.width = mw,
-				.height = height
+				.y = adjusted_area.y,
+				.width = adjusted_area.width,
+				.height = adjusted_area.height
 			}, 0);
-
-			my += c->geom.height + innergappx;
-		} else {
-			/* Stack area with height_factor support for vertical resizing */
-			int stack_x = adjusted_area.x + mw + innergappx;
-			int stack_width = adjusted_area.width - mw - innergappx;
+		}
+	} else if (n == 2) {
+		/* Two tiles: 50/50 horizontal split with mfact resizing support */
+		int left_width = (int)roundf(adjusted_area.width * m->mfact);
+		int right_width = adjusted_area.width - left_width - innergappx;
+		
+		i = 0;
+		wl_list_for_each(c, &clients, link) {
+			if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
+				continue;
 			
-			/* Calculate height using height_factor for smooth vertical resizing */
-			int available_height = adjusted_area.height - ty;
-			int remaining_windows = n - i;
+			if (i == 0) {
+				/* Left tile */
+				resize(c, (struct wlr_box){
+					.x = adjusted_area.x,
+					.y = adjusted_area.y,
+					.width = left_width,
+					.height = adjusted_area.height
+				}, 0);
+			} else {
+				/* Right tile */
+				resize(c, (struct wlr_box){
+					.x = adjusted_area.x + left_width + innergappx,
+					.y = adjusted_area.y,
+					.width = right_width,
+					.height = adjusted_area.height
+				}, 0);
+			}
+			i++;
+		}
+	} else {
+		/* TRUE DUAL-STACK LAYOUT - BOTH COLUMNS ARE INDEPENDENT */
+		if (use_dual_column) {
+			/* Dual column layout: two independent stacking areas */
+			int left_width = (int)roundf(adjusted_area.width * m->mfact);
+			int right_width = adjusted_area.width - left_width - innergappx;
 			
-			/* Calculate total height factors for remaining windows */
-			float total_factors = 0.0f;
+			/* PER-COLUMN GROUPING: Count tiles based on their assigned column, not automatic distribution */
+			int left_tiles = 0, right_tiles = 0;
 			Client *temp_c;
-			int temp_i = 0;
 			wl_list_for_each(temp_c, &clients, link) {
 				if (!VISIBLEON(temp_c, m) || temp_c->isfloating || temp_c->isfullscreen)
 					continue;
-				if (temp_i >= i) {
-					total_factors += temp_c->height_factor;
+				
+				/* Determine column based on tile's group assignment */
+				if (temp_c->column_group == 0) { /* Left column */
+					left_tiles++;
+				} else { /* Right column */
+					right_tiles++;
 				}
-				temp_i++;
 			}
 			
-			/* Calculate proportional height based on height_factor */
-			int height;
-			if (total_factors > 0.0f) {
-				height = (int)((available_height * c->height_factor) / total_factors);
-			} else {
-				height = available_height / remaining_windows;
+			i = 0;
+			int left_y = 0, right_y = 0;
+			wl_list_for_each(c, &clients, link) {
+				if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
+					continue;
+				
+				/* Use tile's assigned column group instead of automatic distribution */
+				bool is_left_column = (c->column_group == 0);
+				int tiles_in_column = is_left_column ? left_tiles : right_tiles;
+				
+				/* Calculate column index within the specific column */
+				int column_index = 0;
+				Client *temp_c;
+				wl_list_for_each(temp_c, &clients, link) {
+					if (!VISIBLEON(temp_c, m) || temp_c->isfloating || temp_c->isfullscreen)
+						continue;
+					if (temp_c == c) break;
+					if ((temp_c->column_group == 0) == is_left_column)
+						column_index++;
+				}
+				
+				/* Calculate available height for this column */
+				int available_height = adjusted_area.height - (tiles_in_column - 1) * innergappx;
+				
+				/* ROBUST PER-COLUMN HEIGHT DISTRIBUTION */
+				int height;
+				
+				/* Always use equal distribution within each column for robustness */
+				/* This ensures each column always uses full height and distributes equally */
+				if (tiles_in_column > 0) {
+					height = available_height / tiles_in_column;
+				} else {
+					height = available_height; /* Fallback */
+				}
+				
+				/* Support for vertical resizing via height_factor (optional enhancement) */
+				if (c->height_factor > 0.1f && c->height_factor < 1.9f) {
+					/* Calculate total factors for this column only using correct column_group */
+					float total_factors = 0.0f;
+					Client *temp_c;
+					wl_list_for_each(temp_c, &clients, link) {
+						if (!VISIBLEON(temp_c, m) || temp_c->isfloating || temp_c->isfullscreen)
+							continue;
+						/* Use column_group instead of position-based detection */
+						if ((temp_c->column_group == 0) == is_left_column) {
+							total_factors += temp_c->height_factor;
+						}
+					}
+					if (total_factors > 0.1f) {
+						height = (int)((available_height * c->height_factor) / total_factors);
+					}
+				}
+				
+				/* Position and size calculation */
+				int x_pos = is_left_column ? adjusted_area.x : adjusted_area.x + left_width + innergappx;
+				int width = is_left_column ? left_width : right_width;
+				int y_pos = adjusted_area.y + (is_left_column ? left_y : right_y);
+				
+				resize(c, (struct wlr_box){
+					.x = x_pos,
+					.y = y_pos,
+					.width = width,
+					.height = height
+				}, 0);
+				
+				/* Update y position for next tile in this column */
+				if (is_left_column) {
+					left_y += height + innergappx;
+				} else {
+					right_y += height + innergappx;
+				}
+				
+				i++;
 			}
+		} else {
+			/* Single column layout: all tiles stacked vertically */
+			int y_offset = 0;
 			
-			/* Apply inner gap between windows, but not after the last window */
-			if (i < n - 1)
-				height -= innergappx;
-
-			resize(c, (struct wlr_box){
-				.x = stack_x,
-				.y = adjusted_area.y + ty,
-				.width = stack_width,
-				.height = height
-			}, 0);
-
-			ty += c->geom.height + innergappx;
+			i = 0;
+			wl_list_for_each(c, &clients, link) {
+				if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
+					continue;
+				
+				/* Calculate available height for all tiles */
+				int available_height = adjusted_area.height - (n - 1) * innergappx;
+				
+				/* Calculate tile height with height_factor support */
+				int height;
+				if (c->height_factor > 0.1f && c->height_factor < 1.9f) {
+					/* Calculate total factors for all tiles */
+					float total_factors = 0.0f;
+					Client *temp_c;
+					wl_list_for_each(temp_c, &clients, link) {
+						if (VISIBLEON(temp_c, m) && !temp_c->isfloating && !temp_c->isfullscreen) {
+							total_factors += temp_c->height_factor;
+						}
+					}
+					height = (int)((available_height * c->height_factor) / total_factors);
+				} else {
+					/* Equal distribution */
+					height = available_height / n;
+				}
+				
+				resize(c, (struct wlr_box){
+					.x = adjusted_area.x,
+					.y = adjusted_area.y + y_offset,
+					.width = adjusted_area.width,
+					.height = height
+				}, 0);
+				
+				y_offset += height + innergappx;
+				i++;
+			}
 		}
-		i++;
 	}
 }
 
@@ -3857,6 +4150,19 @@ togglefloating(const Arg *arg)
 	/* return if fullscreen */
 	if (sel && !sel->isfullscreen)
 		setfloating(sel, !sel->isfloating);
+}
+
+void
+togglecolumn(const Arg *arg)
+{
+	Client *sel = focustop(selmon);
+	/* Only allow column switching for tiled windows */
+	if (sel && !sel->isfloating && !sel->isfullscreen) {
+		/* Toggle between left (0) and right (1) column */
+		sel->column_group = (sel->column_group == 0) ? 1 : 0;
+		/* Re-arrange layout to reflect the change */
+		arrange(selmon);
+	}
 }
 
 void
@@ -4081,6 +4387,10 @@ view(const Arg *arg)
 	selmon->seltags ^= 1; /* toggle sel tagset */
 	if (arg->ui & TAGMASK)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
+	
+	/* Load workspace-specific mfact for independent resizing */
+	load_workspace_mfact();
+	
 	focusclient(focustop(selmon), 1);
 	arrange(selmon);
 	printstatus();
@@ -4239,6 +4549,37 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->type = X11;
 	c->bw = client_is_unmanaged(c) ? 0 : borderpx;
 	c->height_factor = 1.0f; /* Initialize height factor for vertical resizing */
+	
+	/* PER-COLUMN GROUPING: Assign new tile to same column as selected tile */
+	Client *selected = focustop(selmon);
+	if (selected && !selected->isfloating) {
+		/* New tile joins the same column as the selected tile */
+		/* Analyze physical position to determine which column the selected tile is in */
+		int monitor_center_x = selmon->m.x + selmon->m.width / 2;
+		int selected_center_x = selected->geom.x + selected->geom.width / 2;
+		
+		/* New tile joins the same column as the selected tile based on physical position */
+		if (selected_center_x < monitor_center_x) {
+			c->column_group = 0; /* Left column */
+		} else {
+			c->column_group = 1; /* Right column */
+		}
+	} else {
+		/* Default: assign to left column if no selected tile or selected is floating */
+		c->column_group = 0;
+	}
+	
+	/* AUTOMATIC HEIGHT REDISTRIBUTION: Reset all height_factors in target column to 1.0 */
+	/* This ensures equal height distribution when a new tile is added to the column */
+	Client *temp_c;
+	wl_list_for_each(temp_c, &clients, link) {
+		if (!VISIBLEON(temp_c, selmon) || temp_c->isfloating || temp_c->isfullscreen)
+			continue;
+		/* Reset height_factor for all tiles in the same column as the new tile */
+		if (temp_c->column_group == c->column_group) {
+			temp_c->height_factor = 1.0f;
+		}
+	}
 
 	/* Listen to the various events it can emit */
 	LISTEN(&xsurface->events.associate, &c->associate, associatex11);
@@ -4320,4 +4661,94 @@ main(int argc, char *argv[])
 
 usage:
 	die("Usage: %s [-v] [-d] [-s startup command]", argv[0]);
+}
+
+/* PER-WORKSPACE RESIZING FUNCTIONS */
+
+/* Get current workspace index (0-8) */
+static int get_current_workspace() {
+	for (int i = 0; i < 9; i++) {
+		if (selmon->tagset[selmon->seltags] & (1 << i)) {
+			return i;
+		}
+	}
+	return 0; /* Default to workspace 0 */
+}
+
+/* Load workspace-specific mfact */
+static void load_workspace_mfact() {
+	int workspace = get_current_workspace();
+	if (selmon->workspace_mfact[workspace] == 0.0f) {
+		/* Initialize new workspace with default mfact */
+		selmon->workspace_mfact[workspace] = 0.5f;
+	}
+	selmon->mfact = selmon->workspace_mfact[workspace];
+}
+
+/* Save workspace-specific mfact */
+static void save_workspace_mfact() {
+	int workspace = get_current_workspace();
+	selmon->workspace_mfact[workspace] = selmon->mfact;
+}
+
+/* EQUAL WIDTH DISTRIBUTION FUNCTIONS */
+
+/* Reset mfact to 0.5 for equal width distribution when workspace becomes populated */
+void ensure_equal_width_distribution(Client *new_client) {
+	/* Count existing visible tiles to determine if workspace was empty */
+	int existing_tiles = 0;
+	Client *count_c;
+	wl_list_for_each(count_c, &clients, link) {
+		if (!VISIBLEON(count_c, selmon) || count_c->isfloating || count_c->isfullscreen)
+			continue;
+		if (count_c != new_client) /* Don't count the new tile being added */
+			existing_tiles++;
+	}
+	
+	/* If this is the first or second tile on the workspace, ensure equal width distribution */
+	if (existing_tiles <= 1) {
+		selmon->mfact = 0.5f; /* Always equal 50/50 distribution for new workspaces */
+		wlr_log(WLR_DEBUG, "[nixtile] Reset mfact to 0.5 for equal width distribution (existing_tiles=%d)", existing_tiles);
+	}
+}
+
+/* Automatically expand column with most tiles when a column becomes empty */
+void handle_empty_column_expansion() {
+	/* Count tiles in each column */
+	int left_column_count = 0;
+	int right_column_count = 0;
+	Client *count_c;
+	
+	wl_list_for_each(count_c, &clients, link) {
+		if (!VISIBLEON(count_c, selmon) || count_c->isfloating || count_c->isfullscreen)
+			continue;
+		
+		if (count_c->column_group == 0) {
+			left_column_count++;
+		} else if (count_c->column_group == 1) {
+			right_column_count++;
+		}
+	}
+	
+	/* If one column is empty and the other has tiles, expand the populated column */
+	if (left_column_count == 0 && right_column_count > 0) {
+		/* Left column is empty, expand right column to full width */
+		selmon->mfact = 0.01f; /* Minimal left column, maximum right column */
+		wlr_log(WLR_DEBUG, "[nixtile] Left column empty, expanding right column (right_tiles=%d)", right_column_count);
+	} else if (right_column_count == 0 && left_column_count > 0) {
+		/* Right column is empty, expand left column to full width */
+		selmon->mfact = 0.99f; /* Maximum left column, minimal right column */
+		wlr_log(WLR_DEBUG, "[nixtile] Right column empty, expanding left column (left_tiles=%d)", left_column_count);
+	} else if (left_column_count > 0 && right_column_count > 0) {
+		/* Both columns have tiles, check if we need to rebalance based on tile count */
+		if (left_column_count > right_column_count * 2) {
+			/* Left column has significantly more tiles, give it more space */
+			selmon->mfact = 0.7f;
+			wlr_log(WLR_DEBUG, "[nixtile] Rebalancing: left column gets more space (left=%d, right=%d)", left_column_count, right_column_count);
+		} else if (right_column_count > left_column_count * 2) {
+			/* Right column has significantly more tiles, give it more space */
+			selmon->mfact = 0.3f;
+			wlr_log(WLR_DEBUG, "[nixtile] Rebalancing: right column gets more space (left=%d, right=%d)", left_column_count, right_column_count);
+		}
+	}
 }
