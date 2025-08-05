@@ -17,12 +17,13 @@ NIXTILECFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(WLR_INCS) $(NIXTILECPPFLAGS) 
 LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` $(WLR_LIBS) -lm $(LIBS)
 
 all: nixtile
-nixtile: nixtile.o util.o
-	$(CC) nixtile.o util.o $(NIXTILECFLAGS) $(LDFLAGS) $(LDLIBS) -o $@
+nixtile: nixtile.o util.o gpu_acceleration.o
+	$(CC) nixtile.o util.o gpu_acceleration.o $(NIXTILECFLAGS) $(LDFLAGS) $(LDLIBS) -o $@
 nixtile.o: nixtile.c client.h config.h config.mk cursor-shape-v1-protocol.h \
 	pointer-constraints-unstable-v1-protocol.h wlr-layer-shell-unstable-v1-protocol.h \
 	wlr-output-power-management-unstable-v1-protocol.h xdg-shell-protocol.h
 util.o: util.c util.h
+gpu_acceleration.o: gpu_acceleration.c gpu_acceleration.h
 
 # wayland-scanner is a tool which generates C headers and rigging for Wayland
 # protocols, which are specified in XML. wlroots requires you to rig these up

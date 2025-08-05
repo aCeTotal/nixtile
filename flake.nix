@@ -46,6 +46,8 @@
             pkgs.xorg.libXi
             pkgs.libxkbcommon
             pkgs.mesa
+            pkgs.libGL
+            pkgs.libglvnd
             pkgs.wayland-protocols
             pkgs.scdoc
             pkgs.gnumake

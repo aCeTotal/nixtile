@@ -2,10 +2,13 @@
   lib,
   fetchFromGitHub,
   installShellFiles,
+  libGL,
+  libglvnd,
   libX11,
   libinput,
   libxcb,
   libxkbcommon,
+  mesa,
   pixman,
   pkg-config,
   stdenv,
@@ -54,9 +57,12 @@ stdenv.mkDerivation (finalAttrs: {
 
   buildInputs =
     [
+      libGL
+      libglvnd
       libinput
       libxcb
       libxkbcommon
+      mesa
       pixman
       wayland
       wayland-protocols
