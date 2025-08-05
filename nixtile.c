@@ -6839,13 +6839,18 @@ static void save_workspace_mfact() {
 
 /* Reset mfact to 0.5 for equal width distribution when workspace becomes populated */
 void ensure_equal_width_distribution(Client *new_client) {
-	/* CHECK FOR MANUAL RESIZE: Don't auto-adjust if user has manually resized */
+	/* TEMPORARILY DISABLED: Manual resize check for debugging */
 	bool any_manual_resize = manual_resize_performed[0] || manual_resize_performed[1];
-	if (any_manual_resize) {
+	if (false) { /* DISABLED FOR TESTING */
 		wlr_log(WLR_INFO, "[nixtile] PRESERVING MANUAL RESIZE: Skipping equal width distribution (left_manual=%d, right_manual=%d)", 
 		        manual_resize_performed[0], manual_resize_performed[1]);
 		return;
 	}
+	wlr_log(WLR_DEBUG, "[nixtile] MANUAL RESIZE CHECK: left_manual=%d, right_manual=%d - PROCEEDING", 
+	        manual_resize_performed[0], manual_resize_performed[1]);
+	
+	/* Get current mfact for logging */
+	float current_mfact = selmon->mfact;
 	
 	/* Count existing visible tiles to determine if workspace was empty */
 	int existing_tiles = 0;
@@ -6857,10 +6862,12 @@ void ensure_equal_width_distribution(Client *new_client) {
 			existing_tiles++;
 	}
 	
-	/* If this is the first or second tile on the workspace, ensure equal width distribution */
+	/* Only reset mfact for truly new workspaces (0 or 1 existing tiles) */
 	if (existing_tiles <= 1) {
 		selmon->mfact = 0.5f; /* Always equal 50/50 distribution for new workspaces */
 		wlr_log(WLR_DEBUG, "[nixtile] Reset mfact to 0.5 for equal width distribution (existing_tiles=%d)", existing_tiles);
+	} else {
+		wlr_log(WLR_DEBUG, "[nixtile] PRESERVING EXISTING LAYOUT: Not changing mfact (existing_tiles=%d, current_mfact=%.3f)", existing_tiles, current_mfact);
 	}
 }
 
@@ -6905,20 +6912,11 @@ void handle_empty_column_expansion() {
 		wlr_log(WLR_INFO, "[nixtile] SCREEN FILLING: Right column empty, expanding left column to full screen (left_tiles=%d)", left_column_count);
 		
 	} else if (left_column_count > 0 && right_column_count > 0) {
-		/* Both columns have tiles, ensure balanced screen usage */
-		if (left_column_count > right_column_count * 2) {
-			/* Left column has significantly more tiles, give it more space */
-			selmon->mfact = 0.7f;
-			wlr_log(WLR_DEBUG, "[nixtile] SCREEN FILLING: Rebalancing left column gets more space (left=%d, right=%d)", left_column_count, right_column_count);
-		} else if (right_column_count > left_column_count * 2) {
-			/* Right column has significantly more tiles, give it more space */
-			selmon->mfact = 0.3f;
-			wlr_log(WLR_DEBUG, "[nixtile] SCREEN FILLING: Rebalancing right column gets more space (left=%d, right=%d)", left_column_count, right_column_count);
-		} else {
-			/* Balanced distribution - FIXED: Use 0.5f for true equal distribution */
-			selmon->mfact = 0.5f;
-			wlr_log(WLR_DEBUG, "[nixtile] SCREEN FILLING: Balanced distribution (left=%d, right=%d)", left_column_count, right_column_count);
-		}
+		/* Both columns have tiles - NEVER CHANGE MFACT */
+		/* Preserve column widths regardless of tile count */
+		wlr_log(WLR_DEBUG, "[nixtile] SCREEN FILLING: Both columns populated, preserving width mfact=%.3f (left=%d, right=%d)", 
+		        selmon->mfact, left_column_count, right_column_count);
+		return; /* Exit early, never change horizontal width */
 	} else {
 		/* Fallback: No tiles in either column (shouldn't happen) */
 		wlr_log(WLR_ERROR, "[nixtile] SCREEN FILLING: No tiles in any column - unexpected state");
