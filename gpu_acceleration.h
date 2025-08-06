@@ -51,8 +51,6 @@ typedef struct {
 /* Function Prototypes */
 void init_gpu_acceleration(void);
 void configure_gpu_environment(void);
-gpu_capabilities_t detect_gpu_capabilities(struct wlr_renderer *renderer, struct wlr_output *output);
-void optimize_for_gpu(gpu_capabilities_t *caps);
-void log_gpu_status(gpu_capabilities_t *caps);
+/* Note: GPU capability functions are implemented as static functions in nixtile.c */
 
 #endif /* GPU_ACCELERATION_H */

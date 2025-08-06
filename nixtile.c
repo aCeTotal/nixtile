@@ -326,6 +326,8 @@ static void destroylocksurface(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static void destroypointerconstraint(struct wl_listener *listener, void *data);
 static void ensure_equal_width_distribution(Client *new_client);
+static void ensure_equal_height_distribution_in_stack(int column);
+static void ensure_equal_horizontal_distribution_for_two_tiles(void);
 static void handle_empty_column_expansion(void);
 static bool validate_client_list_integrity(void);
 static int count_tiles_in_stack(int column, Monitor *m);
@@ -1628,6 +1630,81 @@ createlocksurface(struct wl_listener *listener, void *data)
 		client_notify_enter(lock_surface->surface, wlr_seat_get_keyboard(seat));
 }
 
+/* GPU Acceleration Functions */
+static gpu_capabilities_t
+detect_gpu_capabilities(struct wlr_renderer *renderer, struct wlr_output *output)
+{
+	gpu_capabilities_t caps = {0};
+	
+	if (!renderer || !output) {
+		wlr_log(WLR_ERROR, "[nixtile] GPU DETECTION: Invalid renderer or output");
+		return caps;
+	}
+	
+	/* Detect hardware acceleration */
+	caps.hardware_acceleration = wlr_renderer_is_gles2(renderer);
+	caps.renderer_name = caps.hardware_acceleration ? "GLES2" : "Software";
+	
+	/* Detect adaptive sync support */
+	caps.adaptive_sync = output->adaptive_sync_supported;
+	
+	/* Get maximum refresh rate */
+	struct wlr_output_mode *mode;
+	caps.max_refresh_rate = 60; /* Default */
+	wl_list_for_each(mode, &output->modes, link) {
+		int hz = mode->refresh / 1000;
+		if (hz > caps.max_refresh_rate) {
+			caps.max_refresh_rate = hz;
+		}
+	}
+	
+	/* Detect other capabilities */
+	caps.hardware_cursors = true; /* Assume supported unless proven otherwise */
+	caps.texture_compression = caps.hardware_acceleration;
+	caps.timeline_sync = caps.hardware_acceleration;
+	
+	return caps;
+}
+
+static void
+optimize_for_gpu(gpu_capabilities_t *caps)
+{
+	if (!caps) return;
+	
+	/* Enable high performance mode if hardware acceleration is available */
+	if (caps->hardware_acceleration) {
+		high_performance_mode = true;
+		wlr_log(WLR_INFO, "[nixtile] GPU OPTIMIZATION: High performance mode enabled");
+		
+		/* Set environment variables for optimal GPU performance */
+		setenv("WLR_RENDERER", "gles2", 0); /* Don't override if already set */
+		setenv("WLR_DRM_NO_ATOMIC", "0", 0);
+		setenv("WLR_DRM_NO_MODIFIERS", "0", 0);
+		setenv("WLR_NO_HARDWARE_CURSORS", "0", 0);
+		
+		/* Enable VSync for smooth rendering */
+		setenv("__GL_SYNC_TO_VBLANK", "1", 0); /* NVIDIA */
+		setenv("vblank_mode", "1", 0);        /* AMD/Intel */
+	} else {
+		wlr_log(WLR_ERROR, "[nixtile] GPU OPTIMIZATION: Hardware acceleration not available, using software rendering");
+		high_performance_mode = false;
+	}
+}
+
+static void
+log_gpu_status(gpu_capabilities_t *caps)
+{
+	if (!caps) return;
+	
+	wlr_log(WLR_INFO, "[nixtile] GPU STATUS: Renderer: %s", caps->renderer_name ? caps->renderer_name : "Unknown");
+	wlr_log(WLR_INFO, "[nixtile] GPU STATUS: Hardware Acceleration: %s", caps->hardware_acceleration ? "YES" : "NO");
+	wlr_log(WLR_INFO, "[nixtile] GPU STATUS: Adaptive Sync: %s", caps->adaptive_sync ? "YES" : "NO");
+	wlr_log(WLR_INFO, "[nixtile] GPU STATUS: Max Refresh Rate: %dHz", caps->max_refresh_rate);
+	wlr_log(WLR_INFO, "[nixtile] GPU STATUS: Hardware Cursors: %s", caps->hardware_cursors ? "YES" : "NO");
+	wlr_log(WLR_INFO, "[nixtile] GPU STATUS: Texture Compression: %s", caps->texture_compression ? "YES" : "NO");
+	wlr_log(WLR_INFO, "[nixtile] GPU STATUS: Timeline Sync: %s", caps->timeline_sync ? "YES" : "NO");
+}
+
 void
 createmon(struct wl_listener *listener, void *data)
 {
@@ -1837,27 +1914,24 @@ createnotify(struct wl_listener *listener, void *data)
 		}
 	}
 	
-	/* STEP 4: PRESERVE MANUAL RESIZE - Only reset if no manual resize has been performed */
+	/* STEP 4: RESET MANUAL RESIZE - Always reset and enforce equal distribution on tile addition */
 	int target_column = c->column_group;
 	if (target_column >= 0 && target_column < 2) {
-		if (!manual_resize_performed[target_column]) {
-			/* No manual resize - maintain equal distribution */
-			wlr_log(WLR_INFO, "[nixtile] EQUAL DISTRIBUTION: No manual resize in column %d, maintaining equal height factors", target_column);
-			Client *temp_c;
-			wl_list_for_each(temp_c, &clients, link) {
-				if (!VISIBLEON(temp_c, selmon) || temp_c->isfloating || temp_c->isfullscreen)
-					continue;
-				if (temp_c->column_group == target_column) {
-					temp_c->height_factor = 1.0f;
-				}
+		/* Reset manual resize flag to enforce equal distribution */
+		if (manual_resize_performed[target_column]) {
+			wlr_log(WLR_INFO, "[nixtile] EQUAL DISTRIBUTION: Resetting manual resize flag for column %d - enforcing equal distribution on tile addition", target_column);
+			manual_resize_performed[target_column] = false;
+		}
+		
+		/* Set all tiles in target column to equal height factors */
+		wlr_log(WLR_INFO, "[nixtile] EQUAL DISTRIBUTION: Setting equal height factors in column %d", target_column);
+		Client *temp_c;
+		wl_list_for_each(temp_c, &clients, link) {
+			if (!VISIBLEON(temp_c, selmon) || temp_c->isfloating || temp_c->isfullscreen)
+				continue;
+			if (temp_c->column_group == target_column) {
+				temp_c->height_factor = 1.0f;
 			}
-		} else {
-			/* Manual resize performed - preserve existing ratios */
-			wlr_log(WLR_INFO, "[nixtile] PRESERVE MANUAL RESIZE: Column %d has manual resize, preserving existing height factors", target_column);
-			/* PRESERVE MANUAL RESIZE: Set new tile to minimal height factor */
-			/* This prevents disrupting existing manual resize ratios */
-			c->height_factor = 0.5f; /* Small factor that won't disrupt existing ratios */
-			wlr_log(WLR_INFO, "[nixtile] NEW TILE HEIGHT: Set to 0.5 to preserve manual resize ratios");
 		}
 	} else {
 		/* Invalid column - fallback to equal distribution */
@@ -1879,11 +1953,35 @@ createnotify(struct wl_listener *listener, void *data)
 	
 	/* Ensure equal width distribution for new workspaces */
 	ensure_equal_width_distribution(c);
+	
+	/* EQUAL DISTRIBUTION: Ensure equal height distribution within the target stack */
+	ensure_equal_height_distribution_in_stack(c->column_group);
+	
+	/* EQUAL DISTRIBUTION: Check if we need equal horizontal distribution for 2 tiles */
+	ensure_equal_horizontal_distribution_for_two_tiles();
 }
 
 void
 handletiledrop(Client *c, double x, double y)
 {
+	/* RATE LIMITING: Prevent broken pipe from rapid tile movements */
+	static struct timespec last_tiledrop_time = {0, 0};
+	struct timespec current_time;
+	clock_gettime(CLOCK_MONOTONIC, &current_time);
+	
+	/* Calculate time since last tile drop */
+	long time_diff_ms = (current_time.tv_sec - last_tiledrop_time.tv_sec) * 1000 +
+						(current_time.tv_nsec - last_tiledrop_time.tv_nsec) / 1000000;
+	
+	/* Rate limit: minimum 50ms between tile drops to prevent broken pipe */
+	if (time_diff_ms < 50) {
+		wlr_log(WLR_DEBUG, "[nixtile] RATE LIMIT: Ignoring rapid tile movement (time_diff=%ldms)", time_diff_ms);
+		return;
+	}
+	
+	/* Update last tile drop time */
+	last_tiledrop_time = current_time;
+	
 	/* ULTRA-SMOOTH GPU ACCELERATION: Optimized tile movement for butter-smooth experience */
 	/* CRITICAL SAFETY CHECKS: Prevent all crashes */
 	if (!c) {
@@ -3020,6 +3118,20 @@ handletiledrop_old(Client *c, double x, double y)
 		wlr_log(WLR_DEBUG, "[nixtile] Moved tile from column %d to column %d (cross-column swap)", old_column, target_column);
 	}
 	
+	/* EQUAL DISTRIBUTION: Reset manual resize flags and ensure equal distribution after tile movement */
+	/* Reset manual resize flags to enforce equal distribution on tile movement */
+	if (manual_resize_performed[0] || manual_resize_performed[1]) {
+		wlr_log(WLR_INFO, "[nixtile] EQUAL DISTRIBUTION: Resetting manual resize flags on tile movement - enforcing equal distribution");
+		manual_resize_performed[0] = false;
+		manual_resize_performed[1] = false;
+	}
+	
+	ensure_equal_height_distribution_in_stack(0); /* Left column */
+	ensure_equal_height_distribution_in_stack(1); /* Right column */
+	
+	/* EQUAL DISTRIBUTION: Check if we need equal horizontal distribution for single tiles */
+	ensure_equal_horizontal_distribution_for_two_tiles();
+	
 	/* Force layout update */
 	arrange(m);
 }
@@ -3467,6 +3579,22 @@ destroynotify(struct wl_listener *listener, void *data)
 		wlr_log(WLR_ERROR, "[nixtile] DESTROY COMPLETE: handle_empty_column_expansion() finished");
 	} else {
 		wlr_log(WLR_ERROR, "[nixtile] SKIPPING handle_empty_column_expansion() since rebalancing was performed");
+	}
+	
+	/* EQUAL DISTRIBUTION: Reset manual resize flags and ensure equal distribution after tile removal */
+	if (!client_was_floating && removed_column >= 0 && removed_column < 2) {
+		/* Reset manual resize flags to enforce equal distribution on tile removal */
+		if (manual_resize_performed[0] || manual_resize_performed[1]) {
+			wlr_log(WLR_INFO, "[nixtile] EQUAL DISTRIBUTION: Resetting manual resize flags on tile removal - enforcing equal distribution");
+			manual_resize_performed[0] = false;
+			manual_resize_performed[1] = false;
+		}
+		
+		ensure_equal_height_distribution_in_stack(0); /* Left column */
+		ensure_equal_height_distribution_in_stack(1); /* Right column */
+		
+		/* EQUAL DISTRIBUTION: Check if we need equal horizontal distribution for single tiles */
+		ensure_equal_horizontal_distribution_for_two_tiles();
 	}
 	
 	free(c);
@@ -4704,8 +4832,18 @@ frame_synced_resize_callback(void *data)
 		long time_diff_ms = (current_time.tv_sec - last_arrange_time.tv_sec) * 1000 +
 							(current_time.tv_nsec - last_arrange_time.tv_nsec) / 1000000;
 		
-		/* Only arrange if enough time has passed (minimum 16ms = ~60fps) */
-		if (time_diff_ms >= 16 || last_arrange_time.tv_sec == 0) {
+		/* DYNAMIC FRAME SYNC: Calculate optimal frame time based on monitor's refresh rate */
+		int monitor_refresh_hz = get_monitor_refresh_rate(selmon) / 1000; /* Convert mHz to Hz */
+		int optimal_frame_time_ms = (monitor_refresh_hz > 0) ? (1000 / monitor_refresh_hz) : 16;
+		
+		/* Ensure minimum performance even on very high refresh rate displays */
+		if (optimal_frame_time_ms < 4) optimal_frame_time_ms = 4; /* Max 250fps cap for safety */
+		
+		wlr_log(WLR_DEBUG, "[nixtile] FRAME SYNC: Monitor %dHz -> %dms frame time (was fixed 16ms)", 
+		        monitor_refresh_hz, optimal_frame_time_ms);
+		
+		/* Only arrange if enough time has passed (dynamic based on monitor Hz) */
+		if (time_diff_ms >= optimal_frame_time_ms || last_arrange_time.tv_sec == 0) {
 			wlr_log(WLR_DEBUG, "[nixtile] RESIZE DEBUG: Calling arrange() from frame callback (recursion=%d)", arrange_recursion_count);
 			arrange_recursion_count++;
 			arrange(selmon);
@@ -4713,9 +4851,15 @@ frame_synced_resize_callback(void *data)
 			last_arrange_time = current_time;
 			wlr_log(WLR_DEBUG, "[nixtile] RESIZE DEBUG: arrange() completed successfully");
 			
-			/* Conservative frame scheduling to prevent protocol overload */
+			/* MONITOR-SYNCHRONIZED FRAME SCHEDULING: Schedule next frame at optimal timing */
 			if (selmon && selmon->wlr_output) {
+				/* Schedule frame immediately for smooth animation */
 				wlr_output_schedule_frame(selmon->wlr_output);
+				
+				/* Log frame scheduling for high refresh rate monitors */
+				if (monitor_refresh_hz > 60) {
+					wlr_log(WLR_DEBUG, "[nixtile] FRAME SYNC: Scheduled next frame for %dHz display", monitor_refresh_hz);
+				}
 			}
 		}
 	}
@@ -4758,6 +4902,61 @@ get_monitor_refresh_rate(Monitor *m)
 	
 	/* Final fallback */
 	return 60000; /* 60Hz default */
+}
+
+/* GPU Acceleration Functions */
+
+
+/* Frame Rate Diagnostics */
+static void
+log_frame_timing_stats(Monitor *m)
+{
+	static struct timespec last_frame_time = {0};
+	static int frame_count = 0;
+	static double total_frame_time = 0.0;
+	static double min_frame_time = 999.0;
+	static double max_frame_time = 0.0;
+	
+	struct timespec current_time;
+	clock_gettime(CLOCK_MONOTONIC, &current_time);
+	
+	if (last_frame_time.tv_sec != 0) {
+		/* Calculate frame time in milliseconds */
+		double frame_time_ms = (current_time.tv_sec - last_frame_time.tv_sec) * 1000.0 +
+		                      (current_time.tv_nsec - last_frame_time.tv_nsec) / 1000000.0;
+		
+		frame_count++;
+		total_frame_time += frame_time_ms;
+		
+		if (frame_time_ms < min_frame_time) min_frame_time = frame_time_ms;
+		if (frame_time_ms > max_frame_time) max_frame_time = frame_time_ms;
+		
+		/* Log statistics every 5 seconds (approximately) */
+		if (frame_count >= 300) { /* ~5 seconds at 60fps */
+			double avg_frame_time = total_frame_time / frame_count;
+			double actual_fps = 1000.0 / avg_frame_time;
+			int target_hz = get_monitor_refresh_rate(m) / 1000;
+			
+			wlr_log(WLR_INFO, "[nixtile] FRAME TIMING: Target=%dHz, Actual=%.1fFPS, Avg=%.2fms, Min=%.2fms, Max=%.2fms",
+			        target_hz, actual_fps, avg_frame_time, min_frame_time, max_frame_time);
+			
+			/* Check if we're hitting target frame rate */
+			if (actual_fps < (target_hz * 0.95)) { /* Allow 5% tolerance */
+				wlr_log(WLR_ERROR, "[nixtile] FRAME TIMING: Performance warning - not hitting target %dHz (actual %.1fFPS)",
+				        target_hz, actual_fps);
+			} else {
+				wlr_log(WLR_INFO, "[nixtile] FRAME TIMING: Performance excellent - hitting target %dHz", target_hz);
+			}
+			
+			/* Reset statistics */
+			frame_count = 0;
+			total_frame_time = 0.0;
+			min_frame_time = 999.0;
+			max_frame_time = 0.0;
+		}
+	}
+	
+	last_frame_time = current_time;
 }
 
 void
@@ -5309,23 +5508,43 @@ static void draw_status_bar(Monitor *m) {
 void
 rendermon(struct wl_listener *listener, void *data)
 {
-	/* ULTRA-SMOOTH GPU ACCELERATION: Frame rendering optimized for butter-smooth animations */
+	/* MONITOR-SYNCHRONIZED RENDERING: Perfect frame timing at native refresh rate */
 	/* This function is called every time an output is ready to display a frame,
-	 * generally at the output's refresh rate (e.g. 60Hz). */
+	 * synchronized with the monitor's actual refresh rate (60Hz, 120Hz, 144Hz, etc.) */
 	Monitor *m = wl_container_of(listener, m, frame);
 	Client *c;
 	struct wlr_output_state pending = {0};
 	struct timespec now;
 	
+	/* FRAME RATE SYNCHRONIZATION: Get monitor's actual refresh rate */
+	int monitor_refresh_hz = get_monitor_refresh_rate(m) / 1000;
+	static int last_logged_hz = 0;
+	if (monitor_refresh_hz != last_logged_hz) {
+		wlr_log(WLR_INFO, "[nixtile] FRAME SYNC: Rendering at %dHz (monitor native rate)", monitor_refresh_hz);
+		last_logged_hz = monitor_refresh_hz;
+	}
+	
+	/* FRAME TIMING DIAGNOSTICS: Monitor actual frame rate performance */
+	log_frame_timing_stats(m);
+	
 	/* GPU ACCELERATION: Enable hardware-accelerated frame rendering */
 	if (high_performance_mode && drw && wlr_renderer_is_gles2(drw)) {
 		/* Hardware-accelerated rendering path for ultra-smooth performance */
-		wlr_log(WLR_DEBUG, "[nixtile] GPU ACCELERATION: Hardware-accelerated frame rendering at %dHz", 
-		        m->wlr_output->refresh / 1000);
+		static int frame_count = 0;
+		frame_count++;
+		
+		/* Log performance info every 60 frames to avoid spam */
+		if (frame_count % 60 == 0) {
+			wlr_log(WLR_DEBUG, "[nixtile] GPU ACCELERATION: Hardware-accelerated rendering at %dHz (frame %d)", 
+			        monitor_refresh_hz, frame_count);
+		}
 		
 		/* Enable GPU texture caching and buffer optimization */
 		if (m->wlr_output->adaptive_sync_supported) {
-			wlr_log(WLR_DEBUG, "[nixtile] GPU ACCELERATION: Using adaptive sync for tear-free rendering");
+			/* Adaptive sync provides variable refresh rate for smoother experience */
+			if (frame_count % 120 == 0) { /* Log every 2 seconds at 60fps */
+				wlr_log(WLR_DEBUG, "[nixtile] GPU ACCELERATION: Using adaptive sync for tear-free rendering");
+			}
 		}
 	}
 	
@@ -6926,6 +7145,81 @@ void handle_empty_column_expansion() {
 	/* CRITICAL: Apply the layout changes immediately to ensure screen is filled */
 	wlr_log(WLR_DEBUG, "[nixtile] SCREEN FILLING: Applying layout with mfact=%.2f", selmon->mfact);
 	arrange(selmon);
+}
+
+/* EQUAL HEIGHT DISTRIBUTION: Ensure all tiles in a stack have equal height factors */
+void ensure_equal_height_distribution_in_stack(int column) {
+	/* SAFETY: Validate inputs */
+	if (!selmon || column < 0 || column >= 2) {
+		wlr_log(WLR_ERROR, "[nixtile] EQUAL HEIGHT: Invalid parameters (selmon=%p, column=%d)", (void*)selmon, column);
+		return;
+	}
+	
+	/* RESET MANUAL RESIZE: Always reset and enforce equal distribution on tile operations */
+	if (manual_resize_performed[column]) {
+		wlr_log(WLR_INFO, "[nixtile] EQUAL HEIGHT: Resetting manual resize flag for column %d - enforcing equal distribution", column);
+		manual_resize_performed[column] = false;
+	}
+	
+	/* Count tiles in the specified column */
+	int tiles_in_column = 0;
+	Client *c;
+	wl_list_for_each(c, &clients, link) {
+		if (!VISIBLEON(c, selmon) || c->isfloating || c->isfullscreen)
+			continue;
+		if (c->column_group == column)
+			tiles_in_column++;
+	}
+	
+	if (tiles_in_column <= 1) {
+		wlr_log(WLR_DEBUG, "[nixtile] EQUAL HEIGHT: Column %d has %d tiles, no redistribution needed", column, tiles_in_column);
+		return;
+	}
+	
+	/* Set all tiles in this column to equal height factors */
+	wlr_log(WLR_INFO, "[nixtile] EQUAL HEIGHT: Redistributing %d tiles equally in column %d", tiles_in_column, column);
+	wl_list_for_each(c, &clients, link) {
+		if (!VISIBLEON(c, selmon) || c->isfloating || c->isfullscreen)
+			continue;
+		if (c->column_group == column) {
+			c->height_factor = 1.0f; /* Equal distribution */
+			wlr_log(WLR_DEBUG, "[nixtile] EQUAL HEIGHT: Set tile %p height_factor to 1.0", (void*)c);
+		}
+	}
+}
+
+/* EQUAL HORIZONTAL DISTRIBUTION: Set mfact to 0.5 when only single tiles remain (no stacks) */
+void ensure_equal_horizontal_distribution_for_two_tiles(void) {
+	/* SAFETY: Validate monitor */
+	if (!selmon) {
+		wlr_log(WLR_ERROR, "[nixtile] EQUAL HORIZONTAL: No selected monitor");
+		return;
+	}
+	
+	/* Count total tiles across both columns */
+	int left_count = count_tiles_in_stack(0, selmon);
+	int right_count = count_tiles_in_stack(1, selmon);
+	int total_tiles = left_count + right_count;
+	
+	wlr_log(WLR_DEBUG, "[nixtile] EQUAL HORIZONTAL: Total tiles=%d (left=%d, right=%d)", total_tiles, left_count, right_count);
+	
+	/* Apply equal distribution when only single tiles remain (no stacks) */
+	bool only_single_tiles = (left_count <= 1 && right_count <= 1 && total_tiles >= 2);
+	if (only_single_tiles) {
+		/* RESET MANUAL RESIZE: Always reset and enforce equal distribution for single tiles */
+		bool any_manual_resize = manual_resize_performed[0] || manual_resize_performed[1];
+		if (any_manual_resize) {
+			wlr_log(WLR_INFO, "[nixtile] EQUAL HORIZONTAL: Resetting manual resize flags - enforcing equal distribution for single tiles");
+			manual_resize_performed[0] = false;
+			manual_resize_performed[1] = false;
+		}
+		
+		/* Set equal horizontal distribution */
+		selmon->mfact = 0.5f;
+		wlr_log(WLR_INFO, "[nixtile] EQUAL HORIZONTAL: Set mfact to 0.5 for equal distribution of single tiles (left=%d, right=%d)", left_count, right_count);
+	} else {
+		wlr_log(WLR_DEBUG, "[nixtile] EQUAL HORIZONTAL: Not applicable - stacks exist or insufficient tiles (total=%d, left=%d, right=%d)", total_tiles, left_count, right_count);
+	}
 }
 
 /* CRASH PREVENTION: Validate client list integrity before operations */
