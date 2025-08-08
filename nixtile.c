@@ -119,6 +119,7 @@ static const float launcher_tab_active_color[4] = {0.22, 0.24, 0.32, 1.0};
 #define MAX_TILES_PER_STACK     5
 #define MAX_STACKS_PER_WORKSPACE 2
 #define MAX_TILES_PER_WORKSPACE (MAX_TILES_PER_STACK * MAX_STACKS_PER_WORKSPACE)
+#define MAX_COLUMNS             3  /* Support up to 3 columns for bidirectional movement */
 
 /* global variables */
 int statusbar_visible = 1; /* 1 = visible, 0 = hidden */
@@ -246,6 +247,8 @@ struct Monitor {
 	uint32_t tagset[2];
 	float mfact;
 	float workspace_mfact[9]; /* Per-workspace mfact storage (9 workspaces) */
+	int workspace_stacking_counter; /* Per-workspace stacking tile counter for round-robin */
+	bool workspace_stacking_counter_initialized; /* Track if counter has been initialized */
 	int gamma_lut_changed;
 	int nmaster;
 	char ltsymbol[16];
@@ -348,6 +351,9 @@ static void fullscreennotify(struct wl_listener *listener, void *data);
 static void gpureset(struct wl_listener *listener, void *data);
 static void handlesig(int signo);
 static void incnmaster(const Arg *arg);
+static int get_optimal_columns(int screen_width);
+static int get_optimal_master_tiles(int screen_width);
+static void update_dynamic_master_tiles(Monitor *m);
 static void inputdevice(struct wl_listener *listener, void *data);
 static int keybinding(uint32_t mods, xkb_keysym_t sym);
 
@@ -614,14 +620,18 @@ is_resize_safe(Client *c, int new_width, int new_height)
 		return 0;
 	}
 	
-	/* Check if new dimensions would be destructively small */
-	int safe_min_width = 180;
-	int safe_min_height = 140;
+	/* Check if new dimensions would be destructively small - but be more lenient for multi-column layouts */
+	int safe_min_width = 120;  /* Reduced from 180 for multi-column compatibility */
+	int safe_min_height = 80;  /* Reduced from 140 for stacked tiles */
 	
+	/* Only block extremely small sizes that would cause crashes */
 	if (new_width < safe_min_width || new_height < safe_min_height) {
 		wlr_log(WLR_DEBUG, "[nixtile] RESIZE SAFETY: Blocking destructive resize (requested: %dx%d, minimum: %dx%d)", 
 		        new_width, new_height, safe_min_width, safe_min_height);
 		return 0;
+	} else {
+		wlr_log(WLR_DEBUG, "[nixtile] RESIZE SAFETY: Allowing resize (requested: %dx%d, minimum: %dx%d)", 
+		        new_width, new_height, safe_min_width, safe_min_height);
 	}
 	
 	/* Check if client surface is still valid */
@@ -1074,9 +1084,11 @@ arrange_immediate(Monitor *m)
 				
 				/* FORCE: No tile can be floating */
 				temp_c->isfloating = 0;
-				/* Ensure valid column assignment */
-				if (temp_c->column_group != 0 && temp_c->column_group != 1) {
-					temp_c->column_group = 0;
+				/* Ensure valid column assignment for dynamic columns */
+				int current_optimal_columns = get_optimal_columns(m->w.width);
+				if (temp_c->column_group < 0 || temp_c->column_group >= current_optimal_columns) {
+					/* DO NOT force to 0 - let tile() function handle assignment */
+					wlr_log(WLR_DEBUG, "[nixtile] COLUMN VALIDATION: Invalid column_group %d, will be reassigned by tile() (max columns: %d)", temp_c->column_group, current_optimal_columns);
 				}
 			}
 		}
@@ -1842,14 +1854,36 @@ createnotify(struct wl_listener *listener, void *data)
 	c->height_factor = 1.0f;
 	c->isfloating = 0; /* CRITICAL: Never allow floating tiles */
 	
+	wlr_log(WLR_ERROR, "[nixtile] *** CREATENOTIFY CALLED - NEW TILE BEING CREATED ***");
+	wlr_log(WLR_ERROR, "[nixtile] *** IF YOU SEE THIS MESSAGE, CREATENOTIFY IS WORKING ***");
+	
+	/* CRITICAL: Set mon and tags early for VISIBLEON to work correctly */
+	c->mon = selmon;
+	c->tags = selmon->tagset[selmon->seltags];
+	
 	wlr_log(WLR_INFO, "[nixtile] INTELLIGENT PLACEMENT: Creating new tile with screen-filling priority");
 	
 	/* STEP 1: Check current workspace tile situation */
-	int current_workspace_tiles = count_total_tiles_in_workspace(selmon);
-	int left_stack_count = count_tiles_in_stack(0, selmon);
-	int right_stack_count = count_tiles_in_stack(1, selmon);
+	/* Count existing tiles (excluding the current tile being assigned) */
+	int current_workspace_tiles = 0;
+	Client *temp_c;
+	wl_list_for_each(temp_c, &clients, link) {
+		if (temp_c != c && VISIBLEON(temp_c, selmon) && !temp_c->isfloating && !temp_c->isfullscreen) {
+			current_workspace_tiles++;
+		}
+	}
 	
-	wlr_log(WLR_INFO, "[nixtile] WORKSPACE ANALYSIS: total=%d, left_stack=%d, right_stack=%d", current_workspace_tiles, left_stack_count, right_stack_count);
+	/* Get dynamic column configuration first */
+	int screen_width = selmon->w.width;
+	int optimal_columns = get_optimal_columns(screen_width);
+	int master_tiles = get_optimal_master_tiles(screen_width);
+	
+	/* Count tiles in each column dynamically - will be updated after assignment */
+	int column_counts[4] = {0}; /* Support up to 4 columns */
+	/* Note: column_counts will be calculated after column_group is set */
+	
+	wlr_log(WLR_INFO, "[nixtile] WORKSPACE ANALYSIS: total=%d, columns=%d, col0=%d, col1=%d, col2=%d, col3=%d", 
+		current_workspace_tiles, optimal_columns, column_counts[0], column_counts[1], column_counts[2], column_counts[3]);
 	
 	/* STEP 2: Handle workspace overflow first */
 	if (current_workspace_tiles >= MAX_TILES_PER_WORKSPACE) {
@@ -1861,62 +1895,44 @@ createnotify(struct wl_listener *listener, void *data)
 		load_workspace_mfact();
 		
 		/* Reset counts for new workspace */
-		left_stack_count = count_tiles_in_stack(0, selmon);
-		right_stack_count = count_tiles_in_stack(1, selmon);
-		current_workspace_tiles = left_stack_count + right_stack_count;
-	} else {
-		c->tags = selmon->tagset[selmon->seltags];
-	}
-	
-	/* STEP 3: INTELLIGENT PLACEMENT STRATEGY */
-	if (current_workspace_tiles == 0) {
-		/* FIRST TILE: Always goes to left column */
-		c->column_group = 0;
-		wlr_log(WLR_INFO, "[nixtile] SCREEN FILLING: First tile placed in left column (full screen width)");
-		
-	} else if (current_workspace_tiles == 1) {
-		/* SECOND TILE: Always goes to right column to create 2-column layout */
-		c->column_group = 1;
-		wlr_log(WLR_INFO, "[nixtile] SCREEN FILLING: Second tile placed in right column (creates 2-column layout)");
-		
-	} else {
-		/* THIRD+ TILES: Stack in selected tile's column with overflow protection */
-		Client *selected = focustop(selmon);
-		int preferred_column = 0; /* Default to left */
-		
-		if (selected && !selected->isfloating) {
-			/* Use selected tile's column as preference */
-			preferred_column = selected->column_group;
-			wlr_log(WLR_INFO, "[nixtile] USER PREFERENCE: Selected tile in column %d, trying to place there", preferred_column);
-		} else {
-			wlr_log(WLR_INFO, "[nixtile] DEFAULT PLACEMENT: No selected tile, defaulting to left column");
-		}
-		
-		/* Check if preferred column has space */
-		int preferred_count = count_tiles_in_stack(preferred_column, selmon);
-		if (preferred_count < MAX_TILES_PER_STACK) {
-			/* Preferred column has space */
-			c->column_group = preferred_column;
-			wlr_log(WLR_INFO, "[nixtile] STACK PLACEMENT: Placed in preferred column %d (%d/%d tiles)", preferred_column, preferred_count + 1, MAX_TILES_PER_STACK);
-		} else {
-			/* Preferred column is full, try other column */
-			int other_column = (preferred_column == 0) ? 1 : 0;
-			int other_count = count_tiles_in_stack(other_column, selmon);
-			
-			if (other_count < MAX_TILES_PER_STACK) {
-				c->column_group = other_column;
-				wlr_log(WLR_INFO, "[nixtile] OVERFLOW PLACEMENT: Preferred column %d full, placed in column %d (%d/%d tiles)", preferred_column, other_column, other_count + 1, MAX_TILES_PER_STACK);
-			} else {
-				/* Both columns full - this shouldn't happen due to workspace overflow check */
-				wlr_log(WLR_ERROR, "[nixtile] CRITICAL: Both stacks full despite workspace check - forcing left column");
-				c->column_group = 0;
+		current_workspace_tiles = 0;
+		wl_list_for_each(temp_c, &clients, link) {
+			if (temp_c != c && VISIBLEON(temp_c, selmon) && !temp_c->isfloating && !temp_c->isfullscreen) {
+				current_workspace_tiles++;
 			}
 		}
+		for (int col = 0; col < optimal_columns && col < 4; col++) {
+			column_counts[col] = count_tiles_in_stack(col, selmon);
+		}
 	}
+	
+	/* STEP 3: SIMPLE GUARANTEED HORIZONTAL PLACEMENT */
+	
+	/* Count existing tiles in this workspace (excluding the new tile) */
+	int tile_number = current_workspace_tiles + 1; /* 1-based tile number */
+	
+	wlr_log(WLR_INFO, "[nixtile] SIMPLE PLACEMENT: Tile #%d, master_tiles=%d, optimal_columns=%d", 
+		tile_number, master_tiles, optimal_columns);
+	
+	/* GUARANTEED RULE: First N tiles go to separate columns (horizontal placement) */
+	if (tile_number <= master_tiles) {
+		int target_column = (tile_number - 1) % optimal_columns;
+		wlr_log(WLR_INFO, "[nixtile] HORIZONTAL PLACEMENT: Tile #%d -> Column %d (guaranteed horizontal)", 
+			tile_number, target_column);
+		c->column_group = target_column;
+	} else {
+		/* STACKING: Let tile() function handle assignment for proper distribution */
+		wlr_log(WLR_INFO, "[nixtile] STACK PLACEMENT: Tile #%d -> will be assigned by tile() function", 
+			tile_number);
+		c->column_group = -1; /* Invalid - will be assigned by tile() */
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] *** CREATENOTIFY FINAL ASSIGNMENT: Tile %p assigned to column %d ***", (void*)c, c->column_group);
+	wlr_log(WLR_ERROR, "[nixtile] *** THIS IS THE COLUMN_GROUP SET IN CREATENOTIFY - SHOULD NOT BE OVERWRITTEN ***");
 	
 	/* STEP 4: RESET MANUAL RESIZE - Always reset and enforce equal distribution on tile addition */
 	int target_column = c->column_group;
-	if (target_column >= 0 && target_column < 2) {
+	if (target_column >= 0 && target_column < MAX_COLUMNS) {
 		/* Reset manual resize flag to enforce equal distribution */
 		if (manual_resize_performed[target_column]) {
 			wlr_log(WLR_INFO, "[nixtile] EQUAL DISTRIBUTION: Resetting manual resize flag for column %d - enforcing equal distribution on tile addition", target_column);
@@ -1964,7 +1980,7 @@ createnotify(struct wl_listener *listener, void *data)
 void
 handletiledrop(Client *c, double x, double y)
 {
-	/* RATE LIMITING: Prevent broken pipe from rapid tile movements */
+	/* SIMPLE RATE LIMITING: Prevent broken pipe from rapid tile movements */
 	static struct timespec last_tiledrop_time = {0, 0};
 	struct timespec current_time;
 	clock_gettime(CLOCK_MONOTONIC, &current_time);
@@ -2158,9 +2174,11 @@ handletiledrop(Client *c, double x, double y)
 		}
 		
 		/* SAFETY: Validate column group is reasonable */
-		if (temp_c->column_group < 0 || temp_c->column_group > 1) {
-			wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid column_group %d for tile %p - SKIP", 
-			        temp_c->column_group, (void*)temp_c);
+		/* Get current optimal columns for validation */
+		int optimal_columns = get_optimal_columns(m->w.width);
+		if (temp_c->column_group < 0 || temp_c->column_group >= optimal_columns) {
+			wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid column_group %d for tile %p (max: %d) - SKIP", 
+			        temp_c->column_group, (void*)temp_c, optimal_columns - 1);
 			continue;
 		}
 		
@@ -2249,8 +2267,11 @@ handletiledrop(Client *c, double x, double y)
 		}
 		
 		/* SAFETY: Validate column group */
-		if (temp_c->column_group < 0 || temp_c->column_group > 1) {
-			wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid column_group %d in column selection - SKIP", temp_c->column_group);
+		/* Get current optimal columns for validation */
+		int optimal_columns = get_optimal_columns(m->w.width);
+		if (temp_c->column_group < 0 || temp_c->column_group >= optimal_columns) {
+			wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid column_group %d in column selection (max: %d) - SKIP", 
+				temp_c->column_group, optimal_columns - 1);
 			continue;
 		}
 		
@@ -2325,8 +2346,9 @@ handletiledrop(Client *c, double x, double y)
 				continue;
 			}
 			
-			if (temp_c->column_group < 0 || temp_c->column_group > 1) {
-				wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid column_group %d in horizontal overlap - SKIP", temp_c->column_group);
+			/* BIDIRECTIONAL FIX: Support all columns (0-2) for full bidirectional movement */
+			if (temp_c->column_group < 0 || temp_c->column_group >= MAX_COLUMNS) {
+				wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid column_group %d in horizontal overlap (max=%d) - SKIP", temp_c->column_group, MAX_COLUMNS-1);
 				continue;
 			}
 			
@@ -2423,8 +2445,9 @@ handletiledrop(Client *c, double x, double y)
 				continue;
 			}
 			
-			if (temp_c->column_group < 0 || temp_c->column_group > 1) {
-				wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid column_group %d in inter-column - SKIP", temp_c->column_group);
+			/* BIDIRECTIONAL FIX: Support all columns (0-2) for full bidirectional movement */
+			if (temp_c->column_group < 0 || temp_c->column_group >= MAX_COLUMNS) {
+				wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid column_group %d in inter-column (max=%d) - SKIP", temp_c->column_group, MAX_COLUMNS-1);
 				continue;
 			}
 			
@@ -2583,21 +2606,19 @@ handletiledrop(Client *c, double x, double y)
 			wlr_log(WLR_DEBUG, "[nixtile] Preserving height factor %.2f in empty column", c->height_factor);
 			
 		} else if (tiles_in_source_column == 0 && tiles_in_target_column == 1) {
-			/* SINGLE TILE to SINGLE TILE: Only allow swap, NEVER stack creation */
-			if (target_tile && prefer_intra_column) {
-				/* FORBIDDEN: Single tiles cannot create stacks */
-				wlr_log(WLR_ERROR, "[nixtile] MOVEMENT RESTRICTION: Single tile cannot create stack with another single tile");
-				wlr_log(WLR_ERROR, "[nixtile] RULE ENFORCEMENT: Single tiles can only swap positions, never create stacks");
-				return; /* ABORT movement - this violates tiling rules */
-			} else {
-				/* SWAP: Simple swap between single tiles (ALLOWED) */
-				wlr_log(WLR_DEBUG, "[nixtile] ALLOWED: Swapping single tiles between columns");
+			/* SINGLE TILE to SINGLE TILE: Always allow swap for master tile replacement */
+			if (target_tile) {
+				/* MASTER TILE SWAP: Allow single tiles to swap positions (fixes master tile in column 2 issue) */
+				wlr_log(WLR_DEBUG, "[nixtile] MASTER TILE SWAP: Swapping single tiles between columns (enables master tile replacement)");
 				int temp_column = c->column_group;
 				c->column_group = target_tile->column_group;
 				target_tile->column_group = temp_column;
 				
 				/* PRESERVE HEIGHT FACTORS: Keep custom sizing during swap */
 				wlr_log(WLR_DEBUG, "[nixtile] Preserving height factors during swap: c=%.2f, target=%.2f", c->height_factor, target_tile->height_factor);
+			} else {
+				wlr_log(WLR_ERROR, "[nixtile] MASTER TILE SWAP: No target tile found for swap");
+				return;
 			}
 			
 		} else if (tiles_in_source_column == 0 && tiles_in_target_column > 1) {
@@ -2765,8 +2786,9 @@ handletiledrop(Client *c, double x, double y)
 		return;
 	}
 	
-	/* Force layout update to reflect the movement */
-	arrange(m);
+	/* CRASH PREVENTION: Defer layout update until all validation is complete */
+	bool needs_arrange = true;
+	bool restore_original = false;
 	
 	/* FULL TILE VISIBILITY CHECK: Ensure entire tile remains visible on screen */
 	bool tile_fully_visible = true;
@@ -2785,20 +2807,9 @@ handletiledrop(Client *c, double x, double y)
 	}
 	
 	if (!tile_fully_visible) {
-		/* VISIBILITY VIOLATION: Restore tile to original position and force proper grid placement */
-		wlr_log(WLR_ERROR, "[nixtile] VISIBILITY VIOLATION: Snapping tile back to grid");
-		
-		/* Restore original state completely */
-		c->column_group = original_column;
-		c->height_factor = original_height_factor;
-		c->geom = original_geom;
-		c->isfloating = 0; /* Force tiled */
-		
-		/* Force immediate layout update to restore proper grid positioning */
-		arrange(m);
-		
-		wlr_log(WLR_ERROR, "[nixtile] VISIBILITY VIOLATION: Tile snapped back to valid grid position");
-		return; /* Exit early - tile has been restored */
+		/* VISIBILITY VIOLATION: Mark for restoration */
+		wlr_log(WLR_ERROR, "[nixtile] VISIBILITY VIOLATION: Will restore tile to grid");
+		restore_original = true;
 	} else {
 		wlr_log(WLR_DEBUG, "[nixtile] VISIBILITY CHECK: Entire tile remains visible on screen");
 	}
@@ -2841,21 +2852,27 @@ handletiledrop(Client *c, double x, double y)
 	}
 	
 	if (!tile_is_valid) {
-		/* GRID VIOLATION: Restore tile to original position */
-		wlr_log(WLR_ERROR, "[nixtile] GRID VIOLATION: Tile outside grid, restoring original position");
-		
+		/* GRID VIOLATION: Mark for restoration */
+		wlr_log(WLR_ERROR, "[nixtile] GRID VIOLATION: Tile outside grid, will restore original position");
+		restore_original = true;
+	} else {
+		wlr_log(WLR_DEBUG, "[nixtile] GRID VALIDATION: Tile properly positioned in grid");
+	}
+	
+	/* CRASH PREVENTION: Single arrange() call after all validation */
+	if (restore_original) {
 		/* Restore original state completely */
+		wlr_log(WLR_ERROR, "[nixtile] RESTORING: Snapping tile back to original position");
 		c->column_group = original_column;
 		c->height_factor = original_height_factor;
 		c->geom = original_geom;
 		c->isfloating = 0; /* Force tiled */
-		
-		/* Force immediate layout update to restore proper grid positioning */
+	}
+	
+	/* SINGLE LAYOUT UPDATE: Prevent Wayland protocol overload */
+	if (needs_arrange) {
 		arrange(m);
-		
-		wlr_log(WLR_ERROR, "[nixtile] GRID VIOLATION: Tile forcibly restored to grid");
-	} else {
-		wlr_log(WLR_DEBUG, "[nixtile] GRID VALIDATION: Tile properly positioned in grid");
+		wlr_log(WLR_DEBUG, "[nixtile] Layout updated with single arrange() call");
 	}
 	
 	wlr_log(WLR_DEBUG, "[nixtile] Tile movement completed: tiles remain tiled");
@@ -3343,7 +3360,7 @@ destroynotify(struct wl_listener *listener, void *data)
 	        (void*)c, client_was_floating, removed_column, (void*)client_mon);
 	
 	/* CRITICAL DEBUG: Verify client state before removal */
-	if (!client_was_floating && removed_column >= 0 && removed_column < 2) {
+	if (!client_was_floating && removed_column >= 0 && removed_column < MAX_COLUMNS) {
 		wlr_log(WLR_ERROR, "[nixtile] DESTROY DEBUG: This is a TILED client in valid column %d - rebalancing will be considered", removed_column);
 	} else {
 		wlr_log(WLR_ERROR, "[nixtile] DESTROY DEBUG: This client will NOT trigger rebalancing (floating=%d, column=%d)", client_was_floating, removed_column);
@@ -3379,7 +3396,7 @@ destroynotify(struct wl_listener *listener, void *data)
 	}
 	
 	/* PRESERVE MANUAL RESIZE ON TILE REMOVAL: Only reset if no manual resize performed */
-	if (removed_column >= 0 && removed_column < 2) {
+	if (removed_column >= 0 && removed_column < MAX_COLUMNS) {
 		if (!manual_resize_performed[removed_column]) {
 			/* No manual resize - reset to equal distribution */
 			wlr_log(WLR_INFO, "[nixtile] TILE REMOVAL: No manual resize in column %d, resetting to equal distribution", removed_column);
@@ -3445,7 +3462,7 @@ destroynotify(struct wl_listener *listener, void *data)
 	} else {
 		wlr_log(WLR_ERROR, "[nixtile] CRITICAL ERROR: selmon is NULL - cannot perform rebalancing!");
 	}
-	if (!client_was_floating && removed_column >= 0 && removed_column < 2 && selmon) {
+	if (!client_was_floating && removed_column >= 0 && removed_column < MAX_COLUMNS && selmon) {
 		int other_column = (removed_column == 0) ? 1 : 0;
 		/* Count tiles AFTER removal */
 		int removed_column_count = count_tiles_in_stack(removed_column, selmon);
@@ -3514,7 +3531,7 @@ destroynotify(struct wl_listener *listener, void *data)
 				tile_to_move->height_factor = 1.0f; /* Single tile gets full height */
 				
 				/* PRESERVE MANUAL RESIZE: Don't reset manual resize flags during rebalancing */
-				if (other_column >= 0 && other_column < 2) {
+				if (other_column >= 0 && other_column < MAX_COLUMNS) {
 					wlr_log(WLR_ERROR, "[nixtile] REBALANCING: Preserving manual resize state for column %d (manual=%d)", 
 				        other_column, manual_resize_performed[other_column]);
 					
@@ -3582,7 +3599,7 @@ destroynotify(struct wl_listener *listener, void *data)
 	}
 	
 	/* EQUAL DISTRIBUTION: Reset manual resize flags and ensure equal distribution after tile removal */
-	if (!client_was_floating && removed_column >= 0 && removed_column < 2) {
+	if (!client_was_floating && removed_column >= 0 && removed_column < MAX_COLUMNS) {
 		/* Reset manual resize flags to enforce equal distribution on tile removal */
 		if (manual_resize_performed[0] || manual_resize_performed[1]) {
 			wlr_log(WLR_INFO, "[nixtile] EQUAL DISTRIBUTION: Resetting manual resize flags on tile removal - enforcing equal distribution");
@@ -4076,22 +4093,26 @@ mapnotify(struct wl_listener *listener, void *data)
 		c->isfloating = 0; /* CRITICAL: Never allow floating tiles */
 		
 		/* Validate and fix column assignment if needed */
-		if (c->column_group != 0 && c->column_group != 1) {
-			wlr_log(WLR_ERROR, "[nixtile] MAPNOTIFY: Invalid column_group %d, fixing to 0", c->column_group);
-			c->column_group = 0;
+		/* Validate and fix column_group for dynamic columns */
+		int optimal_columns = get_optimal_columns(c->mon->w.width);
+		wlr_log(WLR_ERROR, "[nixtile] *** MAPNOTIFY ENTRY: Tile %p has column_group=%d (optimal_columns=%d) ***", 
+			(void*)c, c->column_group, optimal_columns);
+		if (c->column_group < 0 || c->column_group >= optimal_columns) {
+			wlr_log(WLR_ERROR, "[nixtile] *** MAPNOTIFY: Invalid column_group %d (valid: 0-%d), will be reassigned in tile() ***", 
+				c->column_group, optimal_columns - 1);
+			/* DO NOT force to 0 - let tile() function handle assignment */
+		} else {
+			wlr_log(WLR_ERROR, "[nixtile] *** MAPNOTIFY KEEPING: Valid column_group %d for %d-column layout ***", 
+				c->column_group, optimal_columns);
 		}
 		
-		/* Verify stack limits are respected */
+		/* Stack limits are now handled by tile() function - do not override column_group here */
 		int stack_count = count_tiles_in_stack(c->column_group, c->mon);
 		if (stack_count > MAX_TILES_PER_STACK) {
-			wlr_log(WLR_ERROR, "[nixtile] MAPNOTIFY: Stack %d overflow (%d tiles), redistributing", c->column_group, stack_count);
-			/* Try to move to other stack */
-			int other_stack = (c->column_group == 0) ? 1 : 0;
-			int other_count = count_tiles_in_stack(other_stack, c->mon);
-			if (other_count < MAX_TILES_PER_STACK) {
-				c->column_group = other_stack;
-				wlr_log(WLR_INFO, "[nixtile] MAPNOTIFY: Moved tile to stack %d", other_stack);
-			}
+			wlr_log(WLR_ERROR, "[nixtile] MAPNOTIFY: Stack %d overflow (%d tiles), will be handled by tile() function", c->column_group, stack_count);
+			/* DO NOT override column_group here - let tile() function handle redistribution */
+		} else {
+			wlr_log(WLR_ERROR, "[nixtile] MAPNOTIFY: Stack %d has %d tiles (within limit %d)", c->column_group, stack_count, MAX_TILES_PER_STACK);
 		}
 		
 		/* Force column tiling and ensure screen filling */
@@ -4298,29 +4319,26 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 		float horizontal_delta = cursor->x - (float)grabcx;
 		float vertical_delta = cursor->y - (float)grabcy;
 		
-		/* COLUMN-ISOLATED HORIZONTAL RESIZING: Only resize within current column */
+		/* DYNAMIC COLUMN HORIZONTAL RESIZING: Support any number of columns */
 		if (fabs(horizontal_delta) > 0.1f) {
-			/* Determine which column the tile being resized belongs to */
-			int resizing_column = grabc->column_group;
+			/* Get current optimal columns for dynamic resizing */
+			int optimal_columns = get_optimal_columns(selmon->w.width);
 			
-			/* COLUMN ISOLATION: Only allow horizontal resizing if there are tiles in both columns */
-			int left_tiles = 0, right_tiles = 0;
-			Client *temp_c;
-			wl_list_for_each(temp_c, &clients, link) {
-				if (VISIBLEON(temp_c, selmon) && !temp_c->isfloating && !temp_c->isfullscreen) {
-					if (temp_c->column_group == 0) left_tiles++;
-					else if (temp_c->column_group == 1) right_tiles++;
+			/* For 2-column layouts, use traditional mfact-based resizing */
+			if (optimal_columns == 2) {
+				/* Count tiles in each column for 2-column layout */
+				int left_tiles = 0, right_tiles = 0;
+				Client *temp_c;
+				wl_list_for_each(temp_c, &clients, link) {
+					if (VISIBLEON(temp_c, selmon) && !temp_c->isfloating && !temp_c->isfullscreen) {
+						if (temp_c->column_group == 0) left_tiles++;
+						else if (temp_c->column_group == 1) right_tiles++;
+					}
 				}
-			}
-			
-			/* Only allow horizontal resizing if both columns have tiles */
-			if (left_tiles > 0 && right_tiles > 0) {
-				/* CONSISTENT HORIZONTAL RESIZING: All columns have same resize direction */
-				/* Both columns adjust mfact in the same direction for consistent behavior */
+				/* HORIZONTAL RESIZING: Allow resizing regardless of tile distribution */
 				float target_mfact = initial_mfact + (horizontal_delta / (float)selmon->w.width);
 				
-				/* GENEROUS BOUNDARY PROTECTION: Prevent tiles from becoming too narrow */
-				/* More conservative limits to prevent tile destruction during random resizing */
+				/* BOUNDARY PROTECTION: Prevent tiles from becoming too narrow */
 				if (target_mfact < 0.2f) {
 					wlr_log(WLR_DEBUG, "[nixtile] TILE PROTECTION: Blocking horizontal resize that would make left column too narrow (mfact=%.3f)", target_mfact);
 					target_mfact = 0.2f;
@@ -4333,9 +4351,19 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 				/* Store for frame-synced update */
 				pending_target_mfact = target_mfact;
 				resize_pending = true;
+				wlr_log(WLR_DEBUG, "[nixtile] HORIZONTAL RESIZE: mfact %.3f -> %.3f (left=%d, right=%d)", initial_mfact, target_mfact, left_tiles, right_tiles);
 			} else {
-				/* COLUMN ISOLATION: Prevent horizontal resizing when only one column has tiles */
-				wlr_log(WLR_DEBUG, "[nixtile] Column isolation: horizontal resize blocked (left_tiles=%d, right_tiles=%d)", left_tiles, right_tiles);
+				/* Multi-column layouts (3+ columns): Enable horizontal resizing */
+				float target_mfact = initial_mfact + (horizontal_delta / (float)selmon->w.width);
+				
+				/* BOUNDARY PROTECTION for multi-column */
+				if (target_mfact < 0.15f) target_mfact = 0.15f;
+				if (target_mfact > 0.85f) target_mfact = 0.85f;
+				
+				/* Store for frame-synced update */
+				pending_target_mfact = target_mfact;
+				resize_pending = true;
+				wlr_log(WLR_DEBUG, "[nixtile] MULTI-COLUMN HORIZONTAL RESIZE: %d columns, mfact %.3f -> %.3f", optimal_columns, initial_mfact, target_mfact);
 			}
 		}
 		
@@ -4348,7 +4376,7 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			
 			/* Calculate time since last timer creation */
 			long time_since_last_ms = (current_time.tv_sec - last_timer_creation.tv_sec) * 1000 +
-									  (current_time.tv_nsec - last_timer_creation.tv_nsec) / 1000000;
+								  (current_time.tv_nsec - last_timer_creation.tv_nsec) / 1000000;
 			
 			/* Only create timer if enough time has passed (minimum 10ms between timers) */
 			if (time_since_last_ms >= 10 || last_timer_creation.tv_sec == 0) {
@@ -4364,7 +4392,7 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 					frame_interval_ms, 1000/frame_interval_ms, resize_pending, vertical_resize_pending);
 				
 				resize_timer = wl_event_loop_add_timer(wl_display_get_event_loop(dpy),
-									   frame_synced_resize_callback, NULL);
+								   frame_synced_resize_callback, NULL);
 				if (resize_timer) {
 					wl_event_source_timer_update(resize_timer, frame_interval_ms);
 					last_timer_creation = current_time;
@@ -4559,6 +4587,22 @@ motionrelative(struct wl_listener *listener, void *data)
 void
 moveresize(const Arg *arg)
 {
+	/* DOUBLE-CLICK PROTECTION: Prevent rapid successive calls */
+	static struct timespec last_moveresize_time = {0};
+	struct timespec current_time;
+	clock_gettime(CLOCK_MONOTONIC, &current_time);
+	
+	/* Calculate time since last moveresize call */
+	long time_diff_ms = (current_time.tv_sec - last_moveresize_time.tv_sec) * 1000 +
+						(current_time.tv_nsec - last_moveresize_time.tv_nsec) / 1000000;
+	
+	/* Debounce: Ignore calls within 100ms to prevent double-click crashes */
+	if (time_diff_ms < 100 && last_moveresize_time.tv_sec != 0) {
+		wlr_log(WLR_DEBUG, "[nixtile] DOUBLE-CLICK PROTECTION: Ignoring rapid moveresize call (%ldms ago)", time_diff_ms);
+		return;
+	}
+	last_moveresize_time = current_time;
+	
 	/* Validate cursor mode */
 	if (cursor_mode != CurNormal && cursor_mode != CurPressed) {
 		wlr_log(WLR_DEBUG, "[nixtile] moveresize: invalid cursor mode: %d", cursor_mode);
@@ -4962,6 +5006,22 @@ log_frame_timing_stats(Monitor *m)
 void
 tileresize(const Arg *arg)
 {
+	/* DOUBLE-CLICK PROTECTION: Prevent rapid successive calls */
+	static struct timespec last_tileresize_time = {0};
+	struct timespec current_time;
+	clock_gettime(CLOCK_MONOTONIC, &current_time);
+	
+	/* Calculate time since last tileresize call */
+	long time_diff_ms = (current_time.tv_sec - last_tileresize_time.tv_sec) * 1000 +
+						(current_time.tv_nsec - last_tileresize_time.tv_nsec) / 1000000;
+	
+	/* Debounce: Ignore calls within 50ms to prevent double-click crashes but allow bi-axial resizing */
+	if (time_diff_ms < 50 && last_tileresize_time.tv_sec != 0) {
+		wlr_log(WLR_DEBUG, "[nixtile] DOUBLE-CLICK PROTECTION: Ignoring rapid tileresize call (%ldms ago)", time_diff_ms);
+		return;
+	}
+	last_tileresize_time = current_time;
+	
 	/* CRITICAL SAFETY CHECKS: Prevent all crashes */
 	if (!cursor || !selmon) {
 		wlr_log(WLR_ERROR, "[nixtile] SAFETY: cursor or selmon is NULL in tileresize - ABORT");
@@ -4974,11 +5034,36 @@ tileresize(const Arg *arg)
 		return;
 	}
 	
-	/* Find client under cursor for validation */
+	/* Find client under cursor for validation - be flexible for bi-axial resizing */
 	xytonode(cursor->x, cursor->y, NULL, &grabc, NULL, NULL, NULL);
 	if (!grabc || grabc->isfloating || grabc->isfullscreen) {
-		wlr_log(WLR_DEBUG, "[nixtile] tileresize: No valid tiled client under cursor");
-		return;
+		/* If no direct client under cursor, try to find the closest tiled client for resizing */
+		Client *closest_client = NULL;
+		double closest_distance = INFINITY;
+		Client *temp_c;
+		
+		wl_list_for_each(temp_c, &clients, link) {
+			if (!VISIBLEON(temp_c, selmon) || temp_c->isfloating || temp_c->isfullscreen)
+				continue;
+			
+			/* Calculate distance from cursor to tile center */
+			double tile_center_x = temp_c->geom.x + (temp_c->geom.width / 2.0);
+			double tile_center_y = temp_c->geom.y + (temp_c->geom.height / 2.0);
+			double distance = sqrt(pow(cursor->x - tile_center_x, 2) + pow(cursor->y - tile_center_y, 2));
+			
+			if (distance < closest_distance) {
+				closest_distance = distance;
+				closest_client = temp_c;
+			}
+		}
+		
+		if (!closest_client) {
+			wlr_log(WLR_DEBUG, "[nixtile] tileresize: No tiled clients available for resizing");
+			return;
+		}
+		
+		grabc = closest_client;
+		wlr_log(WLR_DEBUG, "[nixtile] tileresize: Using closest tiled client for bi-axial resizing (distance=%.1f)", closest_distance);
 	}
 	
 	/* SAFETY: Validate grabc client state */
@@ -5813,17 +5898,21 @@ force_column_tiling(Monitor *m)
 			c->isfloating = 0;
 		}
 		
-		/* Ensure tile has a valid column assignment */
-		if (c->column_group != 0 && c->column_group != 1) {
-			wlr_log(WLR_DEBUG, "[nixtile] FORCE: Invalid column %d for tile %p, assigning to column 0", c->column_group, (void*)c);
-			c->column_group = 0;
+		/* Ensure tile has a valid column assignment for multi-column layout */
+		int optimal_columns = get_optimal_columns(m->w.width);
+		if (c->column_group < 0 || c->column_group >= optimal_columns) {
+			wlr_log(WLR_DEBUG, "[nixtile] FORCE: Invalid column %d for tile %p (valid: 0-%d), will be reassigned in tile()", 
+				c->column_group, (void*)c, optimal_columns - 1);
+			/* DO NOT force to 0 - let tile() function handle assignment */
 		}
 		
-		/* Count tiles in each column */
-		if (c->column_group == 0) {
-			left_column_count++;
-		} else {
-			right_column_count++;
+		/* Count tiles in each column (only count valid assignments) */
+		if (c->column_group >= 0 && c->column_group < optimal_columns) {
+			if (c->column_group == 0) {
+				left_column_count++;
+			} else {
+				right_column_count++;
+			}
 		}
 	}
 	
@@ -6248,9 +6337,65 @@ tagmon(const Arg *arg)
 		setmon(sel, dirtomon(arg->i), 0);
 }
 
+/* DYNAMIC COLUMN AND MASTER TILE CONFIGURATION */
+
+/* Get optimal number of columns based on screen width */
+int
+get_optimal_columns(int screen_width)
+{
+	if (screen_width >= 3440) {
+		/* Super Ultrawide: 4+ columns for very wide screens */
+		return 4;
+	} else if (screen_width >= 2560) {
+		/* Ultrawide: 3 columns */
+		return 3;
+	} else if (screen_width >= 1600) {
+		/* Normal widescreen: 2 columns */
+		return 3;
+	} else {
+		/* Standard/narrow screens: 1 column */
+		return 1;
+	}
+}
+
+/* Get optimal number of master tiles based on screen width */
+int
+get_optimal_master_tiles(int screen_width)
+{
+	if (screen_width >= 3440) {
+		/* Super Ultrawide: 4 master tiles */
+		return 4;
+	} else if (screen_width >= 2560) {
+		/* Ultrawide: 3 master tiles */
+		return 3;
+	} else if (screen_width >= 1600) {
+		/* Normal widescreen: 2 master tiles */
+		return 3;
+	} else {
+		/* Standard/narrow screens: 1 master tile */
+		return 1;
+	}
+}
+
+/* Update monitor's nmaster based on screen width */
+void
+update_dynamic_master_tiles(Monitor *m)
+{
+	int screen_width = m->w.width;
+	int optimal_master = get_optimal_master_tiles(screen_width);
+	
+	/* Only update if different to avoid unnecessary layout changes */
+	if (m->nmaster != optimal_master) {
+		m->nmaster = optimal_master;
+		wlr_log(WLR_INFO, "[nixtile] DYNAMIC LAYOUT: Screen width %dpx -> %d master tiles", 
+			screen_width, optimal_master);
+	}
+}
+
 void
 tile(Monitor *m)
 {
+	wlr_log(WLR_ERROR, "[nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***");
 	int i, n = 0;
 	Client *c;
 	extern int statusbar_visible;
@@ -6282,17 +6427,45 @@ tile(Monitor *m)
 	adjusted_area.width -= 2 * x_outer_gap;
 	adjusted_area.height -= 2 * y_outer_gap;
 
-	/* Count windows that need to be tiled */
-	wl_list_for_each(c, &clients, link)
-		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen)
+	/* Count windows that need to be tiled - ROBUST VERSION */
+	/* Use more lenient visibility check to handle timing issues */
+	wl_list_for_each(c, &clients, link) {
+		/* More robust visibility check: if mon is set and not floating/fullscreen, count it */
+		bool has_monitor = (c->mon != NULL);
+		bool not_floating = !c->isfloating;
+		bool not_fullscreen = !c->isfullscreen;
+		/* Also check traditional VISIBLEON for comparison */
+		bool traditional_visible = VISIBLEON(c, m);
+		
+		wlr_log(WLR_ERROR, "[nixtile] *** TILE COUNT: Client %p - has_mon=%d, not_float=%d, not_full=%d, trad_vis=%d, column=%d ***", 
+			(void*)c, has_monitor, not_floating, not_fullscreen, traditional_visible, c->column_group);
+		
+		/* Use robust check: if tile has monitor and is not floating/fullscreen, include it */
+		if (has_monitor && not_floating && not_fullscreen) {
 			n++;
-	if (n == 0)
+		}
+	}
+	wlr_log(WLR_ERROR, "[nixtile] *** TILE FUNCTION: Found %d tiles to layout ***", n);
+	if (n == 0) {
+		wlr_log(WLR_ERROR, "[nixtile] *** TILE FUNCTION: No tiles to layout, returning early ***");
 		return;
+	}
 
-	/* TRUE DUAL-STACK LAYOUT WITH INDEPENDENT BI-AXIAL RESIZING */
+	/* DYNAMIC MULTI-COLUMN LAYOUT WITH INDEPENDENT BI-AXIAL RESIZING */
+	/* Update dynamic master tiles based on screen width */
+	update_dynamic_master_tiles(m);
+	
 	/* Determine layout based on screen width and tile count */
 	int screen_width = adjusted_area.width;
-	bool use_dual_column = (screen_width >= 1600 && n >= 2); /* Wide screen gets 2 columns */
+	int optimal_columns = get_optimal_columns(screen_width);
+	int master_tiles = m->nmaster;
+	
+	/* Use multi-column layout for 2+ columns with 2+ tiles, or always for 3+ columns */
+	bool use_multi_column = (optimal_columns >= 2 && n >= 2);
+	bool force_multi_column = (optimal_columns >= 3); /* 3+ columns always use multi-column layout */
+	
+	wlr_log(WLR_ERROR, "[nixtile] *** TILE FUNCTION: n=%d, optimal_columns=%d, use_multi_column=%d, force_multi_column=%d ***", 
+		n, optimal_columns, use_multi_column, force_multi_column);
 	
 	if (n == 1) {
 		/* Single tile: full screen */
@@ -6309,75 +6482,164 @@ tile(Monitor *m)
 				.height = adjusted_area.height
 			}, 0);
 		}
-	} else if (n == 2) {
-		/* Two tiles: 50/50 horizontal split with mfact resizing support */
-		/* CRITICAL FIX: Respect column_group assignments for proper tile swapping */
+	} else if (optimal_columns == 2 && use_multi_column && !force_multi_column) {
+		wlr_log(WLR_ERROR, "[nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***");
+		/* 2-column layout: mfact-based horizontal resizing (supports stacks) */
+		/* This preserves horizontal resizing functionality for 2-column scenarios only */
 		int left_width = (int)roundf(adjusted_area.width * m->mfact);
 		int right_width = adjusted_area.width - left_width - innergappx;
 		
-		Client *left_tile = NULL, *right_tile = NULL;
-		
-		/* Find tiles based on column_group, not list order */
-		wl_list_for_each(c, &clients, link) {
-			if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
+		/* Count tiles in each column for proper stack handling */
+		int left_tiles = 0, right_tiles = 0;
+		Client *temp_c;
+		wl_list_for_each(temp_c, &clients, link) {
+			if (!VISIBLEON(temp_c, m) || temp_c->isfloating || temp_c->isfullscreen)
 				continue;
 			
-			if (c->column_group == 0) {
-				left_tile = c;
+			if (temp_c->column_group == 0) {
+				left_tiles++;
 			} else {
-				right_tile = c;
+				right_tiles++;
 			}
 		}
 		
-		/* Place tiles based on column_group */
-		if (left_tile) {
-			resize(left_tile, (struct wlr_box){
-				.x = adjusted_area.x,
-				.y = adjusted_area.y,
-				.width = left_width,
-				.height = adjusted_area.height
-			}, 0);
-		}
-		
-		if (right_tile) {
-			resize(right_tile, (struct wlr_box){
-				.x = adjusted_area.x + left_width + innergappx,
-				.y = adjusted_area.y,
-				.width = right_width,
-				.height = adjusted_area.height
-			}, 0);
-		}
-	} else {
-		/* TRUE DUAL-STACK LAYOUT - BOTH COLUMNS ARE INDEPENDENT */
-		if (use_dual_column) {
-			/* Dual column layout: two independent stacking areas */
-			int left_width = (int)roundf(adjusted_area.width * m->mfact);
-			int right_width = adjusted_area.width - left_width - innergappx;
+		/* Position all tiles in each column with proper stacking */
+		int left_y = 0, right_y = 0;
+		wl_list_for_each(c, &clients, link) {
+			/* Use robust visibility check instead of strict VISIBLEON */
+			if (!c->mon || c->isfloating || c->isfullscreen)
+				continue;
 			
-			/* PER-COLUMN GROUPING: Count tiles based on their assigned column, not automatic distribution */
-			int left_tiles = 0, right_tiles = 0;
-			Client *temp_c;
-			wl_list_for_each(temp_c, &clients, link) {
-				if (!VISIBLEON(temp_c, m) || temp_c->isfloating || temp_c->isfullscreen)
-					continue;
-				
-				/* Determine column based on tile's group assignment */
-				if (temp_c->column_group == 0) { /* Left column */
-					left_tiles++;
-				} else { /* Right column */
-					right_tiles++;
+			bool is_left_column = (c->column_group == 0);
+			int tiles_in_column = is_left_column ? left_tiles : right_tiles;
+			int column_width = is_left_column ? left_width : right_width;
+			int x_pos = is_left_column ? adjusted_area.x : adjusted_area.x + left_width + innergappx;
+			
+			/* Calculate height for this tile in the stack */
+			int available_height = adjusted_area.height - (tiles_in_column - 1) * innergappx;
+			int height = available_height / tiles_in_column;
+			
+			/* Support for vertical resizing via height_factor */
+			if (c->height_factor > 0.1f && c->height_factor < 1.9f) {
+				float total_factors = 0.0f;
+				Client *factor_c;
+				wl_list_for_each(factor_c, &clients, link) {
+					if (!VISIBLEON(factor_c, m) || factor_c->isfloating || factor_c->isfullscreen)
+						continue;
+					if ((factor_c->column_group == 0) == is_left_column) {
+						total_factors += factor_c->height_factor;
+					}
+				}
+				if (total_factors > 0.1f) {
+					height = (int)((available_height * c->height_factor) / total_factors);
 				}
 			}
 			
-			i = 0;
-			int left_y = 0, right_y = 0;
-			wl_list_for_each(c, &clients, link) {
-				if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
+			/* Position the tile */
+			int y_pos = adjusted_area.y + (is_left_column ? left_y : right_y);
+			resize(c, (struct wlr_box){
+				.x = x_pos,
+				.y = y_pos,
+				.width = column_width,
+				.height = height
+			}, 0);
+			
+			/* Update y position for next tile in this column */
+			if (is_left_column) {
+				left_y += height + innergappx;
+			} else {
+				right_y += height + innergappx;
+			}
+		}
+	} else {
+		wlr_log(WLR_ERROR, "[nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***");
+		/* DYNAMIC MULTI-COLUMN LAYOUT - ALL COLUMNS ARE INDEPENDENT */
+		if (use_multi_column || force_multi_column) {
+			wlr_log(WLR_ERROR, "[nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***");
+			/* Multi-column layout: dynamic number of independent stacking areas */
+			/* CRITICAL FIX: Calculate width based on actual number of tiles, not optimal_columns */
+			int actual_tiles = 0;
+			Client *count_c;
+			wl_list_for_each(count_c, &clients, link) {
+				if (count_c->mon && !count_c->isfloating && !count_c->isfullscreen) {
+					actual_tiles++;
+				}
+			}
+			
+			/* Use actual tile count for width calculation: 1 tile = full width, 2 tiles = 50% each, 3 tiles = 33% each */
+			int effective_columns = MIN(actual_tiles, optimal_columns);
+			int total_gaps = (effective_columns - 1) * innergappx;
+			int column_width = (adjusted_area.width - total_gaps) / effective_columns;
+			
+			wlr_log(WLR_ERROR, "[nixtile] *** WIDTH CALCULATION: actual_tiles=%d, effective_columns=%d, column_width=%d ***", 
+				actual_tiles, effective_columns, column_width);
+			
+			/* Count tiles in each column based on their assigned column_group */
+			int *column_tiles = calloc(optimal_columns, sizeof(int));
+			wlr_log(WLR_ERROR, "[nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=%d ***", optimal_columns);
+			Client *temp_c;
+			wl_list_for_each(temp_c, &clients, link) {
+				/* Use robust visibility check instead of strict VISIBLEON */
+				if (!temp_c->mon || temp_c->isfloating || temp_c->isfullscreen)
 					continue;
 				
-				/* Use tile's assigned column group instead of automatic distribution */
-				bool is_left_column = (c->column_group == 0);
-				int tiles_in_column = is_left_column ? left_tiles : right_tiles;
+				/* ROBUST MASTER TILE PROTECTION: Guarantee first N tiles are horizontal */
+				int master_tiles = get_optimal_master_tiles(m->w.width);
+				int tile_index = 0;
+				
+				/* Count this tile's position among all tiles */
+				Client *count_c;
+				wl_list_for_each(count_c, &clients, link) {
+					if (count_c == temp_c) break;
+					if (count_c->mon && !count_c->isfloating && !count_c->isfullscreen) {
+						tile_index++;
+					}
+				}
+				
+				/* Debug: Check tile assignment logic */
+				wlr_log(WLR_ERROR, "[nixtile] *** TILE ASSIGNMENT CHECK: Tile %p (index %d) has column_group=%d, master_tiles=%d ***", 
+					(void*)temp_c, tile_index, temp_c->column_group, master_tiles);
+				
+				/* Use column_group to determine if tile needs stacking assignment (not index) */
+				if (temp_c->column_group < 0 || temp_c->column_group >= optimal_columns) {
+					wlr_log(WLR_ERROR, "[nixtile] *** STACKING TILE DETECTED: Tile %p has invalid column_group=%d ***", 
+						(void*)temp_c, temp_c->column_group);
+					
+					/* BALANCED STACKING: Use workspace-specific counter for round-robin */
+					if (!m->workspace_stacking_counter_initialized) {
+						m->workspace_stacking_counter = 0;
+						m->workspace_stacking_counter_initialized = true;
+						wlr_log(WLR_ERROR, "[nixtile] *** WORKSPACE COUNTER INIT: Initialized counter for workspace ***");
+					}
+					int stacking_tile_count = m->workspace_stacking_counter++;
+					wlr_log(WLR_ERROR, "[nixtile] *** STACKING COUNTER: Using workspace counter %d for round-robin ***", stacking_tile_count);
+					
+					/* Assign to column in round-robin fashion */
+					int best_column = stacking_tile_count % optimal_columns;
+					wlr_log(WLR_ERROR, "[nixtile] *** BALANCED STACKING: Stacking tile #%d assigned to column %d (round-robin) ***", stacking_tile_count + 1, best_column);
+					temp_c->column_group = best_column;
+					wlr_log(WLR_ERROR, "[nixtile] *** STACKING TILE: Tile %p (index %d) assigned to column %d ***", 
+						(void*)temp_c, tile_index, best_column);
+				} else {
+					wlr_log(WLR_ERROR, "[nixtile] *** STACKING TILE: Tile %p (index %d) already has valid column_group=%d ***", 
+						(void*)temp_c, tile_index, temp_c->column_group);
+				}
+				
+				column_tiles[temp_c->column_group]++;
+			}
+			
+			/* Track Y position for each column */
+			int *column_y = calloc(optimal_columns, sizeof(int));
+			
+			i = 0;
+			wl_list_for_each(c, &clients, link) {
+				/* CRITICAL FIX: Use robust visibility check to allow tiles with correct column_group */
+				if (!c->mon || c->isfloating || c->isfullscreen)
+					continue;
+				
+				/* Get column information */
+				int column = c->column_group;
+				int tiles_in_column = column_tiles[column];
 				
 				/* Calculate column index within the specific column */
 				int column_index = 0;
@@ -6386,7 +6648,7 @@ tile(Monitor *m)
 					if (!VISIBLEON(temp_c, m) || temp_c->isfloating || temp_c->isfullscreen)
 						continue;
 					if (temp_c == c) break;
-					if ((temp_c->column_group == 0) == is_left_column)
+					if (temp_c->column_group == column)
 						column_index++;
 				}
 				
@@ -6406,14 +6668,14 @@ tile(Monitor *m)
 				
 				/* Support for vertical resizing via height_factor (optional enhancement) */
 				if (c->height_factor > 0.1f && c->height_factor < 1.9f) {
-					/* Calculate total factors for this column only using correct column_group */
+					/* Calculate total factors for this column only */
 					float total_factors = 0.0f;
 					Client *temp_c;
 					wl_list_for_each(temp_c, &clients, link) {
 						if (!VISIBLEON(temp_c, m) || temp_c->isfloating || temp_c->isfullscreen)
 							continue;
-						/* Use column_group instead of position-based detection */
-						if ((temp_c->column_group == 0) == is_left_column) {
+						/* Use column_group for correct column detection */
+						if (temp_c->column_group == column) {
 							total_factors += temp_c->height_factor;
 						}
 					}
@@ -6422,10 +6684,21 @@ tile(Monitor *m)
 					}
 				}
 				
-				/* Position and size calculation */
-				int x_pos = is_left_column ? adjusted_area.x : adjusted_area.x + left_width + innergappx;
-				int width = is_left_column ? left_width : right_width;
-				int y_pos = adjusted_area.y + (is_left_column ? left_y : right_y);
+				/* SAFETY CHECK: Prevent crash from invalid column_group */
+				if (column < 0 || column >= optimal_columns) {
+					wlr_log(WLR_ERROR, "[nixtile] *** SAFETY FIX: Tile %p has invalid column=%d, forcing to column 0 ***", 
+						(void*)c, column);
+					column = 0;
+					c->column_group = 0;
+				}
+				
+				/* Position and size calculation for multi-column layout */
+				int x_pos = adjusted_area.x + column * (column_width + innergappx);
+				int width = column_width;
+				int y_pos = adjusted_area.y + column_y[column];
+				
+				wlr_log(WLR_ERROR, "[nixtile] *** HORIZONTAL PLACEMENT: Tile %p -> column=%d, x_pos=%d, width=%d ***", 
+					(void*)c, column, x_pos, width);
 				
 				resize(c, (struct wlr_box){
 					.x = x_pos,
@@ -6435,15 +6708,16 @@ tile(Monitor *m)
 				}, 0);
 				
 				/* Update y position for next tile in this column */
-				if (is_left_column) {
-					left_y += height + innergappx;
-				} else {
-					right_y += height + innergappx;
-				}
+				column_y[column] += height + innergappx;
 				
 				i++;
 			}
+			
+			/* Cleanup allocated memory */
+			free(column_tiles);
+			free(column_y);
 		} else {
+			wlr_log(WLR_ERROR, "[nixtile] *** ENTERING SINGLE COLUMN LAYOUT BLOCK ***");
 			/* Single column layout: all tiles stacked vertically */
 			int y_offset = 0;
 			
@@ -6494,9 +6768,11 @@ togglefloating(const Arg *arg)
 	if (sel && !sel->isfullscreen) {
 		/* Force tile to stay tiled */
 		sel->isfloating = 0;
-		/* Ensure valid column assignment */
-		if (sel->column_group != 0 && sel->column_group != 1) {
-			sel->column_group = 0;
+		/* Ensure valid column assignment for multi-column layout */
+		int optimal_columns = get_optimal_columns(sel->mon->w.width);
+		if (sel->column_group < 0 || sel->column_group >= optimal_columns) {
+			/* DO NOT force to 0 - let tile() function handle assignment */
+			wlr_log(WLR_DEBUG, "[nixtile] TOGGLE: Invalid column_group %d, will be reassigned by tile() (max columns: %d)", sel->column_group, optimal_columns);
 		}
 		/* Force column tiling */
 		if (sel->mon) {
@@ -6549,6 +6825,12 @@ toggleview(const Arg *arg)
 		return;
 
 	selmon->tagset[selmon->seltags] = newtagset;
+	
+	/* Reset workspace-specific stacking counter for "blank slate" per workspace */
+	selmon->workspace_stacking_counter = 0;
+	selmon->workspace_stacking_counter_initialized = false;
+	wlr_log(WLR_ERROR, "[nixtile] *** WORKSPACE TOGGLE RESET: Stacking counter reset for workspace toggle ***");
+	
 	focusclient(focustop(selmon), 1);
 	arrange(selmon);
 	printstatus();
@@ -6745,6 +7027,11 @@ view(const Arg *arg)
 	/* Load workspace-specific mfact for independent resizing */
 	load_workspace_mfact();
 	
+	/* Reset workspace-specific stacking counter for "blank slate" per workspace */
+	selmon->workspace_stacking_counter = 0;
+	selmon->workspace_stacking_counter_initialized = false;
+	wlr_log(WLR_ERROR, "[nixtile] *** WORKSPACE RESET: Stacking counter reset for new workspace ***");
+	
 	focusclient(focustop(selmon), 1);
 	arrange(selmon);
 	printstatus();
@@ -6904,28 +7191,45 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->bw = client_is_unmanaged(c) ? 0 : borderpx;
 	c->height_factor = 1.0f; /* Initialize height factor for vertical resizing */
 	
-	/* PER-COLUMN GROUPING: Assign new tile to same column as selected tile */
-	Client *selected = focustop(selmon);
-	if (selected && !selected->isfloating) {
-		/* New tile joins the same column as the selected tile */
-		/* Analyze physical position to determine which column the selected tile is in */
-		int monitor_center_x = selmon->m.x + selmon->m.width / 2;
-		int selected_center_x = selected->geom.x + selected->geom.width / 2;
-		
-		/* New tile joins the same column as the selected tile based on physical position */
-		if (selected_center_x < monitor_center_x) {
-			c->column_group = 0; /* Left column */
-		} else {
-			c->column_group = 1; /* Right column */
+	/* INTELLIGENT TILE PLACEMENT: Use same logic as createnotify for consistency */
+	c->mon = selmon;
+	c->tags = selmon->tagset[selmon->seltags];
+	
+	/* Count existing tiles (excluding the current tile being assigned) */
+	int current_workspace_tiles = 0;
+	Client *temp_c;
+	wl_list_for_each(temp_c, &clients, link) {
+		if (temp_c != c && VISIBLEON(temp_c, selmon) && !temp_c->isfloating && !temp_c->isfullscreen) {
+			current_workspace_tiles++;
 		}
+	}
+	
+	/* Get dynamic column configuration */
+	int screen_width = selmon->w.width;
+	int optimal_columns = get_optimal_columns(screen_width);
+	int master_tiles = get_optimal_master_tiles(screen_width);
+	
+	int tile_number = current_workspace_tiles + 1; /* 1-based tile number */
+	
+	wlr_log(WLR_INFO, "[nixtile] X11 PLACEMENT: Tile #%d, master_tiles=%d, optimal_columns=%d", 
+		tile_number, master_tiles, optimal_columns);
+	
+	/* GUARANTEED RULE: First N tiles go to separate columns (horizontal placement) */
+	if (tile_number <= master_tiles) {
+		int target_column = (tile_number - 1) % optimal_columns;
+		wlr_log(WLR_INFO, "[nixtile] X11 HORIZONTAL PLACEMENT: Tile #%d -> Column %d (guaranteed horizontal)", 
+			tile_number, target_column);
+		c->column_group = target_column;
 	} else {
-		/* Default: assign to left column if no selected tile or selected is floating */
-		c->column_group = 0;
+		/* STACKING: Let tile() function handle assignment for proper distribution */
+		wlr_log(WLR_INFO, "[nixtile] X11 STACK PLACEMENT: Tile #%d -> will be assigned by tile() function", 
+			tile_number);
+		c->column_group = -1; /* Invalid - will be assigned by tile() */
 	}
 	
 	/* PRESERVE MANUAL RESIZE IN MAPNOTIFY: Only reset if no manual resize performed */
 	int target_column = c->column_group;
-	if (target_column >= 0 && target_column < 2) {
+	if (target_column >= 0 && target_column < MAX_COLUMNS) {
 		if (!manual_resize_performed[target_column]) {
 			/* No manual resize - maintain equal distribution */
 			wlr_log(WLR_INFO, "[nixtile] MAPNOTIFY: No manual resize in column %d, maintaining equal height factors", target_column);
@@ -7150,7 +7454,7 @@ void handle_empty_column_expansion() {
 /* EQUAL HEIGHT DISTRIBUTION: Ensure all tiles in a stack have equal height factors */
 void ensure_equal_height_distribution_in_stack(int column) {
 	/* SAFETY: Validate inputs */
-	if (!selmon || column < 0 || column >= 2) {
+	if (!selmon || column < 0 || column >= MAX_COLUMNS) {
 		wlr_log(WLR_ERROR, "[nixtile] EQUAL HEIGHT: Invalid parameters (selmon=%p, column=%d)", (void*)selmon, column);
 		return;
 	}
@@ -7277,6 +7581,7 @@ int count_tiles_in_stack(int column, Monitor *m) {
 	wl_list_for_each(c, &clients, link) {
 		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen && c->column_group == column) {
 			count++;
+			wlr_log(WLR_DEBUG, "[nixtile] STACK TILE FOUND: Tile %p in column %d (count now %d)", (void*)c, column, count);
 		}
 	}
 	
