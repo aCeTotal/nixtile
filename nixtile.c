@@ -515,6 +515,11 @@ static struct wl_event_source *resize_timer = NULL;
 static struct timespec resize_start_time = {0}; /* Track resize operation start time */
 static bool resize_operation_active = false;    /* Track if resize is currently active */
 
+/* Grid-based resizing variables */
+static int resize_edge_type = 0;              /* EdgeType for current resize operation */
+static int resize_target_column = -1;         /* Column being resized */
+/* vertical_resize_neighbor already declared above */
+
 /* Ultra-smooth resizing: Multi-threading and CPU optimization */
 
 /* BROKEN PIPE PREVENTION: Arrange throttling to prevent protocol overload */
@@ -523,6 +528,12 @@ static bool arrange_pending = false;
 static struct wl_event_source *arrange_timer = NULL;
 static Monitor *pending_arrange_monitor = NULL;
 #define ARRANGE_THROTTLE_MS 16  /* 60 FPS max arrange rate */
+
+/* Missing resize timing variables */
+static uint32_t last_horizontal_resize_time = 0;
+static uint32_t last_vertical_resize_time = 0;
+static struct wl_event_source *resize_timer_source = NULL;
+static int gap = 5;  /* Default gap value */
 static pthread_t layout_thread;
 static pthread_mutex_t layout_mutex = PTHREAD_MUTEX_INITIALIZER;
 static bool layout_thread_active = false;
@@ -583,9 +594,20 @@ static struct wlr_xwayland *xwayland;
 #include "client.h"
 #include "resize_edge.h"
 
-/* 
- * Detects which edge of a client window the cursor is on.
- * Returns a bitmask of EDGE_* values from resize_edge.h.
+/*
+ * Get current time in milliseconds
+ */
+uint32_t
+get_time_ms(void)
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+}
+
+/*
+ * EDGE DETECTION: Detect which edge of a client the cursor is near
+ * Returns a bitmask of EDGE_* values
  */
 int
 detectresizeedge(Client *c, double x, double y)
@@ -2364,8 +2386,15 @@ handletiledrop(Client *c, double x, double y)
 	
 	/* Fallback to center-based logic if no tiles found */
 	if (normal_target_column == -1) {
-		normal_target_column = (x < adjusted_center_x) ? 0 : 1;
-		wlr_log(WLR_ERROR, "[nixtile] SIZE-INDEPENDENT COLUMN: No tiles found, using fallback column %d", normal_target_column);
+		/* Get dynamic column count based on monitor resolution */
+		int max_columns = get_optimal_columns(m->w.width);
+		/* Calculate which column based on x position within monitor */
+		double column_width = (double)adjusted_area.width / max_columns;
+		normal_target_column = (int)((x - adjusted_area.x) / column_width);
+		/* Clamp to valid range */
+		if (normal_target_column < 0) normal_target_column = 0;
+		if (normal_target_column >= max_columns) normal_target_column = max_columns - 1;
+		wlr_log(WLR_ERROR, "[nixtile] SIZE-INDEPENDENT COLUMN: No tiles found, using fallback column %d (max_columns=%d)", normal_target_column, max_columns);
 	} else {
 		wlr_log(WLR_ERROR, "[nixtile] SIZE-INDEPENDENT COLUMN: Closest tile %p in column %d (distance=%.1f)", 
 		        (void*)closest_column_tile, normal_target_column, closest_column_distance);
@@ -2633,8 +2662,9 @@ handletiledrop(Client *c, double x, double y)
 		/* INTER-COLUMN MOVEMENT: Strict tiling rules enforcement */
 		
 		/* SAFETY: Validate target column is valid */
-		if (target_column < 0 || target_column > 1) {
-			wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid target_column %d for inter-column movement - ABORT", target_column);
+		int max_columns = get_optimal_columns(m->w.width);
+		if (target_column < 0 || target_column >= max_columns) {
+			wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid target_column %d for inter-column movement (max_columns=%d) - ABORT", target_column, max_columns);
 			return;
 		}
 		
@@ -2912,7 +2942,8 @@ handletiledrop(Client *c, double x, double y)
 		bool reasonable_size = (c->geom.width > 50 && c->geom.height > 50);
 		
 		/* Check if tile is in a valid column (0 or 1) */
-		bool valid_column = (c->column_group == 0 || c->column_group == 1);
+		int max_columns = get_optimal_columns(selmon->w.width);
+		bool valid_column = (c->column_group >= 0 && c->column_group < max_columns);
 		
 		tile_is_valid = within_monitor && reasonable_size && valid_column;
 		
@@ -4392,7 +4423,7 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			.width = new_width, .height = new_height}, 1);
 		return;
 	} else if (cursor_mode == CurTileResize) {
-		/* Frame-synced bi-axial 1:1 pointer-relative resizing - butter-smooth at all speeds */
+		/* GRID-BASED TILE RESIZING: Connected edge resizing with permanent locking */
 		/* CRITICAL SAFETY CHECKS: Prevent all crashes */
 		if (!selmon || !grabc) {
 			wlr_log(WLR_ERROR, "[nixtile] SAFETY: selmon or grabc is NULL in CurTileResize - ABORT");
@@ -4415,410 +4446,105 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			return;
 		}
 		
-		/* Calculate horizontal mouse movement */
+		/* Calculate mouse movement for grid-based resizing */
 		float horizontal_delta = cursor->x - (float)grabcx;
 		float vertical_delta = cursor->y - (float)grabcy;
 		
-		/* AGGRESSIVE DEBUG: Log every mouse movement */
-		wlr_log(WLR_INFO, "[nixtile] MOUSE MOVEMENT: cursor=(%.1f,%.1f), grab=(%d,%d), h_delta=%.1f, v_delta=%.1f, initial_edge_x=%d", 
-			cursor->x, cursor->y, grabcx, grabcy, horizontal_delta, vertical_delta, initial_edge_x);
+		/* GRID RESIZE DEBUG: Log mouse movement and resize state */
+		wlr_log(WLR_DEBUG, "[nixtile] GRID RESIZE: cursor=(%.1f,%.1f), grab=(%d,%d), h_delta=%.1f, v_delta=%.1f, edge_type=%d, target_col=%d", 
+			cursor->x, cursor->y, grabcx, grabcy, horizontal_delta, vertical_delta, resize_edge_type, resize_target_column);
 		
-		/* MFACT-BASED HORIZONTAL RESIZING: Persistent and layout-integrated */
-		if (fabs(horizontal_delta) > 1.0f && initial_resize_client && initial_resize_neighbor && initial_edge_x >= 0) {
-			/* RATE LIMITING: Same as vertical resizing for consistency */
-			static struct timespec last_horizontal_resize = {0};
-			struct timespec current_time;
-			clock_gettime(CLOCK_MONOTONIC, &current_time);
-			
-			long time_diff_ms = (current_time.tv_sec - last_horizontal_resize.tv_sec) * 1000 +
-								(current_time.tv_nsec - last_horizontal_resize.tv_nsec) / 1000000;
-			
-			/* ULTRA-RESPONSIVE: Remove aggressive rate limiting for smooth resizing */
-			if (time_diff_ms < 8 && last_horizontal_resize.tv_sec != 0) {
-				wlr_log(WLR_DEBUG, "[nixtile] RATE LIMIT: Skipping horizontal resize (time_diff=%ldms)", time_diff_ms);
+		/* GRID-BASED HORIZONTAL RESIZING: Column edge resizing */
+		if (fabs(horizontal_delta) > 2.0f && resize_edge_type == 1) { // Horizontal edge type
+			/* Rate limiting for smooth resizing */
+			uint32_t current_time = get_time_ms();
+			if (current_time - last_horizontal_resize_time < 16) {
 				return;
 			}
-			last_horizontal_resize = current_time;
+			last_horizontal_resize_time = current_time;
 			
-			/* HYBRID APPROACH: Gap-aware direct resizing + mfact persistence */
-			int new_edge_x = initial_edge_x + (int)round(horizontal_delta);
+			/* Calculate new mfact for column edge adjustment */
+			float width_ratio = (float)horizontal_delta / (float)selmon->m.width;
+			float new_mfact = selmon->mfact + width_ratio;
 			
-			/* GAP-AWARE HORIZONTAL RESIZING: Calculate gap-adjusted sizes with bounds checking */
-			/* Ensure new_edge_x doesn't exceed neighbor's right boundary minus gap */
-			int max_edge_x = (initial_resize_neighbor->geom.x + initial_resize_neighbor->geom.width) - innergappx - 120; /* 120px minimum neighbor width */
-			int min_edge_x = initial_resize_client->geom.x + 120; /* 120px minimum target width */
+			/* Apply strict boundary protection with gap consideration */
+			float min_mfact = 0.15f + (float)gap / (float)selmon->m.width;
+			float max_mfact = 0.85f - (float)gap / (float)selmon->m.width;
+			new_mfact = fmax(min_mfact, fmin(max_mfact, new_mfact));
 			
-			/* Clamp new_edge_x to valid range */
-			if (new_edge_x > max_edge_x) new_edge_x = max_edge_x;
-			if (new_edge_x < min_edge_x) new_edge_x = min_edge_x;
-			
-			int gap_adjusted_edge = new_edge_x - (innergappx / 2);
-			
-			/* Calculate gap-aware widths for boundary protection */
-			int gap_aware_target_width = gap_adjusted_edge - initial_resize_client->geom.x;
-			int gap_aware_neighbor_width = (initial_resize_neighbor->geom.x + initial_resize_neighbor->geom.width) - (gap_adjusted_edge + innergappx);
-			
-			/* BOUNDARY PROTECTION: Prevent gap-aware tiles from becoming too small */
-			if (gap_aware_target_width < 120 || gap_aware_neighbor_width < 120) {
-				wlr_log(WLR_DEBUG, "[nixtile] HORIZONTAL RESIZE BLOCKED: gap-aware tiles would be too small (target=%d, neighbor=%d)", 
-					gap_aware_target_width, gap_aware_neighbor_width);
-				return;
-			}
-			
-			/* Calculate new width for client tile */
-			int client_new_width = gap_adjusted_edge - initial_resize_client->geom.x;
-			
-			/* CLIENT TILE PROTECTION: Prevent negative widths that cause tile destruction */
-			int min_client_width = 120; /* Same as resize safety minimum */
-			if (client_new_width < min_client_width) {
-				wlr_log(WLR_DEBUG, "[nixtile] CLIENT PROTECTION: Clamping width %d->%d for client tile %p", 
-					client_new_width, min_client_width, (void*)initial_resize_client);
-				client_new_width = min_client_width;
-			}
-			
-			/* Apply resize with gap preservation */
-			resize(initial_resize_client, (struct wlr_box){
-				.x = initial_resize_client->geom.x,
-				.y = initial_resize_client->geom.y,
-				.width = client_new_width,
-				.height = initial_resize_client->geom.height
-			}, 1);
-			
-			/* Calculate new width for neighbor tile */
-			int neighbor_new_width = (initial_resize_neighbor->geom.x + initial_resize_neighbor->geom.width) - (gap_adjusted_edge + innergappx);
-			
-			/* NEIGHBOR TILE PROTECTION: Prevent negative widths that cause tile destruction */
-			int min_neighbor_width = 120; /* Same as resize safety minimum */
-			if (neighbor_new_width < min_neighbor_width) {
-				wlr_log(WLR_DEBUG, "[nixtile] NEIGHBOR PROTECTION: Clamping width %d->%d for neighbor tile %p", 
-					neighbor_new_width, min_neighbor_width, (void*)initial_resize_neighbor);
-				neighbor_new_width = min_neighbor_width;
-			}
-			
-			resize(initial_resize_neighbor, (struct wlr_box){
-				.x = gap_adjusted_edge + innergappx,
-				.y = initial_resize_neighbor->geom.y,
-				.width = neighbor_new_width,
-				.height = initial_resize_neighbor->geom.height
-			}, 1);
-			
-			/* BI-AXIAL STACK SUPPORT: Resize all tiles in the same columns to maintain alignment */
-			wlr_log(WLR_DEBUG, "[nixtile] BI-AXIAL STACK RESIZE: Adjusting all tiles in affected columns (client_col=%d, neighbor_col=%d)", 
-				initial_resize_client->column_group, initial_resize_neighbor->column_group);
-			
-			/* DEBUG: Log all tiles and their column assignments */
-			Client *debug_c;
-			wl_list_for_each(debug_c, &clients, link) {
-				if (VISIBLEON(debug_c, selmon) && !debug_c->isfloating && !debug_c->isfullscreen) {
-					wlr_log(WLR_DEBUG, "[nixtile] STACK DEBUG: Tile %p in column %d (client=%p, neighbor=%p)", 
-						(void*)debug_c, debug_c->column_group, (void*)initial_resize_client, (void*)initial_resize_neighbor);
-				}
-			}
-			
-			/* BI-AXIAL STACK SUPPORT: Only resize stack tiles in affected columns (client/neighbor) */
-			int client_col = initial_resize_client->column_group;
-			int neighbor_col = initial_resize_neighbor->column_group;
-			int left_stack_count = 0, right_stack_count = 0;
-			
-			wlr_log(WLR_DEBUG, "[nixtile] BI-AXIAL STACK RESIZE: Only adjusting tiles in affected columns (client_col=%d, neighbor_col=%d)", client_col, neighbor_col);
-			
-			Client *c;
-			wl_list_for_each(c, &clients, link) {
-				if (!VISIBLEON(c, selmon) || c->isfloating || c->isfullscreen)
-					continue;
-				
-				/* Skip the primary resize clients (already resized above) */
-				if (c == initial_resize_client || c == initial_resize_neighbor)
-					continue;
-				
-				/* Resize stack tiles in the same column as client */
-				if (c->column_group == client_col) {
-					left_stack_count++;
-					int new_width = gap_adjusted_edge - c->geom.x;
-					
-					/* STACK TILE PROTECTION: Prevent negative widths that cause tile destruction */
-					int min_stack_width = 120;
-					if (new_width < min_stack_width) {
-						wlr_log(WLR_DEBUG, "[nixtile] STACK PROTECTION: Clamping width %d->%d for left stack tile %p col=%d", 
-							new_width, min_stack_width, (void*)c, c->column_group);
-						new_width = min_stack_width;
-					}
-					
-					wlr_log(WLR_DEBUG, "[nixtile] LEFT STACK TILE: %p col=%d, new_width=%d", (void*)c, c->column_group, new_width);
-					resize(c, (struct wlr_box){
-						.x = c->geom.x,
-						.y = c->geom.y,
-						.width = new_width,
-						.height = c->geom.height
-					}, 1);
-				}
-				
-				/* Resize stack tiles in the same column as neighbor */
-				if (c->column_group == neighbor_col && neighbor_col != client_col) {
-					right_stack_count++;
-					int new_width = (c->geom.x + c->geom.width) - (gap_adjusted_edge + innergappx);
-					
-					/* STACK TILE PROTECTION: Prevent negative widths that cause tile destruction */
-					int min_stack_width = 120;
-					if (new_width < min_stack_width) {
-						wlr_log(WLR_DEBUG, "[nixtile] STACK PROTECTION: Clamping width %d->%d for right stack tile %p col=%d", 
-							new_width, min_stack_width, (void*)c, c->column_group);
-						new_width = min_stack_width;
-					}
-					
-					wlr_log(WLR_DEBUG, "[nixtile] RIGHT STACK TILE: %p col=%d, new_width=%d, new_x=%d", (void*)c, c->column_group, new_width, gap_adjusted_edge + innergappx);
-					resize(c, (struct wlr_box){
-						.x = gap_adjusted_edge + innergappx,
-						.y = c->geom.y,
-						.width = new_width,
-						.height = c->geom.height
-					}, 1);
-				}
-			}
-			
-			/* BI-AXIAL STACK RESIZE SUMMARY */
-			wlr_log(WLR_INFO, "[nixtile] BI-AXIAL STACK RESIZE COMPLETE: Adjusted %d left stack tiles + %d right stack tiles (total=%d)", 
-				left_stack_count, right_stack_count, left_stack_count + right_stack_count);
-			
-			/* PERSISTENCE: Update mfact to reflect the new ratio for layout consistency */
-			int total_width = selmon->w.width - innergappx;
-			int left_width = gap_adjusted_edge - initial_resize_client->geom.x;
-			float new_mfact = (float)left_width / (float)total_width;
-			
-			/* Clamp mfact to valid range */
-			if (new_mfact < 0.1f) new_mfact = 0.1f;
-			if (new_mfact > 0.9f) new_mfact = 0.9f;
-			
+			/* Update mfact and save to workspace for persistence */
 			selmon->mfact = new_mfact;
-			save_workspace_mfact(); /* Save to current workspace for persistence */
+			save_workspace_mfact();
 			
-			/* NOTE: No arrange() call - direct resize() calls already update geometry and preserve tiling state */
-			wlr_log(WLR_DEBUG, "[nixtile] GAP-AWARE HORIZONTAL RESIZE: edge %d->%d, widths %d/%d, mfact=%.3f, geometry preserved", 
-				initial_edge_x, new_edge_x, gap_aware_target_width, gap_aware_neighbor_width, new_mfact);
+			/* Schedule frame-synced layout update */
+			pending_target_mfact = new_mfact;
+			resize_pending = true;
+			
+			if (resize_timer_source) {
+				wl_event_source_remove(resize_timer_source);
+			}
+			resize_timer_source = wl_event_loop_add_timer(event_loop, frame_synced_resize_callback, NULL);
+			wl_event_source_timer_update(resize_timer_source, 16); // 60 FPS sync
+			
+			wlr_log(WLR_DEBUG, "[nixtile] GRID HORIZONTAL RESIZE: column %d edge, mfact %.3f (delta=%.1f)", 
+				resize_target_column, new_mfact, horizontal_delta);
 		}
 		
-		/* MONITOR REFRESH RATE SYNCHRONIZED TIMER - PREVENTS CHOPPINESS */
-		if ((resize_pending || vertical_resize_pending || horizontal_column_resize_pending) && !resize_timer) {
-			/* TIMER FREQUENCY PROTECTION: Prevent excessive timer creation */
-			static struct timespec last_timer_creation = {0};
-			struct timespec current_time;
-			clock_gettime(CLOCK_MONOTONIC, &current_time);
-			
-			/* Calculate time since last timer creation */
-			long time_since_last_ms = (current_time.tv_sec - last_timer_creation.tv_sec) * 1000 +
-								  (current_time.tv_nsec - last_timer_creation.tv_nsec) / 1000000;
-			
-			/* Only create timer if enough time has passed (minimum 10ms between timers) */
-			if (time_since_last_ms >= 10 || last_timer_creation.tv_sec == 0) {
-				/* Get monitor refresh rate for optimal frame sync */
-				int refresh_rate_mhz = get_monitor_refresh_rate(selmon);
-				int frame_interval_ms = 1000 / (refresh_rate_mhz / 1000); /* Convert mHz to ms interval */
-				
-				/* SAFETY: Clamp frame interval to prevent protocol overload or sluggishness */
-				if (frame_interval_ms < 8) frame_interval_ms = 8;   /* Max 125Hz - prevents protocol overload */
-				if (frame_interval_ms > 20) frame_interval_ms = 20; /* Min 50Hz - ensures responsiveness */
-				
-				wlr_log(WLR_DEBUG, "[nixtile] Starting monitor-synced timer: %dms (refresh=%dHz), h_pending=%d, v_pending=%d, h_col_pending=%d", 
-					frame_interval_ms, 1000/frame_interval_ms, resize_pending, vertical_resize_pending, horizontal_column_resize_pending);
-				
-				resize_timer = wl_event_loop_add_timer(wl_display_get_event_loop(dpy),
-								   frame_synced_resize_callback, NULL);
-				if (resize_timer) {
-					wl_event_source_timer_update(resize_timer, frame_interval_ms);
-					last_timer_creation = current_time;
-				} else {
-					wlr_log(WLR_ERROR, "[nixtile] HANG PREVENTION: Failed to create resize timer - potential system overload");
-				}
-			} else {
-				wlr_log(WLR_DEBUG, "[nixtile] TIMER PROTECTION: Skipping timer creation (too frequent, last=%ldms ago)", time_since_last_ms);
+		/* GRID-BASED VERTICAL RESIZING: Between two vertically adjacent tiles */
+		if (fabs(vertical_delta) > 2.0f && resize_edge_type == 2 && vertical_resize_neighbor) { // Vertical edge type
+			/* Rate limiting for smooth vertical resizing */
+			uint32_t current_time = get_time_ms();
+			if (current_time - last_vertical_resize_time < 16) {
+				return;
 			}
+			last_vertical_resize_time = current_time;
+			
+			/* Calculate height factor adjustment for vertical resize */
+			float height_ratio = (float)vertical_delta / (float)selmon->m.height;
+			float current_height_factor = grabc->height_factor;
+			float new_height_factor = current_height_factor + height_ratio;
+			
+			/* Apply boundary protection for height factors */
+			float min_height_factor = 0.1f;
+			float max_height_factor = 0.9f;
+			new_height_factor = fmax(min_height_factor, fmin(max_height_factor, new_height_factor));
+			
+			/* Update height factor and schedule frame-synced update */
+			pending_target_height_factor = new_height_factor;
+			vertical_resize_client = grabc;
+			vertical_resize_pending = true;
+			
+			if (resize_timer_source) {
+				wl_event_source_remove(resize_timer_source);
+			}
+			resize_timer_source = wl_event_loop_add_timer(event_loop, frame_synced_resize_callback, NULL);
+			wl_event_source_timer_update(resize_timer_source, 16); // 60 FPS sync
+			
+			wlr_log(WLR_DEBUG, "[nixtile] GRID VERTICAL RESIZE: tile %p, height_factor %.3f -> %.3f (delta=%.1f)", 
+				(void*)grabc, current_height_factor, new_height_factor, vertical_delta);
 		}
 		
-		/* TRUE EDGE-BASED VERTICAL RESIZING: Matching horizontal approach */
-		if (fabs(vertical_delta) > 1.0f && initial_resize_client && initial_resize_neighbor && initial_edge_y >= 0) {
-			/* RATE LIMITING: Prevent too frequent vertical resize operations */
-			static struct timespec last_vertical_resize = {0};
-			struct timespec current_time;
-			clock_gettime(CLOCK_MONOTONIC, &current_time);
+		/* Grid-based resizing complete - frame-synced updates handled by timer above */
+		wlr_log(WLR_DEBUG, "[nixtile] GRID RESIZE MOTION: h_delta=%.1f, v_delta=%.1f, edge_type=%d, pending_updates: h=%d, v=%d", 
+			horizontal_delta, vertical_delta, resize_edge_type, resize_pending, vertical_resize_pending);
+		
+		/* Schedule frame-synced resize timer if any changes are pending */
+		if ((resize_pending || vertical_resize_pending) && !resize_timer) {
+			/* Get monitor refresh rate for optimal frame sync */
+			int refresh_rate_mhz = get_monitor_refresh_rate(selmon);
+			int frame_interval_ms = 1000 / (refresh_rate_mhz / 1000); /* Convert mHz to ms interval */
 			
-			long time_diff_ms = (current_time.tv_sec - last_vertical_resize.tv_sec) * 1000 +
-								(current_time.tv_nsec - last_vertical_resize.tv_nsec) / 1000000;
+			/* SAFETY: Clamp frame interval to prevent protocol overload or sluggishness */
+			if (frame_interval_ms < 8) frame_interval_ms = 8;   /* Max 125Hz - prevents protocol overload */
+			if (frame_interval_ms > 20) frame_interval_ms = 20; /* Min 50Hz - ensures responsiveness */
 			
-			/* Matched rate limiting for consistent horizontal/vertical behavior */
-			if (time_diff_ms < 8 && last_vertical_resize.tv_sec != 0) {
-				wlr_log(WLR_DEBUG, "[nixtile] RATE LIMIT: Skipping vertical resize (time_diff=%ldms)", time_diff_ms);
-				return;
-			}
-			last_vertical_resize = current_time;
-			
-			/* TRUE EDGE-BASED VERTICAL RESIZING: Resize individual tiles at edges */
-			int new_edge_y = initial_edge_y + (int)round(vertical_delta);
-			int vertical_delta_int = (int)round(vertical_delta);
-			
-			/* Calculate new heights for both tiles */
-			int target_new_height = new_edge_y - initial_resize_client->geom.y;
-			int neighbor_new_height = (initial_resize_neighbor->geom.y + initial_resize_neighbor->geom.height) - new_edge_y;
-			
-			/* BOUNDARY PROTECTION: Prevent tiles from becoming too small */
-			if (target_new_height < 100 || neighbor_new_height < 100) {
-				wlr_log(WLR_DEBUG, "[nixtile] VERTICAL RESIZE BLOCKED: tiles would become too small (target=%d, neighbor=%d)", 
-					target_new_height, neighbor_new_height);
-				return;
-			}
-			
-			/* Direct resize without manual flags - simpler and more reliable */
-			
-			/* GAP-AWARE VERTICAL RESIZING: Account for gaps between tiles */
-			/* Calculate new edge position accounting for gap */
-			int gap_adjusted_edge = new_edge_y - (innergappx / 2);
-			
-			/* Apply resize with gap preservation */
-			resize(initial_resize_client, (struct wlr_box){
-				.x = initial_resize_client->geom.x,
-				.y = initial_resize_client->geom.y,
-				.width = initial_resize_client->geom.width,
-				.height = gap_adjusted_edge - initial_resize_client->geom.y
-			}, 1);
-			
-			resize(initial_resize_neighbor, (struct wlr_box){
-				.x = initial_resize_neighbor->geom.x,
-				.y = gap_adjusted_edge + innergappx,
-				.width = initial_resize_neighbor->geom.width,
-				.height = (initial_resize_neighbor->geom.y + initial_resize_neighbor->geom.height) - (gap_adjusted_edge + innergappx)
-			}, 1);
-			
-			wlr_log(WLR_DEBUG, "[nixtile] TRUE EDGE-BASED VERTICAL RESIZE: edge %d->%d, heights %d/%d", 
-				initial_edge_y, new_edge_y, target_new_height, neighbor_new_height);
-			
-			/* ROBUST BOUNDARY PROTECTION: Prevent tiles from being pushed outside screen edges */
-			int screen_top = selmon->w.y;
-			int screen_bottom = selmon->w.y + selmon->w.height;
-			
-			/* Calculate final positions after resizing */
-			int target_final_top, target_final_bottom;
-			int neighbor_final_top, neighbor_final_bottom;
-			
-			if (resizing_from_top_edge) {
-				/* Target tile (below) positions */
-				target_final_top = new_edge_y;
-				target_final_bottom = initial_resize_client->geom.y + initial_resize_client->geom.height;
-				
-				/* Neighbor tile (above) positions */
-				neighbor_final_top = initial_resize_neighbor->geom.y;
-				neighbor_final_bottom = new_edge_y;
+			resize_timer = wl_event_loop_add_timer(wl_display_get_event_loop(dpy),
+							   frame_synced_resize_callback, NULL);
+			if (resize_timer) {
+				wl_event_source_timer_update(resize_timer, frame_interval_ms);
+				wlr_log(WLR_DEBUG, "[nixtile] GRID RESIZE TIMER: Scheduled frame-synced update in %dms", frame_interval_ms);
 			} else {
-				/* Target tile (above) positions */
-				target_final_top = initial_resize_client->geom.y;
-				target_final_bottom = new_edge_y;
-				
-				/* Neighbor tile (below) positions */
-				neighbor_final_top = new_edge_y;
-				neighbor_final_bottom = initial_resize_neighbor->geom.y + initial_resize_neighbor->geom.height;
-			}
-			
-			/* COMPREHENSIVE SCREEN BOUNDARY PROTECTION: Prevent any tile from going outside screen */
-			int screen_left = selmon->w.x;
-			int screen_right = selmon->w.x + selmon->w.width;
-			
-			/* Calculate final tile positions (including horizontal bounds) */
-			int target_final_left, target_final_right;
-			int neighbor_final_left, neighbor_final_right;
-			
-			/* Get horizontal bounds for both tiles */
-			target_final_left = initial_resize_client->geom.x;
-			target_final_right = initial_resize_client->geom.x + initial_resize_client->geom.width;
-			neighbor_final_left = initial_resize_neighbor->geom.x;
-			neighbor_final_right = initial_resize_neighbor->geom.x + initial_resize_neighbor->geom.width;
-			
-			/* ULTRA-STRICT ALL-BOUNDARY CHECKS: Prevent any tile from going outside ANY screen edge */
-			/* GENEROUS MINIMUM SIZES: Prevent tiles from becoming too small and getting destroyed */
-			int min_tile_height = 120; /* More generous minimum to prevent destruction */
-			int min_tile_width = 150;  /* Ensure tiles remain usable */
-			
-			if (target_final_top < screen_top || target_final_bottom > screen_bottom ||
-			    neighbor_final_top < screen_top || neighbor_final_bottom > screen_bottom ||
-			    target_final_left < screen_left || target_final_right > screen_right ||
-			    neighbor_final_left < screen_left || neighbor_final_right > screen_right ||
-			    target_new_height < min_tile_height || neighbor_new_height < min_tile_height ||
-			    target_new_height <= 0 || neighbor_new_height <= 0 ||
-			    (target_final_right - target_final_left) < min_tile_width ||
-			    (neighbor_final_right - neighbor_final_left) < min_tile_width) {
-				/* TILE DESTRUCTION PREVENTION: Log and abort resize that would make tiles too small */
-				wlr_log(WLR_DEBUG, "[nixtile] TILE PROTECTION: Blocking resize that would make tiles too small (target_h=%d, neighbor_h=%d, min=%d)", 
-				        target_new_height, neighbor_new_height, min_tile_height);
-				return; /* No-op to prevent tile destruction */
-			}
-			
-			/* FREE RESIZING: No additional safety checks that would lock tiles */
-			/* Allow all resize operations to proceed freely */
-			
-			/* Minimum heights and boundary checks already enforced above */
-			
-			/* TIMEOUT PROTECTION: Abort resize if it's been running too long */
-			if (resize_operation_active) {
-				struct timespec current_time;
-				clock_gettime(CLOCK_MONOTONIC, &current_time);
-				long resize_duration_ms = (current_time.tv_sec - resize_start_time.tv_sec) * 1000 +
-										  (current_time.tv_nsec - resize_start_time.tv_nsec) / 1000000;
-				
-				if (resize_duration_ms > 5000) { /* 5 second timeout */
-					wlr_log(WLR_ERROR, "[nixtile] HANG PREVENTION: Resize operation timeout (%ldms) - ABORTING", resize_duration_ms);
-					resize_operation_active = false;
-					vertical_resize_pending = false;
-					resize_pending = false;
-					cursor_mode = CurNormal;
-					return;
-				}
-			} else {
-				/* Start tracking resize operation */
-				clock_gettime(CLOCK_MONOTONIC, &resize_start_time);
-				resize_operation_active = true;
-			}
-			
-			/* FINAL SAFETY CHECK: Ensure resize won't destroy tiles */
-			if (!is_resize_safe(initial_resize_client, initial_resize_client->geom.width, target_new_height) ||
-			    !is_resize_safe(initial_resize_neighbor, initial_resize_neighbor->geom.width, neighbor_new_height)) {
-				wlr_log(WLR_DEBUG, "[nixtile] RESIZE SAFETY: Aborting vertical resize - would destroy tiles");
-				resize_operation_active = false;
-				return;
-			}
-			
-			/* IMMEDIATE VERTICAL RESIZE: Apply directly like horizontal resizing */
-			resize(initial_resize_client, (struct wlr_box){
-				.x = initial_resize_client->geom.x,
-				.y = initial_resize_client->geom.y,
-				.width = initial_resize_client->geom.width,
-				.height = target_new_height
-			}, 1);
-			
-			resize(initial_resize_neighbor, (struct wlr_box){
-				.x = initial_resize_neighbor->geom.x,
-				.y = new_edge_y + innergappx,
-				.width = initial_resize_neighbor->geom.width,
-				.height = neighbor_new_height
-			}, 1);
-			
-			/* PERSISTENCE: Update height factors for layout consistency */
-			int total_height = target_new_height + neighbor_new_height;
-			if (total_height > 0) {
-				float target_factor = (2.0f * target_new_height) / (float)total_height;
-				
-				initial_resize_client->height_factor = target_factor;
-				float remaining = 2.0f - target_factor;
-				if (remaining > 0.2f) {
-					initial_resize_neighbor->height_factor = remaining;
-				}
-				
-				/* MANUAL RESIZE TRACKING: Mark this column as manually resized */
-				int column = initial_resize_client->column_group;
-				if (column >= 0 && column < 2) {
-					manual_resize_performed[column] = true;
-					wlr_log(WLR_INFO, "[nixtile] MANUAL RESIZE: Column %d marked as manually resized", column);
-				}
-				
-				/* NOTE: No arrange() call - direct resize() calls already update geometry and preserve tiling state */
-				wlr_log(WLR_DEBUG, "[nixtile] GAP-AWARE VERTICAL RESIZE: edge %d->%d, heights %d/%d, factor=%.3f, geometry preserved", 
-					initial_edge_y, new_edge_y, target_new_height, neighbor_new_height, target_factor);
+				wlr_log(WLR_ERROR, "[nixtile] GRID RESIZE ERROR: Failed to create resize timer");
 			}
 		}
 		return;
@@ -5343,380 +5069,306 @@ log_frame_timing_stats(Monitor *m)
 	last_frame_time = current_time;
 }
 
+/* GRID-BASED TILE RESIZING SYSTEM */
+
+/* Grid tile structure for tracking neighbors and edges */
+typedef struct {
+	Client *tile;
+	Client *left_neighbor;   /* Tile to the left (different column) */
+	Client *right_neighbor;  /* Tile to the right (different column) */
+	Client *top_neighbor;    /* Tile above (same column) */
+	Client *bottom_neighbor; /* Tile below (same column) */
+	int column_group;
+	int left_edge_x;
+	int right_edge_x;
+	int top_edge_y;
+	int bottom_edge_y;
+	bool left_edge_resizable;   /* Can resize left edge (borders another tile) */
+	bool right_edge_resizable;  /* Can resize right edge (borders another tile) */
+	bool top_edge_resizable;    /* Can resize top edge (borders another tile) */
+	bool bottom_edge_resizable; /* Can resize bottom edge (borders another tile) */
+} GridTile;
+
+/* Build grid map of all tiles with neighbor relationships */
+void
+build_grid_map(GridTile *grid_map, int *tile_count, Monitor *m)
+{
+	Client *c;
+	*tile_count = 0;
+	
+	/* First pass: Create basic tile entries */
+	wl_list_for_each(c, &clients, link) {
+		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
+			continue;
+		if (*tile_count >= 32) break;
+		
+		GridTile *tile = &grid_map[(*tile_count)++];
+		tile->tile = c;
+		tile->left_neighbor = NULL;
+		tile->right_neighbor = NULL;
+		tile->top_neighbor = NULL;
+		tile->bottom_neighbor = NULL;
+		tile->column_group = c->column_group;
+		tile->left_edge_x = c->geom.x;
+		tile->right_edge_x = c->geom.x + c->geom.width;
+		tile->top_edge_y = c->geom.y;
+		tile->bottom_edge_y = c->geom.y + c->geom.height;
+		tile->left_edge_resizable = false;
+		tile->right_edge_resizable = false;
+		tile->top_edge_resizable = false;
+		tile->bottom_edge_resizable = false;
+	}
+	
+	/* Second pass: Find neighbors and determine resizable edges */
+	for (int i = 0; i < *tile_count; i++) {
+		GridTile *current = &grid_map[i];
+		
+		for (int j = 0; j < *tile_count; j++) {
+			if (i == j) continue;
+			GridTile *other = &grid_map[j];
+			
+			/* Check for horizontal neighbors (different columns) */
+			if (current->column_group != other->column_group) {
+				/* Check if tiles are vertically aligned (overlapping Y ranges) */
+				if (!(current->bottom_edge_y <= other->top_edge_y || 
+				      current->top_edge_y >= other->bottom_edge_y)) {
+					
+					/* Other tile is to the right */
+					if (other->left_edge_x == current->right_edge_x) {
+						current->right_neighbor = other->tile;
+						current->right_edge_resizable = true;
+						other->left_neighbor = current->tile;
+						other->left_edge_resizable = true;
+					}
+					/* Other tile is to the left */
+					else if (other->right_edge_x == current->left_edge_x) {
+						current->left_neighbor = other->tile;
+						current->left_edge_resizable = true;
+						other->right_neighbor = current->tile;
+						other->right_edge_resizable = true;
+					}
+				}
+			}
+			/* Check for vertical neighbors (same column) */
+			else if (current->column_group == other->column_group) {
+				/* Check if tiles are horizontally aligned (overlapping X ranges) */
+				if (!(current->right_edge_x <= other->left_edge_x || 
+				      current->left_edge_x >= other->right_edge_x)) {
+					
+					/* Other tile is below */
+					if (other->top_edge_y == current->bottom_edge_y) {
+						current->bottom_neighbor = other->tile;
+						current->bottom_edge_resizable = true;
+						other->top_neighbor = current->tile;
+						other->top_edge_resizable = true;
+					}
+					/* Other tile is above */
+					else if (other->bottom_edge_y == current->top_edge_y) {
+						current->top_neighbor = other->tile;
+						current->top_edge_resizable = true;
+						other->bottom_neighbor = current->tile;
+						other->bottom_edge_resizable = true;
+					}
+				}
+			}
+		}
+	}
+}
+
+/* Find which edge of a tile the cursor is closest to */
+/* EdgeType already defined in resize_edge.h */
+typedef int EdgeType;
+
+EdgeType
+find_closest_resizable_edge(GridTile *tile, double cursor_x, double cursor_y)
+{
+	
+	double left_dist = cursor_x - tile->left_edge_x;
+	double right_dist = tile->right_edge_x - cursor_x;
+	double top_dist = cursor_y - tile->top_edge_y;
+	double bottom_dist = tile->bottom_edge_y - cursor_y;
+	
+	/* Find closest edge within threshold */
+	double min_dist = INFINITY;
+	EdgeType closest_edge = EDGE_NONE;
+	
+	if (tile->left_edge_resizable && left_dist >= 0 && left_dist <= EDGE_THRESHOLD && left_dist < min_dist) {
+		min_dist = left_dist;
+		closest_edge = EDGE_LEFT;
+	}
+	if (tile->right_edge_resizable && right_dist >= 0 && right_dist <= EDGE_THRESHOLD && right_dist < min_dist) {
+		min_dist = right_dist;
+		closest_edge = EDGE_RIGHT;
+	}
+	if (tile->top_edge_resizable && top_dist >= 0 && top_dist <= EDGE_THRESHOLD && top_dist < min_dist) {
+		min_dist = top_dist;
+		closest_edge = EDGE_TOP;
+	}
+	if (tile->bottom_edge_resizable && bottom_dist >= 0 && bottom_dist <= EDGE_THRESHOLD && bottom_dist < min_dist) {
+		min_dist = bottom_dist;
+		closest_edge = EDGE_BOTTOM;
+	}
+	
+	/* For horizontal edges, use mouse position to determine side when tile borders both sides */
+	if (closest_edge == EDGE_NONE && (tile->left_edge_resizable || tile->right_edge_resizable)) {
+		double tile_center_x = tile->left_edge_x + (tile->right_edge_x - tile->left_edge_x) / 2.0;
+		if (cursor_x < tile_center_x && tile->left_edge_resizable) {
+			closest_edge = EDGE_LEFT;
+		} else if (cursor_x >= tile_center_x && tile->right_edge_resizable) {
+			closest_edge = EDGE_RIGHT;
+		}
+	}
+	
+	return closest_edge;
+}
+
+/* Apply horizontal resize to entire column */
+void
+apply_horizontal_resize_to_column(GridTile *grid_map, int tile_count, int target_column, 
+                                   EdgeType edge, int delta_x)
+{
+	wlr_log(WLR_DEBUG, "[nixtile] GRID: Applying horizontal resize to column %d, edge %d, delta %d", 
+	        target_column, edge, delta_x);
+	
+	for (int i = 0; i < tile_count; i++) {
+		GridTile *tile = &grid_map[i];
+		if (tile->column_group != target_column) continue;
+		
+		if (edge == EDGE_LEFT && tile->left_edge_resizable) {
+			/* Resize left edge - move left edge left/right */
+			tile->tile->geom.x += delta_x;
+			tile->tile->geom.width -= delta_x;
+			
+			/* Update neighbor's right edge */
+			if (tile->left_neighbor) {
+				tile->left_neighbor->geom.width += delta_x;
+			}
+			
+		} else if (edge == EDGE_RIGHT && tile->right_edge_resizable) {
+			/* Resize right edge - extend/shrink right edge */
+			tile->tile->geom.width += delta_x;
+			
+			/* Update neighbor's left edge */
+			if (tile->right_neighbor) {
+				tile->right_neighbor->geom.x += delta_x;
+				tile->right_neighbor->geom.width -= delta_x;
+			}
+		}
+	}
+}
+
+/* Apply vertical resize between two specific tiles */
+void
+apply_vertical_resize_between_tiles(Client *tile1, Client *tile2, int delta_y)
+{
+	wlr_log(WLR_DEBUG, "[nixtile] GRID: Applying vertical resize between tiles, delta %d", delta_y);
+	
+	/* Determine which tile is above and which is below */
+	Client *top_tile, *bottom_tile;
+	if (tile1->geom.y < tile2->geom.y) {
+		top_tile = tile1;
+		bottom_tile = tile2;
+	} else {
+		top_tile = tile2;
+		bottom_tile = tile1;
+	}
+	
+	/* Resize top tile (extend/shrink bottom edge) */
+	top_tile->geom.height += delta_y;
+	
+	/* Resize bottom tile (move top edge and adjust height) */
+	bottom_tile->geom.y += delta_y;
+	bottom_tile->geom.height -= delta_y;
+	
+	/* Ensure minimum sizes */
+	const int MIN_HEIGHT = 100;
+	if (top_tile->geom.height < MIN_HEIGHT) {
+		int correction = MIN_HEIGHT - top_tile->geom.height;
+		top_tile->geom.height = MIN_HEIGHT;
+		bottom_tile->geom.y -= correction;
+		bottom_tile->geom.height += correction;
+	}
+	if (bottom_tile->geom.height < MIN_HEIGHT) {
+		int correction = MIN_HEIGHT - bottom_tile->geom.height;
+		bottom_tile->geom.height = MIN_HEIGHT;
+		top_tile->geom.height -= correction;
+	}
+}
+
 void
 tileresize(const Arg *arg)
 {
-	wlr_log(WLR_DEBUG, "[nixtile] tileresize: CALLED - cursor=(%.1f,%.1f)", cursor ? cursor->x : -1, cursor ? cursor->y : -1);
+	wlr_log(WLR_DEBUG, "[nixtile] GRID RESIZE: Starting grid-based tile resize");
 	
-	/* DOUBLE-CLICK PROTECTION: Prevent rapid successive calls */
-	static struct timespec last_tileresize_time = {0};
-	struct timespec current_time;
-	clock_gettime(CLOCK_MONOTONIC, &current_time);
-	
-	/* Calculate time since last tileresize call */
-	long time_diff_ms = (current_time.tv_sec - last_tileresize_time.tv_sec) * 1000 +
-						(current_time.tv_nsec - last_tileresize_time.tv_nsec) / 1000000;
-	
-	/* Debounce: Ignore calls within 50ms to prevent double-click crashes but allow bi-axial resizing */
-	if (time_diff_ms < 50 && last_tileresize_time.tv_sec != 0) {
-		wlr_log(WLR_DEBUG, "[nixtile] DOUBLE-CLICK PROTECTION: Ignoring rapid tileresize call (%ldms ago)", time_diff_ms);
-		return;
-	}
-	last_tileresize_time = current_time;
-	
-	/* CRITICAL SAFETY CHECKS: Prevent all crashes */
+	/* CRITICAL SAFETY CHECKS */
 	if (!cursor || !selmon) {
-		wlr_log(WLR_ERROR, "[nixtile] SAFETY: cursor or selmon is NULL in tileresize - ABORT");
+		wlr_log(WLR_ERROR, "[nixtile] GRID RESIZE: cursor or selmon is NULL - ABORT");
 		return;
 	}
 	
-	/* SAFETY: Validate cursor position */
-	if (cursor->x < -10000 || cursor->x > 10000 || cursor->y < -10000 || cursor->y > 10000) {
-		wlr_log(WLR_ERROR, "[nixtile] SAFETY: cursor position out of bounds (%.2f, %.2f) - ABORT", cursor->x, cursor->y);
-		return;
-	}
-	
-	/* STRICT TILE SELECTION: Only allow resizing if cursor is directly over a tile */
+	/* Find tile under cursor */
 	xytonode(cursor->x, cursor->y, NULL, &grabc, NULL, NULL, NULL);
 	if (!grabc || grabc->isfloating || grabc->isfullscreen) {
-		/* STRICT MODE: No fallback to closest tile - cursor must be over the target tile */
-		wlr_log(WLR_DEBUG, "[nixtile] tileresize: No tiled client under cursor - resize requires cursor over target tile");
+		wlr_log(WLR_DEBUG, "[nixtile] GRID RESIZE: No tiled client under cursor");
 		return;
 	}
 	
-	/* ADDITIONAL VALIDATION: Ensure cursor is actually within tile boundaries */
-	if (cursor->x < grabc->geom.x || cursor->x > grabc->geom.x + grabc->geom.width ||
-	    cursor->y < grabc->geom.y || cursor->y > grabc->geom.y + grabc->geom.height) {
-		wlr_log(WLR_DEBUG, "[nixtile] tileresize: Cursor outside tile boundaries - aborting resize");
-		grabc = NULL;
+	/* Build grid map */
+	GridTile grid_map[32];
+	int tile_count;
+	build_grid_map(grid_map, &tile_count, selmon);
+	
+	/* Find the target tile in grid map */
+	GridTile *target_tile = NULL;
+	for (int i = 0; i < tile_count; i++) {
+		if (grid_map[i].tile == grabc) {
+			target_tile = &grid_map[i];
+			break;
+		}
+	}
+	
+	if (!target_tile) {
+		wlr_log(WLR_ERROR, "[nixtile] GRID RESIZE: Target tile not found in grid map");
 		return;
 	}
 	
-	wlr_log(WLR_DEBUG, "[nixtile] tileresize: Cursor is over tile %p at (%d,%d) size %dx%d", 
-		(void*)grabc, grabc->geom.x, grabc->geom.y, grabc->geom.width, grabc->geom.height);
-	
-	/* SAFETY: Validate grabc client state */
-	if (!grabc->mon || grabc->geom.width <= 0 || grabc->geom.height <= 0) {
-		wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid grabc geometry - ABORT");
-		grabc = NULL;
+	/* Find closest resizable edge */
+	EdgeType edge = find_closest_resizable_edge(target_tile, cursor->x, cursor->y);
+	if (edge == EDGE_NONE) {
+		wlr_log(WLR_DEBUG, "[nixtile] GRID RESIZE: No resizable edge found near cursor");
 		return;
 	}
 	
-	/* Store initial state for 1:1 pointer-relative resizing */
+	/* Store initial state */
 	grabcx = (int)cursor->x;
 	grabcy = (int)cursor->y;
-	initial_mfact = selmon->mfact;
 	
-	/* EDGE-BASED RESIZING: Find closest resizable edge (horizontal or vertical) */
-	int closest_horizontal_edge = -1;
-	int closest_vertical_edge = -1;
-	double closest_horizontal_distance = INFINITY;
-	double closest_vertical_distance = INFINITY;
-	
-	/* IMPROVED HORIZONTAL EDGE DETECTION: Center-based edge selection for multi-column layouts */
-	Client *temp_c;
-	
-	/* First pass: Build a map of all tiles and their neighbors */
-	typedef struct {
-		Client *tile;
-		Client *left_neighbor;
-		Client *right_neighbor;
-		int left_edge_x;
-		int right_edge_x;
-		int center_x;
-	} TileInfo;
-	
-	TileInfo tile_map[32];  /* Support up to 32 tiles */
-	int tile_count = 0;
-	
-	/* Build the tile map with neighbor relationships */
-	wl_list_for_each(temp_c, &clients, link) {
-		if (!VISIBLEON(temp_c, selmon) || temp_c->isfloating || temp_c->isfullscreen)
-			continue;
-		if (tile_count >= 32) break;
-		
-		TileInfo *info = &tile_map[tile_count++];
-		info->tile = temp_c;
-		info->left_neighbor = NULL;
-		info->right_neighbor = NULL;
-		
-		/* COLUMN-BASED EDGE CALCULATION: Use column boundaries instead of tile edges */
-		info->left_edge_x = temp_c->geom.x;
-		info->right_edge_x = temp_c->geom.x + temp_c->geom.width;
-		info->center_x = temp_c->geom.x + temp_c->geom.width / 2;
-		
-		/* COLUMN-BASED NEIGHBOR DETECTION: Works with stacked tiles */
-		Client *search_c;
-		
-		/* Find left neighbor (any tile in the column to our left) */
-		wl_list_for_each(search_c, &clients, link) {
-			if (!VISIBLEON(search_c, selmon) || search_c->isfloating || search_c->isfullscreen)
-				continue;
-			if (search_c != temp_c) {
-				/* Check if this tile is in a column to our left */
-				if (search_c->column_group < temp_c->column_group) {
-					/* Find the rightmost tile in the left column (closest to our column) */
-					if (!info->left_neighbor || search_c->column_group > info->left_neighbor->column_group) {
-						info->left_neighbor = search_c;
-						wlr_log(WLR_DEBUG, "[nixtile] LEFT NEIGHBOR: tile=%p (col %d) -> neighbor=%p (col %d)", 
-							(void*)temp_c, temp_c->column_group, (void*)search_c, search_c->column_group);
-					}
-				}
-			}
-		}
-		
-		/* Find right neighbor (any tile in the column to our right) */
-		wl_list_for_each(search_c, &clients, link) {
-			if (!VISIBLEON(search_c, selmon) || search_c->isfloating || search_c->isfullscreen)
-				continue;
-			if (search_c != temp_c) {
-				/* Check if this tile is in a column to our right */
-				if (search_c->column_group > temp_c->column_group) {
-					/* Find the leftmost tile in the right column (closest to our column) */
-					if (!info->right_neighbor || search_c->column_group < info->right_neighbor->column_group) {
-						info->right_neighbor = search_c;
-						wlr_log(WLR_DEBUG, "[nixtile] RIGHT NEIGHBOR: tile=%p (col %d) -> neighbor=%p (col %d)", 
-							(void*)temp_c, temp_c->column_group, (void*)search_c, search_c->column_group);
-					}
-				}
-			}
-		}
-		
-		wlr_log(WLR_INFO, "[nixtile] TILE MAP: tile=%p column=%d, left_edge=%d, right_edge=%d, center=%d, left_neighbor=%p, right_neighbor=%p", 
-			(void*)temp_c, temp_c->column_group, info->left_edge_x, info->right_edge_x, info->center_x, 
-			(void*)info->left_neighbor, (void*)info->right_neighbor);
-	}
-	
-	/* SIMPLIFIED EDGE SELECTION: Always find the best edge for cursor position */
-	Client *best_left_tile = NULL, *best_right_tile = NULL;
-	int best_edge_x = -1;
-	bool edge_found = false;
-	
-	/* First priority: Find tile directly under cursor and select appropriate edge */
-	wlr_log(WLR_DEBUG, "[nixtile] CURSOR EDGE DETECTION: cursor at x=%.1f, checking %d tiles", cursor->x, tile_count);
-	for (int i = 0; i < tile_count; i++) {
-		TileInfo *info = &tile_map[i];
-		
-		/* Check if cursor is over this tile */
-		wlr_log(WLR_DEBUG, "[nixtile] CHECKING TILE %d: x=%.1f in range [%d, %d]? left_neighbor=%p, right_neighbor=%p", 
-			i, cursor->x, info->left_edge_x, info->right_edge_x, (void*)info->left_neighbor, (void*)info->right_neighbor);
-		
-		if (cursor->x >= info->left_edge_x && cursor->x <= info->right_edge_x) {
-			wlr_log(WLR_DEBUG, "[nixtile] CURSOR OVER TILE %d: center=%d, cursor=%.1f, left_half=%s, right_half=%s", 
-				i, info->center_x, cursor->x, (cursor->x <= info->center_x) ? "YES" : "NO", 
-				(cursor->x > info->center_x) ? "YES" : "NO");
-			
-			/* Cursor is over this tile - use center as boundary for edge selection */
-			if (cursor->x <= info->center_x && info->left_neighbor) {
-				/* Cursor in left half - select left edge */
-				best_edge_x = info->left_edge_x;
-				best_left_tile = info->left_neighbor;
-				best_right_tile = info->tile;
-				edge_found = true;
-				wlr_log(WLR_DEBUG, "[nixtile] LEFT EDGE SELECTED: edge=%d, left_tile=%p, right_tile=%p (cursor in left half)", 
-					best_edge_x, (void*)best_left_tile, (void*)best_right_tile);
-				break;
-			} else if (cursor->x > info->center_x && info->right_neighbor) {
-				/* Cursor in right half - select right edge */
-				best_edge_x = info->right_edge_x;
-				best_left_tile = info->tile;
-				best_right_tile = info->right_neighbor;
-				edge_found = true;
-				wlr_log(WLR_DEBUG, "[nixtile] RIGHT EDGE SELECTED: edge=%d, left_tile=%p, right_tile=%p (cursor in right half)", 
-					best_edge_x, (void*)best_left_tile, (void*)best_right_tile);
-				break;
-			} else {
-				wlr_log(WLR_DEBUG, "[nixtile] CURSOR OVER TILE %d BUT NO VALID EDGE: left_neighbor=%p, right_neighbor=%p", 
-					i, (void*)info->left_neighbor, (void*)info->right_neighbor);
-			}
-		}
-	}
-	
-	/* Fallback: If no edge found from cursor-over-tile, find closest edge within tolerance */
-	if (!edge_found) {
-		double closest_distance = 50.0;  /* 50px tolerance for fallback */
-		for (int i = 0; i < tile_count; i++) {
-			TileInfo *info = &tile_map[i];
-			
-			if (info->left_neighbor) {
-				double left_distance = fabs(cursor->x - info->left_edge_x);
-				if (left_distance < closest_distance) {
-					closest_distance = left_distance;
-					best_edge_x = info->left_edge_x;
-					best_left_tile = info->left_neighbor;
-					best_right_tile = info->tile;
-					edge_found = true;
-					wlr_log(WLR_DEBUG, "[nixtile] FALLBACK LEFT EDGE: edge=%d, distance=%.1f", 
-						info->left_edge_x, left_distance);
-				}
-			}
-			
-			if (info->right_neighbor) {
-				double right_distance = fabs(cursor->x - info->right_edge_x);
-				if (right_distance < closest_distance) {
-					closest_distance = right_distance;
-					best_edge_x = info->right_edge_x;
-					best_left_tile = info->tile;
-					best_right_tile = info->right_neighbor;
-					edge_found = true;
-					wlr_log(WLR_DEBUG, "[nixtile] FALLBACK RIGHT EDGE: edge=%d, distance=%.1f", 
-						info->right_edge_x, right_distance);
-				}
-			}
-		}
-	}
-	
-	/* Set the selected edge for horizontal resizing */
-	if (edge_found) {
-		closest_horizontal_edge = best_edge_x;
-		initial_resize_client = best_left_tile;
-		initial_resize_neighbor = best_right_tile;
-		wlr_log(WLR_DEBUG, "[nixtile] HORIZONTAL EDGE CONFIRMED: edge=%d, left=%p, right=%p", 
-			best_edge_x, (void*)best_left_tile, (void*)best_right_tile);
-	} else {
-		wlr_log(WLR_DEBUG, "[nixtile] NO HORIZONTAL EDGE FOUND for cursor at x=%.1f", cursor->x);
-	}
-	
-	/* UNIFIED EDGE-BASED RESIZING: Find closest resizable vertical edges too */
-	int optimal_columns = get_optimal_columns(selmon->w.width);
-	for (int col = 0; col < optimal_columns; col++) {
-		/* Find all tiles in this column for vertical edge detection */
-		Client *column_tiles[16];
-		int column_tile_count = 0;
-		
-		wl_list_for_each(temp_c, &clients, link) {
-			if (!VISIBLEON(temp_c, selmon) || temp_c->isfloating || temp_c->isfullscreen)
-				continue;
-			if (temp_c->column_group == col && column_tile_count < 16) {
-				column_tiles[column_tile_count++] = temp_c;
-			}
-		}
-		
-		/* Find vertical edges between tiles in this column */
-		for (int i = 0; i < column_tile_count - 1; i++) {
-			Client *tile_above = column_tiles[i];
-			Client *tile_below = column_tiles[i + 1];
-			
-			if (!tile_above || !tile_below) continue;
-			
-			/* Calculate edge position (including gap) */
-			int edge_y = tile_above->geom.y + tile_above->geom.height + (innergappx / 2);
-			double distance = fabs(cursor->y - edge_y);
-			
-			if (distance < closest_vertical_distance) {
-				closest_vertical_distance = distance;
-				closest_vertical_edge = edge_y;
-				/* Only set vertical resize clients if vertical edge is closer than horizontal edge */
-				if (closest_vertical_distance < closest_horizontal_distance) {
-					initial_resize_client = tile_above;
-					initial_resize_neighbor = tile_below;
-				}
-			}
-		}
-	}
-	
-	/* Set up the closest edge for resizing */
-	initial_edge_x = closest_horizontal_edge;
-	initial_edge_y = closest_vertical_edge;
-	
-	/* AGGRESSIVE DEBUG: Log edge detection results */
-	wlr_log(WLR_INFO, "[nixtile] EDGE DETECTION RESULTS: horizontal_edge=%d (dist=%.1f), vertical_edge=%d (dist=%.1f)", 
-		closest_horizontal_edge, closest_horizontal_distance, closest_vertical_edge, closest_vertical_distance);
-	
-	wlr_log(WLR_DEBUG, "[nixtile] EDGE DETECTION: horizontal_edge=%d (dist=%.1f), vertical_edge=%d (dist=%.1f)", 
-		closest_horizontal_edge, closest_horizontal_distance, closest_vertical_edge, closest_vertical_distance);
-	
-	/* EDGE-BASED RESIZING SETUP COMPLETE */
-	/* Log the detected edges for debugging */
-	if (initial_edge_x >= 0) {
-		wlr_log(WLR_DEBUG, "[nixtile] HORIZONTAL EDGE DETECTED: x=%d (distance=%.1f)", 
-			closest_horizontal_edge, closest_horizontal_distance);
-	} else {
-		wlr_log(WLR_DEBUG, "[nixtile] NO HORIZONTAL EDGE: No resizable column boundary found");
-	}
-	
-	if (initial_edge_y >= 0) {
-		wlr_log(WLR_DEBUG, "[nixtile] VERTICAL EDGE DETECTED: y=%d (distance=%.1f)", 
-			closest_vertical_edge, closest_vertical_distance);
-	} else {
-		wlr_log(WLR_DEBUG, "[nixtile] NO VERTICAL EDGE: No resizable tile boundary found");
-	}
-	
-	/* SIMPLIFIED VERTICAL RESIZING: Only for 3+ tiles with stacks */
-	Client *c;
-	int n = 0;
-	wl_list_for_each(c, &clients, link) {
-		if (VISIBLEON(c, selmon) && !c->isfloating && !c->isfullscreen)
-			n++;
-	}
-	
-	/* Only set up vertical resizing for 3+ tiles (with actual stacks) */
-	if (n >= 3) {
-		/* Find adjacent tiles for vertical resizing in stacked layouts */
-		Client *stack_tiles[16];
-		int stack_count = 0;
-		
-		/* Build list of tiles in same column as the tile being resized for vertical resizing */
-		int target_column = grabc->column_group;
-		wl_list_for_each(c, &clients, link) {
-			if (!VISIBLEON(c, selmon) || c->isfloating || c->isfullscreen)
-				continue;
-			/* PER-COLUMN INDEPENDENCE: Only include tiles from same column */
-			if (c->column_group == target_column) {
-				stack_tiles[stack_count] = c;
-				stack_count++;
-			}
-		}
-		
-		/* Find closest shared edge for vertical resizing */
-		int cursor_y = (int)cursor->y;
-		int closest_edge_distance = INT_MAX;
-		
-		for (int i = 0; i < stack_count - 1; i++) {
-			Client *tile_above = stack_tiles[i];
-			Client *tile_below = stack_tiles[i + 1];
-			
-			/* SAFETY: Validate tile pointers and geometry */
-			if (!tile_above || !tile_below) {
-				wlr_log(WLR_ERROR, "[nixtile] SAFETY: NULL tile pointers in resize - skip");
-				continue;
-			}
-			
-			if (!tile_above->mon || !tile_below->mon) {
-				wlr_log(WLR_ERROR, "[nixtile] SAFETY: NULL monitor pointers in resize - skip");
-				continue;
-			}
-			
-			if (tile_above->geom.width <= 0 || tile_above->geom.height <= 0 ||
-			    tile_below->geom.width <= 0 || tile_below->geom.height <= 0) {
-				wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid tile geometry in resize - skip");
-				continue;
-			}
-			
-			int edge_y = tile_above->geom.y + tile_above->geom.height;
-			
-			int distance = abs(cursor_y - edge_y);
-			if (distance < closest_edge_distance) {
-				closest_edge_distance = distance;
-				initial_edge_y = edge_y;
-				initial_resize_client = tile_above;
-				initial_resize_neighbor = tile_below;
-				resizing_from_top_edge = false;
-			}
-		}
-	}
-	/* For 2-tile layouts: Only horizontal resizing, no vertical setup needed */
-	
-	/* Enter tile resize mode */
+	/* Set cursor mode and store resize context */
 	cursor_mode = CurTileResize;
+	resize_edge_type = edge;
+	resize_target_column = target_tile->column_group;
 	
-	/* Set optimized bi-axial resize cursor for better visual feedback */
-	if (cursor_mgr) {
-		/* Use se-resize for bi-axial resizing to indicate both horizontal and vertical capability */
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "se-resize");
+	if (edge == EDGE_TOP || edge == EDGE_BOTTOM) {
+		/* Vertical resize between two tiles */
+		if (edge == EDGE_TOP && target_tile->top_neighbor) {
+			vertical_resize_client = grabc;
+			vertical_resize_neighbor = target_tile->top_neighbor;
+		} else if (edge == EDGE_BOTTOM && target_tile->bottom_neighbor) {
+			vertical_resize_client = grabc;
+			vertical_resize_neighbor = target_tile->bottom_neighbor;
+		} else {
+			wlr_log(WLR_DEBUG, "[nixtile] GRID RESIZE: No neighbor for vertical resize");
+			cursor_mode = CurNormal;
+			return;
+		}
+		vertical_resize_pending = true;
+	} else {
+		/* Horizontal resize affects entire column */
+		horizontal_column_resize_pending = true;
 	}
 	
-	wlr_log(WLR_DEBUG, "[nixtile] tileresize: 1:1 pointer-relative mode, initial_mfact=%.3f", initial_mfact);
+	wlr_log(WLR_DEBUG, "[nixtile] GRID RESIZE: Started %s resize on edge %d", 
+	        (edge == EDGE_TOP || edge == EDGE_BOTTOM) ? "vertical" : "horizontal", edge);
 }
 
 void
@@ -7183,7 +6835,7 @@ tile(Monitor *m)
 					if (wf_check->width_factor > 0.1f && wf_check->width_factor < 1.9f) {
 						has_width_factors = true;
 						if (wf_check->column_group == 0) left_factor = wf_check->width_factor;
-						else if (wf_check->column_group == 1) right_factor = wf_check->width_factor;
+						else if (wf_check->column_group == 1 && effective_columns > 1) right_factor = wf_check->width_factor;
 					}
 				}
 				
@@ -7478,7 +7130,8 @@ togglecolumn(const Arg *arg)
 	/* Only allow column switching for tiled windows */
 	if (sel && !sel->isfloating && !sel->isfullscreen) {
 		/* Toggle between left (0) and right (1) column */
-		sel->column_group = (sel->column_group == 0) ? 1 : 0;
+		int max_columns = get_optimal_columns(selmon->w.width);
+		sel->column_group = (sel->column_group + 1) % max_columns;
 		/* Re-arrange layout to reflect the change */
 		arrange(selmon);
 	}
