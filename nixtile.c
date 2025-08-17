@@ -185,6 +185,10 @@ typedef struct {
 	float height_factor; /* for vertical resizing - default 1.0 */
 	float width_factor; /* for horizontal resizing - default 1.0 */
 	int column_group; /* 0 = left column, 1 = right column - for per-column grouping */
+	/* Store info for tile rebalancing during destruction */
+	Monitor *destroy_mon; /* Monitor reference for rebalancing */
+	int destroy_column; /* Column group for rebalancing */
+	bool destroy_was_floating; /* Floating state for rebalancing */
 } Client;
 
 typedef struct {
@@ -1943,6 +1947,10 @@ createnotify(struct wl_listener *listener, void *data)
 	c->height_factor = 1.0f;
 	c->width_factor = 1.0f;
 	c->isfloating = 0; /* CRITICAL: Never allow floating tiles */
+	/* Initialize destroy rebalancing fields */
+	c->destroy_mon = NULL;
+	c->destroy_column = -1;
+	c->destroy_was_floating = false;
 	
 	wlr_log(WLR_ERROR, "[nixtile] *** CREATENOTIFY CALLED - NEW TILE BEING CREATED ***");
 	wlr_log(WLR_ERROR, "[nixtile] *** IF YOU SEE THIS MESSAGE, CREATENOTIFY IS WORKING ***");
@@ -3446,306 +3454,139 @@ destroynotify(struct wl_listener *listener, void *data)
 	/* Called when the xdg_toplevel is destroyed. */
 	Client *c = wl_container_of(listener, c, destroy);
 	
-	/* DEBUG: Log tile destruction to help identify why tiles are closing during resizing */
-	wlr_log(WLR_INFO, "[nixtile] TILE DESTRUCTION: Client %p being destroyed (column=%d, floating=%d, resizing=%d)", 
-	        (void*)c, c ? c->column_group : -1, c ? c->isfloating : -1, 
-	        (vertical_resize_client == c || vertical_resize_neighbor == c || initial_resize_client == c || initial_resize_neighbor == c || grabc == c) ? 1 : 0);
+	wlr_log(WLR_DEBUG, "[nixtile] DESTROY CLIENT: Client %p being destroyed", (void*)c);
 	
-	/* Store info for rebalancing BEFORE removing client */
-	int removed_column = c->column_group;
-	Monitor *client_mon = c->mon;
-	bool client_was_floating = c->isfloating;
-	
-	wlr_log(WLR_ERROR, "[nixtile] DESTROY CLIENT: Starting destroynotify for client %p (floating=%d, column=%d, mon=%p)", 
-	        (void*)c, client_was_floating, removed_column, (void*)client_mon);
-	
-	/* CRITICAL DEBUG: Verify client state before removal */
-	if (!client_was_floating && removed_column >= 0 && removed_column < MAX_COLUMNS) {
-		wlr_log(WLR_ERROR, "[nixtile] DESTROY DEBUG: This is a TILED client in valid column %d - rebalancing will be considered", removed_column);
-	} else {
-		wlr_log(WLR_ERROR, "[nixtile] DESTROY DEBUG: This client will NOT trigger rebalancing (floating=%d, column=%d)", client_was_floating, removed_column);
-	}
-	
-	/* DEBUG: Show current tile distribution BEFORE removal */
-	if (selmon) {
-		int pre_left_count = count_tiles_in_stack(0, selmon);
-		int pre_right_count = count_tiles_in_stack(1, selmon);
-		wlr_log(WLR_ERROR, "[nixtile] PRE-REMOVAL STATE: left=%d, right=%d, removing from column=%d", 
-		        pre_left_count, pre_right_count, removed_column);
-	} else {
-		wlr_log(WLR_ERROR, "[nixtile] WARNING: No selmon available for pre-removal state check");
-	}
-	
+	/* Remove only the listeners that haven't been removed yet */
 	wl_list_remove(&c->destroy.link);
 	wl_list_remove(&c->set_title.link);
-	wl_list_remove(&c->fullscreen.link);
-#ifdef XWAYLAND
-	if (c->type != XDGShell) {
-		wl_list_remove(&c->activate.link);
-		wl_list_remove(&c->associate.link);
-		wl_list_remove(&c->configure.link);
-		wl_list_remove(&c->dissociate.link);
-		wl_list_remove(&c->set_hints.link);
-	} else
-#endif
-	{
-		wl_list_remove(&c->commit.link);
-		wl_list_remove(&c->map.link);
-		wl_list_remove(&c->unmap.link);
-		wl_list_remove(&c->maximize.link);
-	}
+	wl_list_remove(&c->map.link);
+	wl_list_remove(&c->unmap.link);
+	wl_list_remove(&c->commit.link);
+	wl_list_remove(&c->set_decoration_mode.link);
+	wl_list_remove(&c->maximize.link);
 	
-	/* PRESERVE MANUAL RESIZE ON TILE REMOVAL: Only reset if no manual resize performed */
-	if (removed_column >= 0 && removed_column < MAX_COLUMNS) {
-		if (!manual_resize_performed[removed_column]) {
-			/* No manual resize - reset to equal distribution */
-			wlr_log(WLR_INFO, "[nixtile] TILE REMOVAL: No manual resize in column %d, resetting to equal distribution", removed_column);
-			Client *temp_c;
-			wl_list_for_each(temp_c, &clients, link) {
-				if (!VISIBLEON(temp_c, c->mon) || temp_c->isfloating || temp_c->isfullscreen)
-					continue;
-				if (temp_c->column_group == removed_column && temp_c != c) {
-					temp_c->height_factor = 1.0f;
-				}
+	/* Clear any remaining global references */
+	if (c == grabc) grabc = NULL;
+	if (c == exclusive_focus) exclusive_focus = NULL;
+	if (c == vertical_resize_client) vertical_resize_client = NULL;
+	if (c == vertical_resize_neighbor) vertical_resize_neighbor = NULL;
+	if (c == initial_resize_client) initial_resize_client = NULL;
+	if (c == initial_resize_neighbor) initial_resize_neighbor = NULL;
+	
+	/* DYNAMIC TILE DELETION AND REBALANCING */
+	Monitor *client_mon = c->destroy_mon;
+	int removed_column = c->destroy_column;
+	bool client_was_floating = c->destroy_was_floating;
+	
+	wlr_log(WLR_DEBUG, "[nixtile] DESTROY REBALANCING CHECK: floating=%d, column=%d, mon=%p", client_was_floating, removed_column, (void*)client_mon);
+	
+	if (!client_was_floating && removed_column >= 0 && client_mon) {
+		int max_columns = get_optimal_columns(client_mon->w.width);
+		
+		/* Count remaining tiles after removal */
+		int total_tiles = 0;
+		int column_counts[MAX_COLUMNS] = {0};
+		Client *temp_c;
+		
+		wl_list_for_each(temp_c, &clients, link) {
+			if (temp_c == c) continue; /* Skip the client being destroyed */
+			if (!VISIBLEON(temp_c, client_mon) || temp_c->isfloating || temp_c->isfullscreen)
+				continue;
+			if (temp_c->column_group >= 0 && temp_c->column_group < max_columns) {
+				column_counts[temp_c->column_group]++;
+				total_tiles++;
 			}
-		} else {
-			/* Manual resize performed - preserve existing ratios */
-			wlr_log(WLR_INFO, "[nixtile] TILE REMOVAL: Column %d has manual resize, preserving existing height factors", removed_column);
-			/* Don't change height_factors - let existing tiles keep their manual resize ratios */
-		}
-	}
-	
-	/* CRITICAL SAFETY: Clear resize client pointers if this client is being destroyed */
-	if (vertical_resize_client == c) {
-		wlr_log(WLR_ERROR, "[nixtile] SAFETY: Clearing vertical_resize_client pointer for destroyed client %p", (void*)c);
-		vertical_resize_client = NULL;
-		vertical_resize_pending = false;
-		resize_operation_active = false; /* Reset operation state when client destroyed */
-	}
-	
-	if (vertical_resize_neighbor == c) {
-		wlr_log(WLR_ERROR, "[nixtile] SAFETY: Clearing vertical_resize_neighbor pointer for destroyed client %p", (void*)c);
-		vertical_resize_neighbor = NULL;
-		vertical_resize_pending = false;
-		resize_operation_active = false; /* Reset operation state when client destroyed */
-	}
-	
-	if (initial_resize_client == c) {
-		wlr_log(WLR_ERROR, "[nixtile] SAFETY: Clearing initial_resize_client pointer for destroyed client %p", (void*)c);
-		initial_resize_client = NULL;
-	}
-	
-	if (initial_resize_neighbor == c) {
-		wlr_log(WLR_ERROR, "[nixtile] SAFETY: Clearing initial_resize_neighbor pointer for destroyed client %p", (void*)c);
-		initial_resize_neighbor = NULL;
-	}
-	
-	if (horizontal_resize_client == c) {
-		wlr_log(WLR_ERROR, "[nixtile] SAFETY: Clearing horizontal_resize_client pointer for destroyed client %p", (void*)c);
-		horizontal_resize_client = NULL;
-		/* SAFETY: Clear pending horizontal resize state if this client was involved */
-		if (horizontal_column_resize_pending) {
-			wlr_log(WLR_ERROR, "[nixtile] SAFETY: Canceling pending horizontal resize due to client destruction");
-			horizontal_column_resize_pending = false;
-			pending_left_column = -1;
-			pending_right_column = -1;
-		}
-	}
-	
-	if (horizontal_resize_neighbor == c) {
-		wlr_log(WLR_ERROR, "[nixtile] SAFETY: Clearing horizontal_resize_neighbor pointer for destroyed client %p", (void*)c);
-		horizontal_resize_neighbor = NULL;
-		/* SAFETY: Clear pending horizontal resize state if this client was involved */
-		if (horizontal_column_resize_pending) {
-			wlr_log(WLR_ERROR, "[nixtile] SAFETY: Canceling pending horizontal resize due to client destruction");
-			horizontal_column_resize_pending = false;
-			pending_left_column = -1;
-			pending_right_column = -1;
-		}
-	}
-	
-	/* SAFETY: Clear any other global client pointers that might reference this client */
-	if (grabc == c) {
-		wlr_log(WLR_ERROR, "[nixtile] SAFETY: Clearing grabc pointer for destroyed client %p", (void*)c);
-		grabc = NULL;
-		cursor_mode = CurNormal;
-		resize_operation_active = false; /* Reset operation state when grabc destroyed */
-	}
-	
-	/* AUTOMATIC TILE REBALANCING: Now that client is removed from lists, check for rebalancing */
-	bool rebalancing_performed = false;
-	wlr_log(WLR_ERROR, "[nixtile] REBALANCING ENTRY: client_was_floating=%d, removed_column=%d, selmon=%p", 
-	        client_was_floating, removed_column, (void*)selmon);
-	
-	/* CRITICAL DEBUG: Show current state before rebalancing logic */
-	if (selmon) {
-		int current_left = count_tiles_in_stack(0, selmon);
-		int current_right = count_tiles_in_stack(1, selmon);
-		wlr_log(WLR_ERROR, "[nixtile] CURRENT STATE: Left column=%d tiles, Right column=%d tiles, Total=%d", 
-		        current_left, current_right, current_left + current_right);
-	} else {
-		wlr_log(WLR_ERROR, "[nixtile] CRITICAL ERROR: selmon is NULL - cannot perform rebalancing!");
-	}
-	if (!client_was_floating && removed_column >= 0 && removed_column < MAX_COLUMNS && selmon) {
-		int other_column = (removed_column == 0) ? 1 : 0;
-		/* Count tiles AFTER removal */
-		int removed_column_count = count_tiles_in_stack(removed_column, selmon);
-		int other_column_count = count_tiles_in_stack(other_column, selmon);
-		
-		wlr_log(WLR_ERROR, "[nixtile] REBALANCING CHECK AFTER REMOVAL: removed_col=%d has %d tiles, other_col=%d has %d tiles", 
-		        removed_column, removed_column_count, other_column, other_column_count);
-		
-		/* AGGRESSIVE REBALANCING: Always try to balance when there's an imbalance */
-		bool should_rebalance = false;
-		int total_tiles = removed_column_count + other_column_count;
-		
-		/* Case 1: Empty column - always move tile from stack */
-		if (removed_column_count == 0 && other_column_count >= 2) {
-			should_rebalance = true;
-			wlr_log(WLR_ERROR, "[nixtile] REBALANCING REASON: Empty column needs tile from stack (%d tiles available)", other_column_count);
-		}
-		/* Case 2: Significant imbalance - move tile for better distribution */
-		else if (other_column_count >= removed_column_count + 2 && other_column_count >= 2) {
-			/* If other column has 2+ more tiles than removed column, rebalance */
-			should_rebalance = true;
-			wlr_log(WLR_ERROR, "[nixtile] REBALANCING REASON: Significant imbalance (%d vs %d tiles)", removed_column_count, other_column_count);
-		}
-		/* Case 3: Special case - if we have 2+ total tiles and one column is empty or much smaller */
-		else if (total_tiles >= 2 && (removed_column_count == 0 || (other_column_count > removed_column_count * 2 && other_column_count >= 2))) {
-			should_rebalance = true;
-			wlr_log(WLR_ERROR, "[nixtile] REBALANCING REASON: Automatic balancing for optimal screen usage (%d vs %d)", removed_column_count, other_column_count);
 		}
 		
-		/* FALLBACK: If no specific condition met but we have imbalance, still try rebalancing */
-		if (!should_rebalance && other_column_count >= 2 && removed_column_count < other_column_count) {
-			should_rebalance = true;
-			wlr_log(WLR_ERROR, "[nixtile] REBALANCING REASON: Fallback - any imbalance with available stack (%d vs %d)", removed_column_count, other_column_count);
-		}
+		wlr_log(WLR_DEBUG, "[nixtile] TILE REBALANCING: total_tiles=%d, max_columns=%d", total_tiles, max_columns);
 		
-		if (should_rebalance) {
-			wlr_log(WLR_ERROR, "[nixtile] REBALANCING CONDITIONS MET: Will move tile from column %d (%d tiles) to column %d (%d tiles)", 
-			        other_column, other_column_count, removed_column, removed_column_count);
-			
-			/* Find the first (top) tile in the other column to move */
-			Client *tile_to_move = NULL;
-			Client *temp_c;
-			wlr_log(WLR_ERROR, "[nixtile] REBALANCING: Searching for tile to move from column %d", other_column);
+		/* SCENARIO 1: Single tile remaining - expand to full screen */
+		if (total_tiles == 1) {
+			wlr_log(WLR_DEBUG, "[nixtile] SINGLE TILE: Expanding to full screen");
 			wl_list_for_each(temp_c, &clients, link) {
-				if (!VISIBLEON(temp_c, selmon) || temp_c->isfloating || temp_c->isfullscreen) {
-					wlr_log(WLR_DEBUG, "[nixtile] REBALANCING: Skipping client %p (visible=%d, floating=%d, fullscreen=%d)", 
-					        (void*)temp_c, VISIBLEON(temp_c, selmon), temp_c->isfloating, temp_c->isfullscreen);
+				if (temp_c == c) continue; /* Skip the client being destroyed */
+				if (!VISIBLEON(temp_c, client_mon) || temp_c->isfloating || temp_c->isfullscreen)
 					continue;
-				}
-				if (temp_c->column_group == other_column) {
-					wlr_log(WLR_ERROR, "[nixtile] REBALANCING: Found tile %p to move from column %d", (void*)temp_c, other_column);
-					tile_to_move = temp_c;
-					break; /* Take the first tile (top of stack) */
-				} else {
-					wlr_log(WLR_DEBUG, "[nixtile] REBALANCING: Client %p is in column %d, not target column %d", 
-					        (void*)temp_c, temp_c->column_group, other_column);
+				temp_c->column_group = 0;
+				temp_c->height_factor = 1.0f;
+				break;
+			}
+			client_mon->mfact = 1.0f;
+		}
+		/* SCENARIO 2: Empty column - move tile from fullest column */
+		else if (column_counts[removed_column] == 0 && total_tiles > 0) {
+			/* Find column with most tiles */
+			int source_column = -1;
+			int max_tiles = 0;
+			for (int col = 0; col < max_columns; col++) {
+				if (column_counts[col] > max_tiles) {
+					max_tiles = column_counts[col];
+					source_column = col;
 				}
 			}
 			
-			if (tile_to_move) {
-				wlr_log(WLR_ERROR, "[nixtile] AUTOMATIC REBALANCING: Moving tile %p from column %d to column %d", 
-				        (void*)tile_to_move, other_column, removed_column);
+			if (source_column >= 0 && max_tiles >= 2) {
+				wlr_log(WLR_DEBUG, "[nixtile] MASTER TILE REPLACEMENT: Moving from column %d to %d", source_column, removed_column);
 				
-				/* Execute the rebalancing */
-				tile_to_move->column_group = removed_column;
-				tile_to_move->height_factor = 1.0f; /* Single tile gets full height */
-				
-				/* PRESERVE MANUAL RESIZE: Don't reset manual resize flags during rebalancing */
-				if (other_column >= 0 && other_column < MAX_COLUMNS) {
-					wlr_log(WLR_ERROR, "[nixtile] REBALANCING: Preserving manual resize state for column %d (manual=%d)", 
-				        other_column, manual_resize_performed[other_column]);
-					
-					/* Only reset height factors if no manual resize was performed */
-					if (!manual_resize_performed[other_column]) {
-						Client *remaining_c;
-						wl_list_for_each(remaining_c, &clients, link) {
-							if (!VISIBLEON(remaining_c, selmon) || remaining_c->isfloating || remaining_c->isfullscreen)
-								continue;
-							if (remaining_c->column_group == other_column && remaining_c != tile_to_move) {
-								remaining_c->height_factor = 1.0f;
-							}
-						}
-						wlr_log(WLR_ERROR, "[nixtile] REBALANCING: Reset height factors to equal distribution in column %d", other_column);
-					} else {
-						wlr_log(WLR_ERROR, "[nixtile] REBALANCING: Preserving manual height factors in column %d", other_column);
+				/* Find first tile to move */
+				wl_list_for_each(temp_c, &clients, link) {
+					if (temp_c == c) continue; /* Skip the client being destroyed */
+					if (!VISIBLEON(temp_c, client_mon) || temp_c->isfloating || temp_c->isfullscreen)
+						continue;
+					if (temp_c->column_group == source_column) {
+						temp_c->column_group = removed_column;
+						temp_c->height_factor = 1.0f;
+						wlr_log(WLR_DEBUG, "[nixtile] TILE MOVED: Client %p to column %d", (void*)temp_c, removed_column);
+						break;
 					}
 				}
 				
-				/* CRITICAL: Set proper mfact for balanced 2-column layout */
-				if (!manual_resize_performed[0] && !manual_resize_performed[1]) {
-					selmon->mfact = 0.5f; /* Equal distribution between columns */
-					wlr_log(WLR_ERROR, "[nixtile] REBALANCING: Set selmon->mfact to 0.5 for equal column distribution");
-				} else {
-					wlr_log(WLR_ERROR, "[nixtile] REBALANCING: Preserving existing selmon->mfact=%.2f due to manual resize", selmon->mfact);
+				/* Rebalance heights in source column */
+				wl_list_for_each(temp_c, &clients, link) {
+					if (temp_c == c) continue; /* Skip the client being destroyed */
+					if (!VISIBLEON(temp_c, client_mon) || temp_c->isfloating || temp_c->isfullscreen)
+						continue;
+					if (temp_c->column_group == source_column) {
+						temp_c->height_factor = 1.0f;
+					}
 				}
-				
-				/* CRITICAL: Apply layout changes immediately after rebalancing */
-				wlr_log(WLR_ERROR, "[nixtile] REBALANCING: Applying layout changes immediately");
-				arrange(selmon);
-				
-				rebalancing_performed = true;
-				wlr_log(WLR_ERROR, "[nixtile] REBALANCING COMPLETE: Tile moved successfully from column %d to column %d", 
-		        other_column, removed_column);
-			} else {
-				wlr_log(WLR_ERROR, "[nixtile] REBALANCING FAILED: No tile found to move from column %d", other_column);
 			}
-		} else {
-			wlr_log(WLR_ERROR, "[nixtile] REBALANCING CONDITIONS NOT MET: removed_col_count=%d, other_col_count=%d", 
-			        removed_column_count, other_column_count);
 		}
-	} else {
-		wlr_log(WLR_ERROR, "[nixtile] REBALANCING SKIPPED: floating=%d, removed_column=%d, selmon=%p", 
-		        client_was_floating, removed_column, (void*)selmon);
-		if (selmon) {
-			wlr_log(WLR_ERROR, "[nixtile] REBALANCING DEBUG: Current tile counts - left=%d, right=%d", 
-			        count_tiles_in_stack(0, selmon), count_tiles_in_stack(1, selmon));
-		}
-	}
-	
-	/* DEBUG: Log final state after potential rebalancing */
-	if (selmon) {
-		int final_left_count = count_tiles_in_stack(0, selmon);
-		int final_right_count = count_tiles_in_stack(1, selmon);
-		wlr_log(WLR_ERROR, "[nixtile] FINAL STATE AFTER REBALANCING: left=%d, right=%d", final_left_count, final_right_count);
-	}
-	
-	/* Handle automatic column expansion only if rebalancing was not performed */
-	if (!rebalancing_performed) {
-		wlr_log(WLR_ERROR, "[nixtile] CALLING handle_empty_column_expansion() since no rebalancing was done");
-		handle_empty_column_expansion();
-		wlr_log(WLR_ERROR, "[nixtile] DESTROY COMPLETE: handle_empty_column_expansion() finished");
-	} else {
-		wlr_log(WLR_ERROR, "[nixtile] SKIPPING handle_empty_column_expansion() since rebalancing was performed");
-	}
-	
-	/* EQUAL DISTRIBUTION: Reset manual resize flags and ensure equal distribution after tile removal */
-	if (!client_was_floating && removed_column >= 0 && removed_column < MAX_COLUMNS) {
-		/* Reset manual resize flags to enforce equal distribution on tile removal */
-		if (manual_resize_performed[0] || manual_resize_performed[1]) {
-			wlr_log(WLR_INFO, "[nixtile] EQUAL DISTRIBUTION: Resetting manual resize flags on tile removal - enforcing equal distribution");
-			manual_resize_performed[0] = false;
-			manual_resize_performed[1] = false;
+		/* SCENARIO 3: Rebalance heights in column after tile removal */
+		else {
+			wlr_log(WLR_DEBUG, "[nixtile] HEIGHT REBALANCING: Column %d", removed_column);
+			wl_list_for_each(temp_c, &clients, link) {
+				if (temp_c == c) continue; /* Skip the client being destroyed */
+				if (!VISIBLEON(temp_c, client_mon) || temp_c->isfloating || temp_c->isfullscreen)
+					continue;
+				if (temp_c->column_group == removed_column) {
+					temp_c->height_factor = 1.0f;
+				}
+			}
 		}
 		
-		ensure_equal_height_distribution_in_stack(0); /* Left column */
-		ensure_equal_height_distribution_in_stack(1); /* Right column */
-		
-		/* EQUAL DISTRIBUTION: Check if we need equal horizontal distribution for single tiles */
-		ensure_equal_horizontal_distribution_for_two_tiles();
-	}
-	
-	/* RESET MANUAL RESIZE FLAGS: Only reset on tile deletion as per user requirement */
-	if (selmon) {
-		selmon->manual_horizontal_resize = 0;
-		selmon->manual_vertical_resize = 0;
+		/* Reset manual resize flags on tile deletion */
+		manual_resize_performed[0] = false;
+		manual_resize_performed[1] = false;
+		client_mon->manual_horizontal_resize = 0;
+		client_mon->manual_vertical_resize = 0;
 		wlr_log(WLR_DEBUG, "[nixtile] MANUAL RESIZE RESET: Flags reset due to tile deletion");
+		
+		/* Schedule layout update after client is freed */
+		wlr_log(WLR_DEBUG, "[nixtile] TILE REBALANCING COMPLETE");
 	}
 	
+	/* Store monitor pointer before freeing client to avoid use-after-free */
+	Monitor *saved_mon = client_mon;
+	
+	wlr_log(WLR_DEBUG, "[nixtile] DESTROY COMPLETE: Client %p freed", (void*)c);
 	free(c);
+	
+	/* Schedule throttled layout update after client is completely freed */
+	if (saved_mon) {
+		try_arrange_safe(saved_mon);
+		wlr_log(WLR_DEBUG, "[nixtile] LAYOUT UPDATE: Throttled arrange scheduled after client destruction");
+	}
 }
 
 void
@@ -5511,7 +5352,11 @@ printstatus(void)
 			m->wlr_output->name, occ, m->tagset[m->seltags], sel, urg);
 		printf("%s layout %s\n", m->wlr_output->name, m->ltsymbol);
 	}
-	fflush(stdout);
+	/* Safely flush stdout, ignore broken pipe errors */
+	if (fflush(stdout) != 0) {
+		/* Broken pipe is normal when external status readers disconnect */
+		wlr_log(WLR_DEBUG, "[nixtile] printstatus: stdout flush failed (broken pipe)");
+	}
 }
 
 void
@@ -6161,7 +6006,7 @@ setfullscreen(Client *c, int fullscreen)
 		 * client positions are set by the user and cannot be recalculated */
 		resize(c, c->prev, 0);
 	}
-	arrange(c->mon);
+	try_arrange_safe(c->mon);
 	printstatus();
 }
 
@@ -6206,7 +6051,7 @@ setmon(Client *c, Monitor *m, uint32_t newtags)
 
 	/* Scene graph sends surface leave/enter events on move and resize */
 	if (oldmon)
-		arrange(oldmon);
+		try_arrange_safe(oldmon);
 	if (m) {
 		/* Make sure window actually overlaps with the monitor */
 		resize(c, c->geom, 0);
@@ -7017,9 +6862,9 @@ tile(Monitor *m)
 				}
 				
 				/* SAFETY CHECK: Prevent crash from invalid column_group */
-				if (column < 0 || column >= optimal_columns) {
-					wlr_log(WLR_ERROR, "[nixtile] *** SAFETY FIX: Tile %p has invalid column=%d, forcing to column 0 ***", 
-						(void*)c, column);
+				if (column < 0 || column >= effective_columns) {
+					wlr_log(WLR_ERROR, "[nixtile] *** SAFETY FIX: Tile %p has invalid column=%d (effective_columns=%d), forcing to column 0 ***", 
+						(void*)c, column, effective_columns);
 					column = 0;
 					c->column_group = 0;
 				}
@@ -7030,7 +6875,14 @@ tile(Monitor *m)
 				for (int prev_col = 0; prev_col < column; prev_col++) {
 					x_pos += column_widths[prev_col] + innergappx;
 				}
+				/* ADDITIONAL SAFETY: Ensure width is never zero */
 				int width = column_widths[column];
+				if (width <= 0) {
+					wlr_log(WLR_ERROR, "[nixtile] *** CRITICAL FIX: column_widths[%d]=%d is invalid, using fallback width ***", 
+						column, width);
+					width = (adjusted_area.width - (effective_columns - 1) * innergappx) / effective_columns;
+					if (width <= 0) width = 200; /* Absolute minimum fallback */
+				}
 				int y_pos = adjusted_area.y + column_y[column];
 				
 				wlr_log(WLR_ERROR, "[nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile %p -> column=%d, x_pos=%d, width=%d (mfact=%.3f) ***", 
@@ -7211,6 +7063,16 @@ unmapnotify(struct wl_listener *listener, void *data)
 		grabc = NULL;
 	}
 
+	/* Store info for rebalancing BEFORE removing client */
+	int removed_column = c->column_group;
+	Monitor *client_mon = c->mon;
+	bool client_was_floating = c->isfloating;
+	
+	/* Store rebalancing info in Client structure for destroynotify */
+	c->destroy_mon = client_mon;
+	c->destroy_column = removed_column;
+	c->destroy_was_floating = client_was_floating;
+	
 	if (client_is_unmanaged(c)) {
 		if (c == exclusive_focus) {
 			exclusive_focus = NULL;
@@ -7222,9 +7084,12 @@ unmapnotify(struct wl_listener *listener, void *data)
 		wl_list_remove(&c->flink);
 	}
 
-	wlr_scene_node_destroy(&c->scene->node);
+	/* Update status before destroying scene node to prevent broken pipe */
 	printstatus();
 	motionnotify(0, NULL, 0, 0, 0, 0);
+	
+	/* Destroy scene node last */
+	wlr_scene_node_destroy(&c->scene->node);
 }
 
 void
@@ -7533,6 +7398,10 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->bw = client_is_unmanaged(c) ? 0 : borderpx;
 	c->height_factor = 1.0f; /* Initialize height factor for vertical resizing */
 	c->width_factor = 1.0f; /* Initialize width factor for horizontal resizing */
+	/* Initialize destroy rebalancing fields */
+	c->destroy_mon = NULL;
+	c->destroy_column = -1;
+	c->destroy_was_floating = false;
 	
 	/* INTELLIGENT TILE PLACEMENT: Use same logic as createnotify for consistency */
 	c->mon = selmon;
