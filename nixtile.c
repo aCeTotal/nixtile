@@ -353,6 +353,8 @@ static void destroysessionlock(struct wl_listener *listener, void *data);
 static void destroykeyboardgroup(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(enum wlr_direction dir);
 static void focusclient(Client *c, int lift);
+static void focustileundermouse(void);
+static int deferred_focus_callback(void *data);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static Client *focustop(Monitor *m);
@@ -2240,6 +2242,16 @@ createnotify(struct wl_listener *listener, void *data)
 	
 	/* EQUAL DISTRIBUTION: Check if we need equal horizontal distribution for 2 tiles */
 	ensure_equal_horizontal_distribution_for_two_tiles();
+	
+	/* DEFERRED AUTO-FOCUS: Schedule focus with timer for consistent behavior */
+	wlr_log(WLR_DEBUG, "[nixtile] DEFERRED AUTO-FOCUS: Scheduling focus timer after creation");
+	
+	/* Create a timer event to trigger auto-focus after creation completes */
+	struct wl_event_source *creation_focus_timer = wl_event_loop_add_timer(
+		wl_display_get_event_loop(dpy), deferred_focus_callback, NULL);
+	if (creation_focus_timer) {
+		wl_event_source_timer_update(creation_focus_timer, 25); /* 25ms delay for creation */
+	}
 }
 
 void
@@ -3692,6 +3704,16 @@ destroynotify(struct wl_listener *listener, void *data)
 		/* Schedule immediate layout update now that destruction is complete */
 		wlr_log(WLR_DEBUG, "[nixtile] SAFE LAYOUT: Triggering deferred arrange after destruction");
 		arrange(saved_mon);
+	
+		/* DEFERRED AUTO-FOCUS: Schedule focus with timer to prevent protocol saturation */
+		wlr_log(WLR_DEBUG, "[nixtile] DEFERRED AUTO-FOCUS: Scheduling focus timer after deletion");
+		
+		/* Create a timer event to trigger auto-focus after a brief delay */
+		struct wl_event_source *focus_timer = wl_event_loop_add_timer(
+			wl_display_get_event_loop(dpy), deferred_focus_callback, NULL);
+		if (focus_timer) {
+			wl_event_source_timer_update(focus_timer, 50); /* 50ms delay */
+		}
 	}
 	
 	wlr_log(WLR_DEBUG, "[nixtile] COMPLETE CLEANUP: Client destroyed with safe layout rebalancing");
@@ -3744,6 +3766,85 @@ dirtomon(enum wlr_direction dir)
 			selmon->wlr_output, selmon->m.x, selmon->m.y)))
 		return next->data;
 	return selmon;
+}
+
+void
+focustileundermouse(void)
+{
+	/* SAFE AUTO-FOCUS: Automatically focus the tile under the mouse cursor after tile creation/deletion */
+	if (!cursor || locked) {
+		wlr_log(WLR_DEBUG, "[nixtile] AUTO-FOCUS: Skipping - no cursor or locked");
+		return;
+	}
+	
+	/* EMERGENCY PROTOCOL PROTECTION: Skip during destruction */
+	if (client_destruction_in_progress) {
+		wlr_log(WLR_DEBUG, "[nixtile] AUTO-FOCUS: Skipping during client destruction");
+		return;
+	}
+	
+	/* CRASH PREVENTION: Validate cursor position */
+	if (cursor->x < -1000 || cursor->x > 10000 || cursor->y < -1000 || cursor->y > 10000) {
+		wlr_log(WLR_DEBUG, "[nixtile] AUTO-FOCUS: Invalid cursor position (%.1f, %.1f) - skipping", 
+			cursor->x, cursor->y);
+		return;
+	}
+	
+	/* Find the client under the current mouse position - with safety checks */
+	Client *c = NULL;
+	
+	/* SAFETY: Validate selmon before calling xytonode */
+	if (!selmon) {
+		wlr_log(WLR_DEBUG, "[nixtile] AUTO-FOCUS: No selmon - skipping focus");
+		return;
+	}
+	
+	xytonode(cursor->x, cursor->y, NULL, &c, NULL, NULL, NULL);
+	
+	/* ADDITIONAL SAFETY: Validate client before focusing */
+	if (c && c->scene && c->surface.xdg && (!client_is_unmanaged(c) || client_wants_focus(c))) {
+		wlr_log(WLR_DEBUG, "[nixtile] AUTO-FOCUS: Safely focusing tile %p under mouse at (%.1f, %.1f)", 
+			(void*)c, cursor->x, cursor->y);
+		
+		/* SAFE FOCUS: Use minimal focus without arrange() calls */
+		if (c != focustop(selmon)) {
+			focusclient(c, 0); /* Use lift=0 to minimize operations */
+		}
+	} else {
+		wlr_log(WLR_DEBUG, "[nixtile] AUTO-FOCUS: No valid focusable tile found under mouse at (%.1f, %.1f)", 
+			cursor->x, cursor->y);
+	}
+}
+
+/* Deferred auto-focus callback for timer-based focus after tile creation/deletion */
+int
+deferred_focus_callback(void *data)
+{
+	(void)data; /* Unused parameter */
+	
+	wlr_log(WLR_DEBUG, "[nixtile] DEFERRED AUTO-FOCUS: Timer callback executing");
+	
+	/* SAFETY: Only proceed if conditions are safe */
+	if (!cursor) {
+		wlr_log(WLR_DEBUG, "[nixtile] DEFERRED AUTO-FOCUS: No cursor - skipping");
+		return 0;
+	}
+	if (!selmon) {
+		wlr_log(WLR_DEBUG, "[nixtile] DEFERRED AUTO-FOCUS: No selmon - skipping");
+		return 0;
+	}
+	if (client_destruction_in_progress) {
+		wlr_log(WLR_DEBUG, "[nixtile] DEFERRED AUTO-FOCUS: Destruction in progress - skipping");
+		return 0;
+	}
+	
+	wlr_log(WLR_DEBUG, "[nixtile] DEFERRED AUTO-FOCUS: All safety checks passed, executing focustileundermouse");
+	
+	/* Execute the auto-focus now that timing is safe */
+	focustileundermouse();
+	
+	wlr_log(WLR_DEBUG, "[nixtile] DEFERRED AUTO-FOCUS: Timer callback completed successfully");
+	return 0; /* Return 0 to destroy the timer */
 }
 
 void
