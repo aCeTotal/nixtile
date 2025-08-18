@@ -18,10 +18,22 @@ client_is_x11(Client *c)
 static inline struct wlr_surface *
 client_surface(Client *c)
 {
+	/* CRASH PREVENTION: Add comprehensive null checks */
+	if (!c) {
+		return NULL;
+	}
+	
 #ifdef XWAYLAND
-	if (client_is_x11(c))
+	if (client_is_x11(c)) {
+		if (!c->surface.xwayland || !c->surface.xwayland->surface) {
+			return NULL;
+		}
 		return c->surface.xwayland->surface;
+	}
 #endif
+	if (!c->surface.xdg || !c->surface.xdg->surface) {
+		return NULL;
+	}
 	return c->surface.xdg->surface;
 }
 
