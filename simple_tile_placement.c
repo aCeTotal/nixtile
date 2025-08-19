@@ -15,8 +15,8 @@ int assign_tile_column_simple(Client *new_tile, Monitor *m) {
     if (!new_tile || !m) return 0;
     
     int screen_width = m->w.width;
-    int optimal_columns = get_optimal_columns(screen_width);
-    int master_tiles = get_optimal_master_tiles(screen_width);
+    int optimal_columns = get_workspace_optimal_columns();
+    int master_tiles = get_workspace_nmaster();
     
     /* Count existing tiles in this workspace (excluding the new tile) */
     int existing_tiles = 0;
