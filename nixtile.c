@@ -2516,7 +2516,8 @@ handletiledrop(Client *c, double x, double y)
 			continue;
 		}
 		
-		if (temp_c == c || !temp_c->mon || temp_c->mon != m || temp_c->isfloating)
+		/* CRITICAL WORKSPACE ISOLATION: Only consider tiles visible in current workspace */
+		if (temp_c == c || !temp_c->mon || temp_c->mon != m || temp_c->isfloating || !VISIBLEON(temp_c, m))
 			continue;
 		
 		/* SAFETY: Validate geometry before any calculations */
@@ -2609,7 +2610,8 @@ handletiledrop(Client *c, double x, double y)
 			continue;
 		}
 		
-		if (temp_c == c || !temp_c->mon || temp_c->mon != m || temp_c->isfloating) {
+		/* CRITICAL WORKSPACE ISOLATION: Only consider tiles visible in current workspace */
+		if (temp_c == c || !temp_c->mon || temp_c->mon != m || temp_c->isfloating || !VISIBLEON(temp_c, m)) {
 			continue;
 		}
 		
@@ -2696,7 +2698,8 @@ handletiledrop(Client *c, double x, double y)
 				continue;
 			}
 			
-			if (temp_c == c || !temp_c->mon || temp_c->mon != m || temp_c->isfloating || temp_c->column_group != normal_target_column) {
+			/* CRITICAL WORKSPACE ISOLATION: Only consider tiles visible in current workspace */
+			if (temp_c == c || !temp_c->mon || temp_c->mon != m || temp_c->isfloating || !VISIBLEON(temp_c, m) || temp_c->column_group != normal_target_column) {
 				continue;
 			}
 			
@@ -2795,7 +2798,8 @@ handletiledrop(Client *c, double x, double y)
 				continue;
 			}
 			
-			if (temp_c == c || !temp_c->mon || temp_c->mon != m || temp_c->isfloating) {
+			/* CRITICAL WORKSPACE ISOLATION: Only consider tiles visible in current workspace */
+			if (temp_c == c || !temp_c->mon || temp_c->mon != m || temp_c->isfloating || !VISIBLEON(temp_c, m)) {
 				continue;
 			}
 			
@@ -2866,7 +2870,8 @@ handletiledrop(Client *c, double x, double y)
 	/* Count tiles in source column */
 	int tiles_in_source_column = 0;
 	wl_list_for_each(temp_c, &clients, link) {
-		if (temp_c != c && temp_c->mon == m && !temp_c->isfloating && temp_c->column_group == c->column_group) {
+		/* CRITICAL WORKSPACE ISOLATION: Only count tiles visible in current workspace */
+		if (temp_c != c && temp_c->mon == m && !temp_c->isfloating && VISIBLEON(temp_c, m) && temp_c->column_group == c->column_group) {
 			tiles_in_source_column++;
 		}
 	}
@@ -2999,7 +3004,8 @@ handletiledrop(Client *c, double x, double y)
 						continue;
 					}
 					
-					if (temp_c != c && temp_c->mon == m && !temp_c->isfloating && temp_c->column_group == target_column) {
+					/* CRITICAL WORKSPACE ISOLATION: Only swap tiles visible in current workspace */
+					if (temp_c != c && temp_c->mon == m && !temp_c->isfloating && VISIBLEON(temp_c, m) && temp_c->column_group == target_column) {
 						/* SAFETY: Validate geometry before swap */
 						if (temp_c->geom.width <= 0 || temp_c->geom.height <= 0) {
 							wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid geometry in column swap for tile %p - SKIP", (void*)temp_c);
