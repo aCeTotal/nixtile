@@ -224,6 +224,13 @@ static const Button buttons[] = {
 	{ MODKEY, BTN_RIGHT,  tileresize,     {0} },
 };
 
+/* DEBUG: Print button constants */
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+#pragma message "BTN_LEFT = " TOSTRING(BTN_LEFT)
+#pragma message "BTN_MIDDLE = " TOSTRING(BTN_MIDDLE) 
+#pragma message "BTN_RIGHT = " TOSTRING(BTN_RIGHT)
+
 
 
 
