@@ -6732,7 +6732,79 @@ tag(const Arg *arg)
 	if (!sel || (arg->ui & TAGMASK) == 0)
 		return;
 
+	/* CRITICAL WORKSPACE ISOLATION: Store old workspace for rebalancing */
+	uint32_t old_tags = sel->tags;
+	int old_workspace = -1;
+	for (int i = 0; i < 9; i++) {
+		if (old_tags & (1 << i)) {
+			old_workspace = i;
+			break;
+		}
+	}
+
+	/* Move tile to new workspace */
 	sel->tags = arg->ui & TAGMASK;
+
+	/* CRITICAL WORKSPACE ISOLATION: Get new workspace for rebalancing */
+	int new_workspace = -1;
+	for (int i = 0; i < 9; i++) {
+		if (sel->tags & (1 << i)) {
+			new_workspace = i;
+			break;
+		}
+	}
+
+	/* CRITICAL WORKSPACE ISOLATION: Trigger rebalancing for destination workspace */
+	if (new_workspace >= 0 && new_workspace != old_workspace) {
+		wlr_log(WLR_INFO, "[nixtile] CROSS-WORKSPACE MOVE: Tile moved from workspace %d to %d - triggering rebalance", 
+			old_workspace, new_workspace);
+		
+		/* CRITICAL: Switch to destination workspace temporarily to use VISIBLEON logic */
+		uint32_t original_tagset = selmon->tagset[selmon->seltags];
+		selmon->tagset[selmon->seltags] = 1 << new_workspace; /* Temporarily switch to destination workspace */
+		
+		/* Count existing tiles in destination workspace using SAME logic as createnotify */
+		int destination_tiles = 0;
+		Client *temp_c;
+		wl_list_for_each(temp_c, &clients, link) {
+			if (temp_c != sel && VISIBLEON(temp_c, selmon) && !temp_c->isfloating && !temp_c->isfullscreen) {
+				destination_tiles++;
+			}
+		}
+		
+		/* Load workspace state for destination workspace to get correct configuration */
+		selmon->tagset[selmon->seltags] = 1 << new_workspace; /* Switch to destination workspace */
+		load_workspace_state(); /* Load destination workspace state */
+		
+		/* Get workspace-specific configuration for destination workspace */
+		int optimal_columns = get_workspace_optimal_columns();
+		int master_tiles = get_workspace_nmaster();
+		
+		/* Restore original workspace */
+		selmon->tagset[selmon->seltags] = original_tagset;
+		load_workspace_state(); /* Restore original workspace state */
+		int workspace_tile_number = destination_tiles + 1; /* 1-based tile number */
+		
+		wlr_log(WLR_INFO, "[nixtile] CROSS-WORKSPACE COLUMN ASSIGNMENT: Destination has %d tiles, moved tile becomes #%d, master_tiles=%d, optimal_columns=%d", 
+			destination_tiles, workspace_tile_number, master_tiles, optimal_columns);
+		
+		/* GUARANTEED RULE: First N tiles go to separate columns (same as createnotify) */
+		if (workspace_tile_number <= master_tiles) {
+			int target_column = (workspace_tile_number - 1) % optimal_columns;
+			wlr_log(WLR_INFO, "[nixtile] CROSS-WORKSPACE ASSIGNMENT: Tile #%d -> Column %d (guaranteed horizontal like new tile)", 
+				workspace_tile_number, target_column);
+			sel->column_group = target_column;
+		} else {
+			/* STACKING: Will be assigned by tile() function for proper distribution */
+			wlr_log(WLR_INFO, "[nixtile] CROSS-WORKSPACE ASSIGNMENT: Tile #%d -> will be assigned by tile() function (stacking)", 
+				workspace_tile_number);
+			sel->column_group = -1; /* Invalid - will be assigned by tile() */
+		}
+		
+		/* Force rebalancing in destination workspace like tile creation */
+		rebalance_column_assignments(selmon);
+	}
+
 	focusclient(focustop(selmon), 1);
 	arrange(selmon);
 	printstatus();
