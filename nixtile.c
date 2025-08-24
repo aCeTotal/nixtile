@@ -1075,9 +1075,9 @@ rebalance_column_assignments(Monitor *m)
 		return;
 	}
 	
-	/* Calculate optimal columns for current workspace */
+	/* CRITICAL WORKSPACE ISOLATION: Calculate optimal columns and master tiles for current workspace */
 	int optimal_columns = get_workspace_optimal_columns();
-	int master_tiles = get_optimal_master_tiles(m->w.width);
+	int master_tiles = get_workspace_nmaster();
 	
 	wlr_log(WLR_DEBUG, "[nixtile] REBALANCE: total_tiles=%d, optimal_columns=%d, master_tiles=%d", 
 		total_tiles, optimal_columns, master_tiles);
@@ -2527,8 +2527,8 @@ handletiledrop(Client *c, double x, double y)
 		}
 		
 		/* SAFETY: Validate column group is reasonable */
-		/* Get current optimal columns for validation */
-		int optimal_columns = get_optimal_columns(m->w.width);
+		/* CRITICAL WORKSPACE ISOLATION: Get current optimal columns for validation */
+		int optimal_columns = get_workspace_optimal_columns();
 		if (temp_c->column_group < 0 || temp_c->column_group >= optimal_columns) {
 			wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid column_group %d for tile %p (max: %d) - SKIP", 
 			        temp_c->column_group, (void*)temp_c, optimal_columns - 1);
@@ -2620,8 +2620,8 @@ handletiledrop(Client *c, double x, double y)
 		}
 		
 		/* SAFETY: Validate column group */
-		/* Get current optimal columns for validation */
-		int optimal_columns = get_optimal_columns(m->w.width);
+		/* CRITICAL WORKSPACE ISOLATION: Get current optimal columns for validation */
+		int optimal_columns = get_workspace_optimal_columns();
 		if (temp_c->column_group < 0 || temp_c->column_group >= optimal_columns) {
 			wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid column_group %d in column selection (max: %d) - SKIP", 
 				temp_c->column_group, optimal_columns - 1);
@@ -2649,7 +2649,7 @@ handletiledrop(Client *c, double x, double y)
 	/* Fallback to center-based logic if no tiles found */
 	if (normal_target_column == -1) {
 		/* Get dynamic column count based on monitor resolution */
-		int max_columns = get_optimal_columns(m->w.width);
+		int max_columns = get_workspace_optimal_columns();
 		/* Calculate which column based on x position within monitor */
 		double column_width = (double)adjusted_area.width / max_columns;
 		normal_target_column = (int)((x - adjusted_area.x) / column_width);
@@ -3213,7 +3213,7 @@ handletiledrop(Client *c, double x, double y)
 		bool reasonable_size = (c->geom.width > 50 && c->geom.height > 50);
 		
 		/* Check if tile is in a valid column (0 or 1) */
-		int max_columns = get_optimal_columns(selmon->w.width);
+		int max_columns = get_workspace_optimal_columns();
 		bool valid_column = (c->column_group >= 0 && c->column_group < max_columns);
 		
 		tile_is_valid = within_monitor && reasonable_size && valid_column;
@@ -6784,14 +6784,14 @@ get_optimal_master_tiles(int screen_width)
 void
 update_dynamic_master_tiles(Monitor *m)
 {
-	int screen_width = m->w.width;
-	int optimal_master = get_optimal_master_tiles(screen_width);
+	/* CRITICAL WORKSPACE ISOLATION: Use workspace-specific master tiles instead of global calculation */
+	int workspace_master = get_workspace_nmaster();
 	
 	/* Only update if different to avoid unnecessary layout changes */
-	if (m->nmaster != optimal_master) {
-		m->nmaster = optimal_master;
-		wlr_log(WLR_INFO, "[nixtile] DYNAMIC LAYOUT: Screen width %dpx -> %d master tiles", 
-			screen_width, optimal_master);
+	if (m->nmaster != workspace_master) {
+		m->nmaster = workspace_master;
+		wlr_log(WLR_INFO, "[nixtile] WORKSPACE ISOLATION: Updated to workspace-specific %d master tiles", 
+			workspace_master);
 	}
 }
 
@@ -7013,13 +7013,14 @@ tile(Monitor *m)
 		/* DYNAMIC MULTI-COLUMN LAYOUT WITH MFACT-BASED HORIZONTAL RESIZING */
 		if (use_multi_column || force_multi_column) {
 			wlr_log(WLR_ERROR, "[nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***");
-			/* Multi-column layout: dynamic number of independent stacking areas with horizontal resizing */
-			/* Count actual tiles and determine highest column used */
+			/* CRITICAL WORKSPACE ISOLATION: Multi-column layout with workspace-specific tile counting */
+			/* Count actual tiles in CURRENT WORKSPACE ONLY and determine highest column used */
 			int actual_tiles = 0;
 			int highest_column_used = -1;
 			Client *count_c;
 			wl_list_for_each(count_c, &clients, link) {
-				if (count_c->mon && !count_c->isfloating && !count_c->isfullscreen) {
+				/* CRITICAL WORKSPACE ISOLATION: Only count tiles visible in current workspace */
+				if (VISIBLEON(count_c, m) && !count_c->isfloating && !count_c->isfullscreen) {
 					actual_tiles++;
 					if (count_c->column_group > highest_column_used) {
 						highest_column_used = count_c->column_group;
@@ -7139,8 +7140,8 @@ tile(Monitor *m)
 				if (!VISIBLEON(temp_c, m) || temp_c->isfloating || temp_c->isfullscreen)
 					continue;
 				
-				/* ROBUST MASTER TILE PROTECTION: Guarantee first N tiles are horizontal */
-				int master_tiles = get_optimal_master_tiles(m->w.width);
+				/* CRITICAL WORKSPACE ISOLATION: Guarantee first N tiles are horizontal using workspace-specific values */
+				int master_tiles = get_workspace_nmaster();
 				int workspace_tile_index = 0;
 				
 				/* WORKSPACE ISOLATION: Count this tile's position among workspace tiles only */
@@ -7360,7 +7361,7 @@ togglefloating(const Arg *arg)
 		/* Force tile to stay tiled */
 		sel->isfloating = 0;
 		/* Ensure valid column assignment for multi-column layout */
-		int optimal_columns = get_optimal_columns(sel->mon->w.width);
+		int optimal_columns = get_workspace_optimal_columns();
 		if (sel->column_group < 0 || sel->column_group >= optimal_columns) {
 			/* DO NOT force to 0 - let tile() function handle assignment */
 			wlr_log(WLR_DEBUG, "[nixtile] TOGGLE: Invalid column_group %d, will be reassigned by tile() (max columns: %d)", sel->column_group, optimal_columns);
@@ -7380,7 +7381,7 @@ togglecolumn(const Arg *arg)
 	/* Only allow column switching for tiled windows */
 	if (sel && !sel->isfloating && !sel->isfullscreen) {
 		/* Toggle between left (0) and right (1) column */
-		int max_columns = get_optimal_columns(selmon->w.width);
+		int max_columns = get_workspace_optimal_columns();
 		sel->column_group = (sel->column_group + 1) % max_columns;
 		/* Re-arrange layout to reflect the change */
 		arrange(selmon);
@@ -7872,10 +7873,9 @@ createnotifyx11(struct wl_listener *listener, void *data)
 		}
 	}
 	
-	/* Get dynamic column configuration */
-	int screen_width = selmon->w.width;
-	int optimal_columns = get_optimal_columns(screen_width);
-	int master_tiles = get_optimal_master_tiles(screen_width);
+	/* CRITICAL WORKSPACE ISOLATION: Get dynamic column configuration from workspace-specific values */
+	int optimal_columns = get_workspace_optimal_columns();
+	int master_tiles = get_workspace_nmaster();
 	
 	int tile_number = current_workspace_tiles + 1; /* 1-based tile number */
 	
@@ -8124,16 +8124,16 @@ static void load_workspace_state() {
 	/* Initialize if needed */
 	init_workspace_state(workspace);
 	
-	/* Load workspace-specific values */
+	/* CRITICAL WORKSPACE ISOLATION: Load workspace-specific values */
 	selmon->mfact = selmon->workspace_mfact[workspace];
 	selmon->nmaster = selmon->workspace_nmaster[workspace];
 	
-	/* Load manual resize state */
+	/* CRITICAL WORKSPACE ISOLATION: Load manual resize state from workspace arrays */
 	for (int col = 0; col < 2; col++) {
 		manual_resize_performed[col] = selmon->workspace_manual_resize_performed[workspace][col];
 	}
 	
-	/* WORKSPACE ISOLATION: Load workspace-specific pending state */
+	/* CRITICAL WORKSPACE ISOLATION: Load workspace-specific pending state from arrays */
 	pending_target_mfact = selmon->workspace_pending_target_mfact[workspace];
 	pending_target_height_factor = selmon->workspace_pending_target_height_factor[workspace];
 	pending_left_column = selmon->workspace_pending_left_column[workspace];
@@ -8142,7 +8142,16 @@ static void load_workspace_state() {
 	pending_right_width = selmon->workspace_pending_right_width[workspace];
 	pending_right_x = selmon->workspace_pending_right_x[workspace];
 	
-	wlr_log(WLR_DEBUG, "[nixtile] WORKSPACE ISOLATION: workspace=%d, mfact=%.2f, nmaster=%d, columns=%d, pending_mfact=%.2f", 
+	/* CRITICAL WORKSPACE ISOLATION: Reset resize flags for clean workspace state */
+	resize_pending = false;
+	vertical_resize_pending = false;
+	horizontal_column_resize_pending = false;
+	vertical_resize_client = NULL;
+	vertical_resize_neighbor = NULL;
+	horizontal_resize_client = NULL;
+	horizontal_resize_neighbor = NULL;
+	
+	wlr_log(WLR_INFO, "[nixtile] WORKSPACE ISOLATION: Loaded workspace %d - mfact=%.2f, nmaster=%d, columns=%d, pending_mfact=%.2f", 
 		workspace, selmon->mfact, selmon->nmaster, selmon->workspace_optimal_columns[workspace], pending_target_mfact);
 }
 
@@ -8159,16 +8168,16 @@ static void save_workspace_state() {
 	/* Initialize if needed */
 	init_workspace_state(workspace);
 	
-	/* Save current values to workspace */
+	/* CRITICAL WORKSPACE ISOLATION: Save current values to workspace arrays */
 	selmon->workspace_mfact[workspace] = selmon->mfact;
 	selmon->workspace_nmaster[workspace] = selmon->nmaster;
 	
-	/* Save manual resize state */
+	/* CRITICAL WORKSPACE ISOLATION: Save manual resize state to workspace arrays */
 	for (int col = 0; col < 2; col++) {
 		selmon->workspace_manual_resize_performed[workspace][col] = manual_resize_performed[col];
 	}
 	
-	/* WORKSPACE ISOLATION: Save workspace-specific pending state */
+	/* CRITICAL WORKSPACE ISOLATION: Save workspace-specific pending state to arrays */
 	selmon->workspace_pending_target_mfact[workspace] = pending_target_mfact;
 	selmon->workspace_pending_target_height_factor[workspace] = pending_target_height_factor;
 	selmon->workspace_pending_left_column[workspace] = pending_left_column;
@@ -8177,7 +8186,7 @@ static void save_workspace_state() {
 	selmon->workspace_pending_right_width[workspace] = pending_right_width;
 	selmon->workspace_pending_right_x[workspace] = pending_right_x;
 	
-	wlr_log(WLR_DEBUG, "[nixtile] WORKSPACE ISOLATION: workspace=%d, mfact=%.2f, nmaster=%d, columns=%d, pending_mfact=%.2f", 
+	wlr_log(WLR_INFO, "[nixtile] WORKSPACE ISOLATION: Saved workspace %d - mfact=%.2f, nmaster=%d, columns=%d, pending_mfact=%.2f", 
 		workspace, selmon->mfact, selmon->nmaster, selmon->workspace_optimal_columns[workspace], pending_target_mfact);
 }
 
