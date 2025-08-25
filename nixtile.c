@@ -556,6 +556,10 @@ static int resize_edge_type = 0;              /* EdgeType for current resize ope
 static int resize_target_column = -1;         /* Column being resized */
 /* vertical_resize_neighbor already declared above */
 
+/* Pointer-relative resize offset variables */
+static float initial_mouse_offset = 0.0f;     /* Initial offset between mouse and edge */
+static bool offset_initialized = false;       /* Whether offset has been calculated */
+
 /* Ultra-smooth resizing: Multi-threading and CPU optimization */
 
 /* BROKEN PIPE PREVENTION: Arrange throttling to prevent protocol overload */
@@ -1510,6 +1514,12 @@ buttonpress(struct wl_listener *listener, void *data)
 		if (!locked && cursor_mode != CurNormal && cursor_mode != CurPressed) {
 			/* MOUSE BUTTON ISOLATION: Store original cursor mode before reset */
 			int original_cursor_mode = cursor_mode;
+			
+			/* SAVE POSITION: When tile resize ends, save new position */
+			if (original_cursor_mode == CurTileResize && vertical_resize_pending) {
+				wlr_log(WLR_INFO, "[nixtile] POSITION SAVED: Vertical resize completed, new position saved on mouse release");
+				/* Position is already saved in workspace arrays by the resize logic */
+			}
 			
 			/* Safely reset cursor */
 			if (cursor && cursor_mgr) {
@@ -4766,9 +4776,6 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 				/* The edge follows the mouse while maintaining the original offset */
 				
 				/* Calculate original mouse offset from edge when resize started */
-				static float initial_mouse_offset = 0;
-				static bool offset_initialized = false;
-				
 				if (!offset_initialized) {
 					/* Store initial offset between mouse and edge */
 					if (resize_edge_type == EDGE_TOP) {
@@ -4785,42 +4792,55 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 				
 				/* Apply bounds checking to prevent tiles from becoming too small */
 				if (resize_edge_type == EDGE_TOP) {
-					/* Use proper gap constant */
+					/* EDGE_TOP: CRITICAL - Bottom edge and its gap must remain completely unaffected */
 					int gap = innergappx;
 					
-					float min_edge = neighbor_tile->geom.y + 50 + gap;
-					float max_edge = (grabc->geom.y + grabc->geom.height) - 50;
+					/* Store ABSOLUTE bottom position - this must NEVER change */
+					int absolute_bottom_y = grabc->geom.y + grabc->geom.height;
+					
+					/* Bounds checking: Ensure we don't make tile too small or affect bottom */
+					float min_edge = neighbor_tile->geom.y + 50 + gap; // Don't overlap neighbor above
+					float max_edge = absolute_bottom_y - 50; // Bottom edge is the absolute limit
 					new_edge_y = fmax(min_edge, fmin(max_edge, new_edge_y));
 					
-					/* Adjust both tiles to new edge position while preserving gap */
-					int old_top_y = grabc->geom.y;
-					int height_change = new_edge_y - old_top_y;
+					/* CRITICAL: Only update top edge and neighbor - bottom edge UNTOUCHED */
 					
-					/* Update current tile - maintain gap */
-					grabc->geom.y = new_edge_y;
-					grabc->geom.height -= height_change;
+					/* Update ONLY the top edge of current tile */
+					grabc->geom.y = (int)new_edge_y;
+					grabc->geom.height = absolute_bottom_y - grabc->geom.y; // Height to maintain bottom position
 					
-					/* Update neighbor tile (above) - maintain gap */
-					neighbor_tile->geom.height = (new_edge_y - gap) - neighbor_tile->geom.y;
+					/* Update ONLY the neighbor tile (above) - maintain gap */
+					neighbor_tile->geom.height = (grabc->geom.y - gap) - neighbor_tile->geom.y;
+					
+					/* VERIFICATION: Bottom edge should remain at absolute_bottom_y */
+					wlr_log(WLR_DEBUG, "[nixtile] EDGE_TOP: Bottom edge locked at %d, new top at %.1f, height=%d", 
+						absolute_bottom_y, new_edge_y, grabc->geom.height);
 					
 				} else { /* EDGE_BOTTOM */
-					/* Use proper gap constant */
+					/* EDGE_BOTTOM: CRITICAL - Top edge and its gap must remain completely unaffected */
 					int gap = innergappx;
 					
-					float min_edge = grabc->geom.y + 50;
+					/* Store ABSOLUTE top position - this must NEVER change */
+					int absolute_top_y = grabc->geom.y;
+					
+					/* Bounds checking: Ensure we don't make tile too small or affect top */
+					float min_edge = absolute_top_y + 50; // Top edge is the absolute limit
 					float max_edge = (neighbor_tile->geom.y + neighbor_tile->geom.height) - 50 - gap;
 					new_edge_y = fmax(min_edge, fmin(max_edge, new_edge_y));
 					
-					/* Adjust both tiles to new edge position while preserving gap */
-					int old_bottom_y = grabc->geom.y + grabc->geom.height;
-					int height_change = new_edge_y - old_bottom_y;
+					/* CRITICAL: Only update bottom edge and neighbor - top edge UNTOUCHED */
 					
-					/* Update current tile - preserve gap */
-					grabc->geom.height += height_change;
+					/* Update ONLY the bottom edge of current tile */
+					grabc->geom.height = new_edge_y - absolute_top_y; // Height to maintain top position
 					
-					/* Update neighbor tile (below) - maintain gap */
+					/* Update ONLY the neighbor tile (below) - maintain gap */
+					int old_neighbor_bottom = neighbor_tile->geom.y + neighbor_tile->geom.height;
 					neighbor_tile->geom.y = new_edge_y + gap;
-					neighbor_tile->geom.height -= height_change;
+					neighbor_tile->geom.height = old_neighbor_bottom - neighbor_tile->geom.y;
+					
+					/* VERIFICATION: Top edge should remain at absolute_top_y */
+					wlr_log(WLR_DEBUG, "[nixtile] EDGE_BOTTOM: Top edge locked at %d, new bottom at %.1f, height=%d", 
+						absolute_top_y, new_edge_y, grabc->geom.height);
 				}
 				
 				/* Apply changes immediately for real-time feedback */
@@ -5908,6 +5928,10 @@ tileresize(const Arg *arg)
 	resize_target_column = target_tile->column_group;
 	/* Defensive: ensure stale horizontal column-resize flag is cleared unless explicitly set */
 	horizontal_column_resize_pending = false;
+	
+	/* CRITICAL: Reset offset for true 1:1 pointer-relative behavior from first movement */
+	offset_initialized = false;
+	initial_mouse_offset = 0.0f;
 	
 	if (edge == EDGE_TOP || edge == EDGE_BOTTOM) {
 		/* Vertical resize between two tiles */
