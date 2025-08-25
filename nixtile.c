@@ -4674,22 +4674,57 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			}
 			last_horizontal_resize_time = current_time;
 			
-			/* Calculate new mfact for column edge adjustment */
-			float width_ratio = (float)horizontal_delta / (float)selmon->m.width;
-			float new_mfact = selmon->mfact + width_ratio;
+			/* DUAL-EDGE NEIGHBOR RESIZING: Both affected columns adjust simultaneously */
+			/* Find the exact edge being resized and its neighboring tiles */
+			Client *left_neighbor = NULL, *right_neighbor = NULL;
+			int left_column = -1, right_column = -1;
 			
-			/* Apply strict boundary protection with gap consideration */
-			float min_mfact = 0.15f + (float)gap / (float)selmon->m.width;
-			float max_mfact = 0.85f - (float)gap / (float)selmon->m.width;
-			new_mfact = fmax(min_mfact, fmin(max_mfact, new_mfact));
+			/* Identify which columns are being resized based on cursor position */
+			float cursor_x_ratio = (float)cursor->x / (float)selmon->m.width;
+			int optimal_columns = get_workspace_optimal_columns();
 			
-			/* Update mfact and save to workspace for persistence */
-			selmon->mfact = new_mfact;
-			save_workspace_mfact();
+			/* For 2-column layout: simple left/right split */
+			if (optimal_columns == 2) {
+				left_column = 0;
+				right_column = 1;
+			} else if (optimal_columns >= 3) {
+				/* For 3+ columns: determine which edge is being resized */
+				if (cursor_x_ratio < 0.33f) {
+					left_column = 0; right_column = 1; /* Left-middle edge */
+				} else if (cursor_x_ratio < 0.67f) {
+					left_column = 1; right_column = 2; /* Middle-right edge */
+				} else {
+					left_column = 1; right_column = 2; /* Fallback to middle-right */
+				}
+			}
 			
-			/* Schedule frame-synced layout update */
-			pending_target_mfact = new_mfact;
-			resize_pending = true;
+			/* Calculate new edge position based on cursor (pointer-relative) */
+			float new_edge_x = cursor->x;
+			float min_edge_x = selmon->m.width * 0.15f;
+			float max_edge_x = selmon->m.width * 0.85f;
+			new_edge_x = fmax(min_edge_x, fmin(max_edge_x, new_edge_x));
+			
+			/* Calculate new mfact value for both 2-column and multi-column layouts */
+			float new_mfact;
+			
+			/* For 2-column layout: use mfact for smooth resizing */
+			if (optimal_columns == 2) {
+				new_mfact = new_edge_x / (float)selmon->m.width;
+				pending_target_mfact = new_mfact;
+				resize_pending = true;
+			} else {
+				/* For 3+ columns: direct tile width adjustment */
+				/* This will be implemented for multi-column layouts */
+				new_mfact = cursor_x_ratio;
+				pending_target_mfact = new_mfact;
+				resize_pending = true;
+			}
+			
+			wlr_log(WLR_DEBUG, "[nixtile] DUAL-EDGE RESIZE: cursor_x=%.1f, edge_x=%.1f, left_col=%d, right_col=%d, columns=%d", 
+				cursor->x, new_edge_x, left_column, right_column, optimal_columns);
+			
+			wlr_log(WLR_DEBUG, "[nixtile] GRID RESIZE SCHEDULE: current_mfact=%.3f -> pending_mfact=%.3f (delta=%.1f)", 
+				selmon->mfact, pending_target_mfact, horizontal_delta);
 			
 			if (resize_timer_source) {
 				wl_event_source_remove(resize_timer_source);
@@ -4701,39 +4736,104 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 				resize_target_column, new_mfact, horizontal_delta);
 		}
 		
-		/* GRID-BASED VERTICAL RESIZING: Between two vertically adjacent tiles */
-		if (fabs(vertical_delta) > 0.1f &&
-            (resize_edge_type == EDGE_TOP || resize_edge_type == EDGE_BOTTOM) && vertical_resize_neighbor) { // Vertical edge type
-			/* Rate limiting for smooth vertical resizing */
-			uint32_t current_time = get_time_ms();
-			if (current_time - last_vertical_resize_time < 16) {
-				goto resize_cleanup;
+		/* TRUE POINTER-RELATIVE VERTICAL RESIZING: Mouse-to-edge distance stays constant */
+		if (fabs(vertical_delta) > 0.5f &&
+            (resize_edge_type == EDGE_TOP || resize_edge_type == EDGE_BOTTOM)) {
+			
+			/* Find the adjacent tile */
+			Client *neighbor_tile = NULL;
+			Client *temp_c;
+			wl_list_for_each(temp_c, &clients, link) {
+				if (temp_c->mon != selmon || temp_c->column_group != grabc->column_group) continue;
+				
+				if (resize_edge_type == EDGE_TOP) {
+					/* Find tile directly above */
+					if (abs(temp_c->geom.y + temp_c->geom.height - grabc->geom.y) <= 5) {
+						neighbor_tile = temp_c;
+						break;
+					}
+				} else if (resize_edge_type == EDGE_BOTTOM) {
+					/* Find tile directly below */
+					if (abs(temp_c->geom.y - (grabc->geom.y + grabc->geom.height)) <= 5) {
+						neighbor_tile = temp_c;
+						break;
+					}
+				}
 			}
-			last_vertical_resize_time = current_time;
 			
-			/* Calculate height factor adjustment for vertical resize */
-			float height_ratio = (float)vertical_delta / (float)selmon->m.height;
-			float current_height_factor = grabc->height_factor;
-			float new_height_factor = current_height_factor + height_ratio;
-			
-			/* Apply boundary protection for height factors */
-			float min_height_factor = 0.1f;
-			float max_height_factor = 0.9f;
-			new_height_factor = fmax(min_height_factor, fmin(max_height_factor, new_height_factor));
-			
-			/* Update height factor and schedule frame-synced update */
-			pending_target_height_factor = new_height_factor;
-			vertical_resize_client = grabc;
-			vertical_resize_pending = true;
-			
-			if (resize_timer_source) {
-				wl_event_source_remove(resize_timer_source);
+			if (neighbor_tile) {
+				/* POINTER-RELATIVE: Calculate where edge should be based on current mouse position */
+				/* The edge follows the mouse while maintaining the original offset */
+				
+				/* Calculate original mouse offset from edge when resize started */
+				static float initial_mouse_offset = 0;
+				static bool offset_initialized = false;
+				
+				if (!offset_initialized) {
+					/* Store initial offset between mouse and edge */
+					if (resize_edge_type == EDGE_TOP) {
+						initial_mouse_offset = grabcy - grabc->geom.y;
+					} else {
+						initial_mouse_offset = grabcy - (grabc->geom.y + grabc->geom.height);
+					}
+					offset_initialized = true;
+					wlr_log(WLR_DEBUG, "[nixtile] OFFSET INIT: mouse_offset=%.1f, edge_type=%d", initial_mouse_offset, resize_edge_type);
+				}
+				
+				/* Calculate new edge position: mouse position minus original offset */
+				float new_edge_y = cursor->y - initial_mouse_offset;
+				
+				/* Apply bounds checking to prevent tiles from becoming too small */
+				if (resize_edge_type == EDGE_TOP) {
+					/* Calculate gap between tiles */
+					int gap = grabc->geom.y - (neighbor_tile->geom.y + neighbor_tile->geom.height);
+					
+					float min_edge = neighbor_tile->geom.y + 50 + gap;
+					float max_edge = (grabc->geom.y + grabc->geom.height) - 50;
+					new_edge_y = fmax(min_edge, fmin(max_edge, new_edge_y));
+					
+					/* Adjust both tiles to new edge position while preserving gap */
+					int old_top_y = grabc->geom.y;
+					int height_change = new_edge_y - old_top_y;
+					
+					/* Update current tile - maintain gap */
+					grabc->geom.y = new_edge_y;
+					grabc->geom.height -= height_change;
+					
+					/* Update neighbor tile (above) - maintain gap */
+					neighbor_tile->geom.height = (new_edge_y - gap) - neighbor_tile->geom.y;
+					
+				} else { /* EDGE_BOTTOM */
+					/* Calculate gap between tiles */
+					int gap = neighbor_tile->geom.y - (grabc->geom.y + grabc->geom.height);
+					
+					float min_edge = grabc->geom.y + 50;
+					float max_edge = (neighbor_tile->geom.y + neighbor_tile->geom.height) - 50 - gap;
+					new_edge_y = fmax(min_edge, fmin(max_edge, new_edge_y));
+					
+					/* Adjust both tiles to new edge position while preserving gap */
+					int old_bottom_y = grabc->geom.y + grabc->geom.height;
+					int height_change = new_edge_y - old_bottom_y;
+					
+					/* Update current tile - preserve gap */
+					grabc->geom.height += height_change;
+					
+					/* Update neighbor tile (below) - maintain gap */
+					neighbor_tile->geom.y = new_edge_y + gap;
+					neighbor_tile->geom.height -= height_change;
+				}
+				
+				/* Apply changes immediately for real-time feedback */
+				client_set_size(grabc, grabc->geom.width, grabc->geom.height);
+				client_set_size(neighbor_tile, neighbor_tile->geom.width, neighbor_tile->geom.height);
+				
+				vertical_resize_pending = true;
+				
+				wlr_log(WLR_DEBUG, "[nixtile] POINTER-RELATIVE RESIZE: cursor_y=%.1f, edge_y=%.1f, offset=%.1f, grabc_h=%d, neighbor_h=%d", 
+					cursor->y, new_edge_y, initial_mouse_offset, grabc->geom.height, neighbor_tile->geom.height);
+			} else {
+				wlr_log(WLR_DEBUG, "[nixtile] VERTICAL RESIZE: No neighbor found for edge_type=%d", resize_edge_type);
 			}
-			resize_timer_source = wl_event_loop_add_timer(event_loop, frame_synced_resize_callback, NULL);
-			wl_event_source_timer_update(resize_timer_source, 16); // 60 FPS sync
-			
-			wlr_log(WLR_DEBUG, "[nixtile] GRID VERTICAL RESIZE: tile %p, height_factor %.3f -> %.3f (delta=%.1f)", 
-				(void*)grabc, current_height_factor, new_height_factor, vertical_delta);
 		}
 		
 		/* Grid-based resizing complete - frame-synced updates handled by timer above */
@@ -5614,27 +5714,33 @@ find_closest_resizable_edge(GridTile *tile, double cursor_x, double cursor_y)
 	wlr_log(WLR_ERROR, "[nixtile] ZONE EDGE DEBUG: Center=(%.1f,%.1f), Zones: left=%d right=%d top=%d bottom=%d", 
 	        tile_center_x, tile_center_y, in_left_zone, in_right_zone, in_top_zone, in_bottom_zone);
 	
-	/* Simple zone-based edge selection: horizontal zones take priority */
+	/* Center-to-edge zone detection: from center to each edge */
 	EdgeType selected_edge = EDGE_NONE;
 	
-	/* First try horizontal edges (left/right zones) */
-	if (in_left_zone && tile->left_edge_resizable) {
-		selected_edge = EDGE_LEFT;
-		wlr_log(WLR_ERROR, "[nixtile] ZONE EDGE DEBUG: Selected LEFT edge (left zone)");
-	} else if (in_right_zone && tile->right_edge_resizable) {
-		selected_edge = EDGE_RIGHT;
-		wlr_log(WLR_ERROR, "[nixtile] ZONE EDGE DEBUG: Selected RIGHT edge (right zone)");
+	/* Check vertical zones first - from center to top/bottom edges */
+	if (tile->top_edge_resizable && in_top_zone) {
+		selected_edge = EDGE_TOP;
+		wlr_log(WLR_ERROR, "[nixtile] CENTER-TO-EDGE DEBUG: TOP edge selected (top zone)");
+		return selected_edge;
 	}
 	
-	/* If no horizontal edge found, try vertical edges (top/bottom zones) */
-	if (selected_edge == EDGE_NONE) {
-		if (in_top_zone && tile->top_edge_resizable) {
-			selected_edge = EDGE_TOP;
-			wlr_log(WLR_ERROR, "[nixtile] ZONE EDGE DEBUG: Selected TOP edge (top zone)");
-		} else if (in_bottom_zone && tile->bottom_edge_resizable) {
-			selected_edge = EDGE_BOTTOM;
-			wlr_log(WLR_ERROR, "[nixtile] ZONE EDGE DEBUG: Selected BOTTOM edge (bottom zone)");
-		}
+	if (tile->bottom_edge_resizable && in_bottom_zone) {
+		selected_edge = EDGE_BOTTOM;
+		wlr_log(WLR_ERROR, "[nixtile] CENTER-TO-EDGE DEBUG: BOTTOM edge selected (bottom zone)");
+		return selected_edge;
+	}
+	
+	/* If no vertical zones, check horizontal zones - from center to left/right edges */
+	if (tile->left_edge_resizable && in_left_zone) {
+		selected_edge = EDGE_LEFT;
+		wlr_log(WLR_ERROR, "[nixtile] CENTER-TO-EDGE DEBUG: LEFT edge selected (left zone)");
+		return selected_edge;
+	}
+	
+	if (tile->right_edge_resizable && in_right_zone) {
+		selected_edge = EDGE_RIGHT;
+		wlr_log(WLR_ERROR, "[nixtile] CENTER-TO-EDGE DEBUG: RIGHT edge selected (right zone)");
+		return selected_edge;
 	}
 	
 	wlr_log(WLR_ERROR, "[nixtile] ZONE EDGE DEBUG: Final result: edge=%d (0=NONE, 1=LEFT, 2=RIGHT, 4=TOP, 8=BOTTOM)", selected_edge);
@@ -8382,6 +8488,12 @@ static float get_workspace_mfact(void) {
 	
 	int workspace = get_current_workspace();
 	
+	/* CRITICAL FIX: During resize operations, use current selmon->mfact instead of cached workspace value */
+	if (resize_pending || vertical_resize_pending || horizontal_column_resize_pending) {
+		wlr_log(WLR_DEBUG, "[nixtile] RESIZE ACTIVE: Using current mfact %.3f instead of workspace cache", selmon->mfact);
+		return selmon->mfact;
+	}
+	
 	/* Initialize if needed */
 	if (selmon->workspace_mfact[workspace] == 0.0f) {
 		selmon->workspace_mfact[workspace] = 0.5f;
@@ -8669,11 +8781,17 @@ void handle_empty_column_expansion() {
 		wlr_log(WLR_INFO, "[nixtile] SCREEN FILLING: Right column empty, expanding left column to full screen (left_tiles=%d)", left_column_count);
 		
 	} else if (left_column_count > 0 && right_column_count > 0) {
-		/* Both columns have tiles - NEVER CHANGE MFACT */
-		/* Preserve column widths regardless of tile count */
-		wlr_log(WLR_DEBUG, "[nixtile] SCREEN FILLING: Both columns populated, preserving width mfact=%.3f (left=%d, right=%d)", 
-		        selmon->mfact, left_column_count, right_column_count);
-		return; /* Exit early, never change horizontal width */
+		/* CRITICAL FIX: Allow mfact changes during resize operations */
+		if (resize_pending || vertical_resize_pending || horizontal_column_resize_pending) {
+			wlr_log(WLR_DEBUG, "[nixtile] SCREEN FILLING: Both columns populated, but RESIZE ACTIVE - allowing mfact changes (mfact=%.3f)", 
+			        selmon->mfact);
+			/* Continue to mfact distribution logic instead of returning */
+		} else {
+			/* Both columns have tiles - preserve width when not resizing */
+			wlr_log(WLR_DEBUG, "[nixtile] SCREEN FILLING: Both columns populated, preserving width mfact=%.3f (left=%d, right=%d)", 
+			        selmon->mfact, left_column_count, right_column_count);
+			return; /* Exit early, never change horizontal width */
+		}
 	} else {
 		/* Fallback: No tiles in either column (shouldn't happen) */
 		wlr_log(WLR_ERROR, "[nixtile] SCREEN FILLING: No tiles in any column - unexpected state");

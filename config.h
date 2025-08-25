@@ -219,9 +219,9 @@ static const Key keys[] = {
 };
 
 static const Button buttons[] = {
-	{ MODKEY, BTN_LEFT,   moveresize,     {.ui = CurMove} },
-	{ MODKEY, BTN_MIDDLE, togglefloating, {0} },
-	{ MODKEY, BTN_RIGHT,  tileresize,     {0} },
+	{ MODKEY, 272,   moveresize,     {.ui = CurMove} },    /* Left mouse button (0x110) */
+	{ MODKEY, 274, togglefloating, {0} },                /* Middle mouse button (0x112) */
+	{ MODKEY, 273,  tileresize,     {0} },                /* Right mouse button (0x111) */
 };
 
 /* DEBUG: Print button constants */
