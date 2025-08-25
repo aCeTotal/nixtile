@@ -4785,8 +4785,8 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 				
 				/* Apply bounds checking to prevent tiles from becoming too small */
 				if (resize_edge_type == EDGE_TOP) {
-					/* Calculate gap between tiles */
-					int gap = grabc->geom.y - (neighbor_tile->geom.y + neighbor_tile->geom.height);
+					/* Use proper gap constant */
+					int gap = innergappx;
 					
 					float min_edge = neighbor_tile->geom.y + 50 + gap;
 					float max_edge = (grabc->geom.y + grabc->geom.height) - 50;
@@ -4804,8 +4804,8 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 					neighbor_tile->geom.height = (new_edge_y - gap) - neighbor_tile->geom.y;
 					
 				} else { /* EDGE_BOTTOM */
-					/* Calculate gap between tiles */
-					int gap = neighbor_tile->geom.y - (grabc->geom.y + grabc->geom.height);
+					/* Use proper gap constant */
+					int gap = innergappx;
 					
 					float min_edge = grabc->geom.y + 50;
 					float max_edge = (neighbor_tile->geom.y + neighbor_tile->geom.height) - 50 - gap;
@@ -4826,6 +4826,34 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 				/* Apply changes immediately for real-time feedback */
 				client_set_size(grabc, grabc->geom.width, grabc->geom.height);
 				client_set_size(neighbor_tile, neighbor_tile->geom.width, neighbor_tile->geom.height);
+				
+				/* WORKSPACE PERSISTENCE: Update height factors to preserve changes across workspace switches */
+				int workspace = get_current_workspace();
+				if (workspace >= 0 && workspace < 9) {
+					/* Calculate and store height factors based on new geometry */
+					float total_height = grabc->geom.height + neighbor_tile->geom.height + innergappx;
+					grabc->height_factor = (float)grabc->geom.height / (total_height - innergappx);
+					neighbor_tile->height_factor = (float)neighbor_tile->geom.height / (total_height - innergappx);
+					
+					/* Store in workspace arrays for persistence */
+					int grabc_index = 0, neighbor_index = 0;
+					Client *temp_c;
+					int tile_count = 0;
+					wl_list_for_each(temp_c, &clients, link) {
+						if (!VISIBLEON(temp_c, selmon) || temp_c->isfloating || temp_c->isfullscreen)
+							continue;
+						if (temp_c == grabc) grabc_index = tile_count;
+						if (temp_c == neighbor_tile) neighbor_index = tile_count;
+						tile_count++;
+					}
+					
+					if (grabc_index < MAX_TILES_PER_WORKSPACE && neighbor_index < MAX_TILES_PER_WORKSPACE) {
+						selmon->workspace_height_factors[workspace][grabc_index] = grabc->height_factor;
+						selmon->workspace_height_factors[workspace][neighbor_index] = neighbor_tile->height_factor;
+						wlr_log(WLR_INFO, "[nixtile] WORKSPACE PERSISTENCE: Saved height factors - grabc[%d]=%.2f, neighbor[%d]=%.2f", 
+							grabc_index, grabc->height_factor, neighbor_index, neighbor_tile->height_factor);
+					}
+				}
 				
 				vertical_resize_pending = true;
 				
