@@ -5753,42 +5753,84 @@ find_closest_resizable_edge(GridTile *tile, double cursor_x, double cursor_y)
 	double tile_center_x = tile->left_edge_x + (tile->right_edge_x - tile->left_edge_x) / 2.0;
 	double tile_center_y = tile->top_edge_y + (tile->bottom_edge_y - tile->top_edge_y) / 2.0;
 	
-	/* Zone-based edge detection: divide tile into 4 zones from center */
-	bool in_left_zone = (cursor_x >= tile->left_edge_x && cursor_x < tile_center_x);
-	bool in_right_zone = (cursor_x >= tile_center_x && cursor_x <= tile->right_edge_x);
-	bool in_top_zone = (cursor_y >= tile->top_edge_y && cursor_y < tile_center_y);
-	bool in_bottom_zone = (cursor_y >= tile_center_y && cursor_y <= tile->bottom_edge_y);
+	/* Enhanced center-to-edge zones with improved sensitivity and fluidity */
+	double tile_width = tile->right_edge_x - tile->left_edge_x;
+	double tile_height = tile->bottom_edge_y - tile->top_edge_y;
 	
-	wlr_log(WLR_ERROR, "[nixtile] ZONE EDGE DEBUG: Center=(%.1f,%.1f), Zones: left=%d right=%d top=%d bottom=%d", 
-	        tile_center_x, tile_center_y, in_left_zone, in_right_zone, in_top_zone, in_bottom_zone);
+	/* Use 60% zones with 20% overlap for smoother, more sensitive detection */
+	double zone_extend = 0.6; // Extend zones beyond center for better sensitivity
+	double left_zone_end = tile->left_edge_x + (tile_width * zone_extend);
+	double right_zone_start = tile->right_edge_x - (tile_width * zone_extend);
+	double top_zone_end = tile->top_edge_y + (tile_height * zone_extend);
+	double bottom_zone_start = tile->bottom_edge_y - (tile_height * zone_extend);
 	
-	/* Center-to-edge zone detection: from center to each edge */
+	/* Overlapping zones for fluid detection */
+	bool in_left_zone = (cursor_x >= tile->left_edge_x && cursor_x <= left_zone_end);
+	bool in_right_zone = (cursor_x >= right_zone_start && cursor_x <= tile->right_edge_x);
+	bool in_top_zone = (cursor_y >= tile->top_edge_y && cursor_y <= top_zone_end);
+	bool in_bottom_zone = (cursor_y >= bottom_zone_start && cursor_y <= tile->bottom_edge_y);
+	
+	wlr_log(WLR_ERROR, "[nixtile] ENHANCED ZONE DEBUG: 60%% zones with overlap - left=%d right=%d top=%d bottom=%d", 
+	        in_left_zone, in_right_zone, in_top_zone, in_bottom_zone);
+	
+	/* Priority-based edge selection with anti-hang fallback */
 	EdgeType selected_edge = EDGE_NONE;
 	
-	/* Check vertical zones first - from center to top/bottom edges */
+	/* Primary: Check vertical zones first (preferred for stacking tiles) */
 	if (tile->top_edge_resizable && in_top_zone) {
 		selected_edge = EDGE_TOP;
-		wlr_log(WLR_ERROR, "[nixtile] CENTER-TO-EDGE DEBUG: TOP edge selected (top zone)");
+		wlr_log(WLR_ERROR, "[nixtile] ENHANCED EDGE DEBUG: TOP edge selected (primary zone)");
 		return selected_edge;
 	}
 	
 	if (tile->bottom_edge_resizable && in_bottom_zone) {
 		selected_edge = EDGE_BOTTOM;
-		wlr_log(WLR_ERROR, "[nixtile] CENTER-TO-EDGE DEBUG: BOTTOM edge selected (bottom zone)");
+		wlr_log(WLR_ERROR, "[nixtile] ENHANCED EDGE DEBUG: BOTTOM edge selected (primary zone)");
 		return selected_edge;
 	}
 	
-	/* If no vertical zones, check horizontal zones - from center to left/right edges */
+	/* Secondary: Check horizontal zones */
 	if (tile->left_edge_resizable && in_left_zone) {
 		selected_edge = EDGE_LEFT;
-		wlr_log(WLR_ERROR, "[nixtile] CENTER-TO-EDGE DEBUG: LEFT edge selected (left zone)");
+		wlr_log(WLR_ERROR, "[nixtile] ENHANCED EDGE DEBUG: LEFT edge selected (secondary zone)");
 		return selected_edge;
 	}
 	
 	if (tile->right_edge_resizable && in_right_zone) {
 		selected_edge = EDGE_RIGHT;
-		wlr_log(WLR_ERROR, "[nixtile] CENTER-TO-EDGE DEBUG: RIGHT edge selected (right zone)");
+		wlr_log(WLR_ERROR, "[nixtile] ENHANCED EDGE DEBUG: RIGHT edge selected (secondary zone)");
 		return selected_edge;
+	}
+	
+	/* ANTI-HANG FALLBACK: If no zones match, find closest resizable edge */
+	double dist_to_top = fabs(cursor_y - tile->top_edge_y);
+	double dist_to_bottom = fabs(cursor_y - tile->bottom_edge_y);
+	double dist_to_left = fabs(cursor_x - tile->left_edge_x);
+	double dist_to_right = fabs(cursor_x - tile->right_edge_x);
+	
+	double min_distance = 1000.0;
+	EdgeType fallback_edge = EDGE_NONE;
+	
+	if (tile->top_edge_resizable && dist_to_top < min_distance) {
+		fallback_edge = EDGE_TOP;
+		min_distance = dist_to_top;
+	}
+	if (tile->bottom_edge_resizable && dist_to_bottom < min_distance) {
+		fallback_edge = EDGE_BOTTOM;
+		min_distance = dist_to_bottom;
+	}
+	if (tile->left_edge_resizable && dist_to_left < min_distance) {
+		fallback_edge = EDGE_LEFT;
+		min_distance = dist_to_left;
+	}
+	if (tile->right_edge_resizable && dist_to_right < min_distance) {
+		fallback_edge = EDGE_RIGHT;
+		min_distance = dist_to_right;
+	}
+	
+	if (fallback_edge != EDGE_NONE) {
+		wlr_log(WLR_ERROR, "[nixtile] ANTI-HANG FALLBACK: Selected edge %d (distance %.1f)", fallback_edge, min_distance);
+		return fallback_edge;
 	}
 	
 	wlr_log(WLR_ERROR, "[nixtile] ZONE EDGE DEBUG: Final result: edge=%d (0=NONE, 1=LEFT, 2=RIGHT, 4=TOP, 8=BOTTOM)", selected_edge);
