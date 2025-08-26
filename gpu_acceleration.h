@@ -23,11 +23,17 @@
 #define SMOOTH_ANIMATION_FPS 60
 #define GPU_BUFFER_OPTIMIZATION 1
 
-/* Environment Variables for GPU Acceleration - CONSERVATIVE SETTINGS */
+/* Environment Variables for GPU Acceleration */
 static const char* gpu_acceleration_env_vars[][2] = {
+    {"WLR_RENDERER", "gles2"},                    /* Prefer hardware-accelerated GLES2 */
     {"WLR_DRM_NO_ATOMIC", "0"},                   /* Enable atomic modesetting */
     {"WLR_DRM_NO_MODIFIERS", "0"},                /* Enable DRM modifiers */
     {"WLR_SCENE_DISABLE_VISIBILITY", "0"},        /* Enable scene visibility optimizations */
+    {"WLR_NO_HARDWARE_CURSORS", "0"},             /* Enable hardware cursors */
+    {"MESA_GL_VERSION_OVERRIDE", "3.3"},          /* Force OpenGL 3.3 for better performance */
+    {"MESA_GLSL_VERSION_OVERRIDE", "330"},        /* Force GLSL 3.30 */
+    {"__GL_SYNC_TO_VBLANK", "1"},                 /* Enable VSync for NVIDIA */
+    {"vblank_mode", "1"},                         /* Enable VSync for AMD/Intel */
     {NULL, NULL}                                  /* Terminator */
 };
 

@@ -37,8 +37,9 @@ void configure_gpu_environment(void)
         }
     }
     
-    /* Conservative GPU optimizations - avoid aggressive settings that cause broken pipe */
-    /* Removed WLR_DRM_FORCE_LIBLIFTOFF and WLR_SCENE_DISABLE_DIRECT_SCANOUT to prevent Wayland issues */
+    /* Additional GPU optimizations */
+    setenv("WLR_DRM_FORCE_LIBLIFTOFF", "1", 0);  /* Enable hardware plane composition */
+    setenv("WLR_SCENE_DISABLE_DIRECT_SCANOUT", "0", 0);  /* Enable direct scanout */
     
     wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Environment configured for maximum performance");
 }
@@ -96,17 +97,23 @@ void optimize_for_gpu(gpu_capabilities_t *caps)
     
     wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Optimizing for detected GPU capabilities");
     
-    /* Conservative optimizations - avoid settings that cause Wayland broken pipe */
+    /* High refresh rate optimizations */
     if (caps->max_refresh_rate >= HIGH_REFRESH_RATE_THRESHOLD) {
-        wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: High refresh rate detected (%dHz), using conservative mode", 
+        wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: High refresh rate detected (%dHz), enabling ultra-smooth mode", 
                 caps->max_refresh_rate);
-        /* Removed aggressive DRM and scene optimizations that cause broken pipe on ultrawide */
+        
+        /* Enable additional optimizations for high refresh rate displays */
+        setenv("WLR_DRM_NO_ATOMIC_GAMMA", "0", 0);
+        setenv("WLR_SCENE_DISABLE_DIRECT_SCANOUT", "0", 0);
     }
     
-    /* Conservative hardware acceleration */
+    /* Hardware acceleration optimizations */
     if (caps->hardware_acceleration) {
-        wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Hardware acceleration available, using stable settings");
-        /* Removed MESA overrides that can cause SRGB and display issues */
+        wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Hardware acceleration available, enabling GPU optimizations");
+        
+        /* Enable GPU-specific optimizations */
+        setenv("MESA_EXTENSION_OVERRIDE", "+GL_EXT_gpu_shader4", 0);
+        setenv("MESA_GL_VERSION_OVERRIDE", "3.3", 0);
     }
     
     /* Adaptive sync optimizations */

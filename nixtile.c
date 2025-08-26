@@ -115,11 +115,11 @@ static const float launcher_tab_active_color[4] = {0.22, 0.24, 0.32, 1.0};
 #define LISTEN(E, L, H)         wl_signal_add((E), ((L)->notify = (H), (L)))
 #define LISTEN_STATIC(E, H)     do { struct wl_listener *_l = ecalloc(1, sizeof(*_l)); _l->notify = (H); wl_signal_add((E), _l); } while (0)
 
-/* STRICT TILE LIMITS */
-#define MAX_TILES_PER_STACK     4
+/* STRICT TILE LIMITS: Norwegian user requirements */
+#define MAX_TILES_PER_STACK     5
 #define MAX_STACKS_PER_WORKSPACE 2
 #define MAX_TILES_PER_WORKSPACE (MAX_TILES_PER_STACK * MAX_STACKS_PER_WORKSPACE)
-#define MAX_COLUMNS             4  /* Support up to 4 columns for super ultrawide monitors */
+#define MAX_COLUMNS             3  /* Support up to 3 columns for bidirectional movement */
 
 /* global variables */
 int statusbar_visible = 1; /* 1 = visible, 0 = hidden */
@@ -258,7 +258,7 @@ struct Monitor {
 	/* PER-WORKSPACE STATE FOR COMPLETE INDEPENDENCE */
 	int workspace_nmaster[9]; /* Per-workspace master tile count */
 	int workspace_optimal_columns[9]; /* Per-workspace column count */
-	bool workspace_manual_resize_performed[9][4]; /* Per-workspace manual resize state [workspace][column] */
+	bool workspace_manual_resize_performed[9][2]; /* Per-workspace manual resize state [workspace][column] */
 	float workspace_height_factors[9][MAX_TILES_PER_WORKSPACE]; /* Per-workspace vertical sizing */
 	bool workspace_initialized[9]; /* Track which workspaces have been initialized */
 	
@@ -698,9 +698,9 @@ is_resize_safe(Client *c, int new_width, int new_height)
 		return 0;
 	}
 	
-	/* Check if new dimensions would be destructively small - enforce 100px minimum height */
+	/* Check if new dimensions would be destructively small - but be more lenient for multi-column layouts */
 	int safe_min_width = 120;  /* Reduced from 180 for multi-column compatibility */
-	int safe_min_height = 100;  /* Enforce 100px minimum height for vertical resizing */
+	int safe_min_height = 80;  /* Reduced from 140 for stacked tiles */
 	
 	/* Only block extremely small sizes that would cause crashes */
 	if (new_width < safe_min_width || new_height < safe_min_height) {
@@ -1349,9 +1349,10 @@ arrange_immediate(Monitor *m)
 		/* WORKSPACE INDEPENDENCE: Ensure workspace state is loaded before layout */
 		load_workspace_state();
 		
-		/* PREVENT INFINITE RECURSION: Skip layout during active tile resize to prevent loops */
-		if (cursor_mode == CurTileResize) {
-			wlr_log(WLR_DEBUG, "[nixtile] ARRANGE: Skipping layout recalculation during active tile resize");
+		/* PREVENT RESIZE SNAP-BACK: Skip layout during active tile resize to prevent interference */
+		if (cursor_mode == CurTileResize || resize_operation_active || vertical_resize_pending || resize_pending) {
+			wlr_log(WLR_DEBUG, "[nixtile] ARRANGE: Skipping layout recalculation during active resize operation (cursor_mode=%d, resize_active=%d, v_pending=%d, h_pending=%d)", 
+			        cursor_mode, resize_operation_active, vertical_resize_pending, resize_pending);
 			return;
 		}
 		
@@ -2061,7 +2062,7 @@ createmon(struct wl_listener *listener, void *data)
 		m->workspace_mfact[ws] = 0.0f; /* Will be set to 0.5f on first access */
 		m->workspace_nmaster[ws] = 0; /* Will be set based on screen width on first access */
 		m->workspace_optimal_columns[ws] = 0; /* Will be set based on screen width on first access */
-		for (int col = 0; col < 4; col++) {
+		for (int col = 0; col < 2; col++) {
 			m->workspace_manual_resize_performed[ws][col] = false;
 		}
 		for (int i = 0; i < MAX_TILES_PER_WORKSPACE; i++) {
@@ -4641,26 +4642,26 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 		}
 		resize_call_depth++;
 		
-		/* CRITICAL SAFETY CHECKS: Prevent all crashes */
+		/* FORGIVING SAFETY CHECKS: Only abort on critical failures to prevent resize snap-back */
 		if (!selmon || !grabc) {
-			wlr_log(WLR_ERROR, "[nixtile] SAFETY: selmon or grabc is NULL in CurTileResize - ABORT");
+			wlr_log(WLR_ERROR, "[nixtile] CRITICAL SAFETY: selmon or grabc is NULL in CurTileResize - ABORT");
 			cursor_mode = CurNormal;
 			resize_call_depth--;
 			return;
 		}
 		
-		/* SAFETY: Validate grabc client state */
-		if (!grabc->mon || grabc->geom.width <= 0 || grabc->geom.height <= 0) {
-			wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid grabc geometry in CurTileResize - ABORT");
+		/* FORGIVING: Only check for truly invalid geometry to prevent snap-back */
+		if (!grabc->mon) {
+			wlr_log(WLR_ERROR, "[nixtile] CRITICAL SAFETY: grabc has no monitor in CurTileResize - ABORT");
 			cursor_mode = CurNormal;
 			grabc = NULL;
 			resize_call_depth--;
 			return;
 		}
 		
-		/* SAFETY: Validate cursor position */
-		if (cursor->x < -10000 || cursor->x > 10000 || cursor->y < -10000 || cursor->y > 10000) {
-			wlr_log(WLR_ERROR, "[nixtile] SAFETY: cursor position out of bounds in CurTileResize - ABORT");
+		/* FORGIVING: Allow wider cursor range to prevent accidental resize termination */
+		if (cursor->x < -50000 || cursor->x > 50000 || cursor->y < -50000 || cursor->y > 50000) {
+			wlr_log(WLR_ERROR, "[nixtile] CRITICAL SAFETY: cursor position extremely out of bounds - ABORT");
 			cursor_mode = CurNormal;
 			resize_call_depth--;
 			return;
@@ -4798,32 +4799,65 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 					/* Store ABSOLUTE bottom position - this must NEVER change */
 					int absolute_bottom_y = grabc->geom.y + grabc->geom.height;
 					
-					/* MINIMUM SIZE PROTECTION: Calculate resulting tile heights */
-					int resulting_current_height = absolute_bottom_y - (int)new_edge_y;
-					int resulting_neighbor_height = ((int)new_edge_y - gap) - neighbor_tile->geom.y;
+					/* SIMPLE RULE: 150px minimum height for ALL tiles - NO EXCEPTIONS */
+					int current_height = grabc->geom.height;
+					int neighbor_height = neighbor_tile->geom.height;
 					
-					/* Stop resize if either tile would be too small OR if neighbor would go negative */
-					if (resulting_current_height < 150 || resulting_neighbor_height < 150 || resulting_neighbor_height <= 0) {
-						wlr_log(WLR_DEBUG, "[nixtile] MINIMUM SIZE REACHED: Stopping resize to preserve gaps (current_h=%d, neighbor_h=%d)", 
-							resulting_current_height, resulting_neighbor_height);
-						goto resize_cleanup; /* Stop resize completely to preserve gaps */
+					/* Calculate what heights would be after resize */
+					int new_current_height = absolute_bottom_y - (int)new_edge_y;
+					int new_neighbor_height = ((int)new_edge_y - gap) - neighbor_tile->geom.y;
+					
+					/* STICKY MINIMUM: Enforce 150px minimum with stable clamping */
+					if (new_current_height < 150 || new_neighbor_height < 150) {
+						/* Calculate strict boundary positions */
+						int max_edge_from_current = absolute_bottom_y - 150;  /* Current tile limit */
+						int max_edge_from_neighbor = neighbor_tile->geom.y + 150 + gap;  /* Neighbor tile limit */
+						
+						/* STICKY LOGIC: Once at minimum, stay there until user moves away from boundary */
+						int clamped_edge_y;
+						if (new_current_height < 150) {
+							/* Current tile hitting minimum - stick to boundary */
+							clamped_edge_y = max_edge_from_current;
+							wlr_log(WLR_DEBUG, "[nixtile] STICKY MINIMUM: Current tile at minimum, clamping to %d", clamped_edge_y);
+						} else if (new_neighbor_height < 150) {
+							/* Neighbor tile hitting minimum - stick to boundary */
+							clamped_edge_y = max_edge_from_neighbor;
+							wlr_log(WLR_DEBUG, "[nixtile] STICKY MINIMUM: Neighbor tile at minimum, clamping to %d", clamped_edge_y);
+						} else {
+							/* Should not reach here, but use safer boundary */
+							clamped_edge_y = (max_edge_from_current + max_edge_from_neighbor) / 2;
+						}
+						
+						/* FORCE: Set edge to clamped position - no further movement allowed */
+						new_edge_y = (float)clamped_edge_y;
+						
+						/* Recalculate heights with strict clamped position */
+						new_current_height = absolute_bottom_y - (int)new_edge_y;
+						new_neighbor_height = ((int)new_edge_y - gap) - neighbor_tile->geom.y;
+						
+						/* VERIFICATION: Ensure minimum heights are respected */
+						if (new_current_height < 150) new_current_height = 150;
+						if (new_neighbor_height < 150) new_neighbor_height = 150;
+						
+						wlr_log(WLR_DEBUG, "[nixtile] STICKY MINIMUM ENFORCED: edge_y=%d, current=%d, neighbor=%d", 
+							(int)new_edge_y, new_current_height, new_neighbor_height);
 					}
 					
-					/* Bounds checking: Ensure we don't make tile too small or affect bottom */
-					float min_edge = neighbor_tile->geom.y + 150 + gap; // 150px minimum + gap
-					float max_edge = absolute_bottom_y - 150; // Bottom tile needs 150px minimum
-					new_edge_y = fmax(min_edge, fmin(max_edge, new_edge_y));
+					/* Simple update - 150px minimum already verified above */
 					
-					/* Update ONLY the top edge of current tile */
+					/* SIMPLE UPDATE: 150px minimum already guaranteed above */
+					
+					/* Update current tile - move top edge only */
 					grabc->geom.y = (int)new_edge_y;
-					grabc->geom.height = absolute_bottom_y - grabc->geom.y; // Height to maintain bottom position
+					grabc->geom.height = absolute_bottom_y - grabc->geom.y;
 					
-					/* Update ONLY the neighbor tile (above) - maintain gap */
+					/* Update neighbor tile - maintain gap */
 					neighbor_tile->geom.height = (grabc->geom.y - gap) - neighbor_tile->geom.y;
 					
 					/* VERIFICATION: Bottom edge should remain at absolute_bottom_y */
 					wlr_log(WLR_DEBUG, "[nixtile] EDGE_TOP: Bottom edge locked at %d, new top at %.1f, height=%d", 
 						absolute_bottom_y, new_edge_y, grabc->geom.height);
+					
 				} else { /* EDGE_BOTTOM */
 					/* EDGE_BOTTOM: CRITICAL - Top edge and its gap must remain completely unaffected */
 					int gap = innergappx;
@@ -4831,31 +4865,60 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 					/* Store ABSOLUTE top position - this must NEVER change */
 					int absolute_top_y = grabc->geom.y;
 					
-					/* MINIMUM SIZE PROTECTION: Calculate resulting tile heights */
-					int resulting_current_height = (int)new_edge_y - absolute_top_y;
-					int neighbor_bottom = neighbor_tile->geom.y + neighbor_tile->geom.height;
-					int resulting_neighbor_height = neighbor_bottom - ((int)new_edge_y + gap);
+					/* SIMPLE RULE: 150px minimum height for ALL tiles - NO EXCEPTIONS */
+					int current_height = grabc->geom.height;
+					int neighbor_height = neighbor_tile->geom.height;
 					
-					/* Stop resize if either tile would be too small OR if neighbor would go negative */
-					if (resulting_current_height < 150 || resulting_neighbor_height < 150 || resulting_neighbor_height <= 0) {
-						wlr_log(WLR_DEBUG, "[nixtile] MINIMUM SIZE REACHED: Stopping resize to preserve gaps (current_h=%d, neighbor_h=%d)", 
-							resulting_current_height, resulting_neighbor_height);
-						goto resize_cleanup; /* Stop resize completely to preserve gaps */
+					/* Calculate what heights would be after resize */
+					int new_current_height = (int)new_edge_y - absolute_top_y;
+					int old_neighbor_bottom = neighbor_tile->geom.y + neighbor_tile->geom.height;
+					int new_neighbor_height = old_neighbor_bottom - ((int)new_edge_y + gap);
+					
+					/* STICKY MINIMUM: Enforce 150px minimum with stable clamping */
+					if (new_current_height < 150 || new_neighbor_height < 150) {
+						/* Calculate strict boundary positions */
+						int max_edge_from_current = absolute_top_y + 150;  /* Current tile limit */
+						int max_edge_from_neighbor = old_neighbor_bottom - gap - 150;  /* Neighbor tile limit */
+						
+						/* STICKY LOGIC: Once at minimum, stay there until user moves away from boundary */
+						int clamped_edge_y;
+						if (new_current_height < 150) {
+							/* Current tile hitting minimum - stick to boundary */
+							clamped_edge_y = max_edge_from_current;
+							wlr_log(WLR_DEBUG, "[nixtile] STICKY MINIMUM: Current tile at minimum, clamping to %d", clamped_edge_y);
+						} else if (new_neighbor_height < 150) {
+							/* Neighbor tile hitting minimum - stick to boundary */
+							clamped_edge_y = max_edge_from_neighbor;
+							wlr_log(WLR_DEBUG, "[nixtile] STICKY MINIMUM: Neighbor tile at minimum, clamping to %d", clamped_edge_y);
+						} else {
+							/* Should not reach here, but use safer boundary */
+							clamped_edge_y = (max_edge_from_current + max_edge_from_neighbor) / 2;
+						}
+						
+						/* FORCE: Set edge to clamped position - no further movement allowed */
+						new_edge_y = (float)clamped_edge_y;
+						
+						/* Recalculate heights with strict clamped position */
+						new_current_height = (int)new_edge_y - absolute_top_y;
+						new_neighbor_height = old_neighbor_bottom - ((int)new_edge_y + gap);
+						
+						/* VERIFICATION: Ensure minimum heights are respected */
+						if (new_current_height < 150) new_current_height = 150;
+						if (new_neighbor_height < 150) new_neighbor_height = 150;
+						
+						wlr_log(WLR_DEBUG, "[nixtile] STICKY MINIMUM ENFORCED: edge_y=%d, current=%d, neighbor=%d", 
+							(int)new_edge_y, new_current_height, new_neighbor_height);
 					}
 					
-					/* Bounds checking: Ensure we don't make tile too small or affect top */
-					float min_edge = absolute_top_y + 150; // Top tile needs 150px minimum
-					float max_edge = (neighbor_tile->geom.y + neighbor_tile->geom.height) - 150 - gap; // 150px minimum + gap
-					new_edge_y = fmax(min_edge, fmin(max_edge, new_edge_y));
+					/* Simple update - 150px minimum already verified above */
 					
-					/* CRITICAL: Only update bottom edge and neighbor - top edge UNTOUCHED */
+					/* SIMPLE UPDATE: 150px minimum already guaranteed above */
 					
-					/* Update ONLY the bottom edge of current tile */
-					grabc->geom.height = new_edge_y - absolute_top_y; // Height to maintain top position
+					/* Update current tile - move bottom edge only */
+					grabc->geom.height = (int)new_edge_y - absolute_top_y;
 					
-					/* Update ONLY the neighbor tile (below) - maintain gap */
-					int old_neighbor_bottom = neighbor_tile->geom.y + neighbor_tile->geom.height;
-					neighbor_tile->geom.y = new_edge_y + gap;
+					/* Update neighbor tile - maintain gap */
+					neighbor_tile->geom.y = (int)new_edge_y + gap;
 					neighbor_tile->geom.height = old_neighbor_bottom - neighbor_tile->geom.y;
 					
 					/* VERIFICATION: Top edge should remain at absolute_top_y */
@@ -5773,88 +5836,94 @@ find_closest_resizable_edge(GridTile *tile, double cursor_x, double cursor_y)
 	double tile_center_x = tile->left_edge_x + (tile->right_edge_x - tile->left_edge_x) / 2.0;
 	double tile_center_y = tile->top_edge_y + (tile->bottom_edge_y - tile->top_edge_y) / 2.0;
 	
-	/* Enhanced center-to-edge zones with improved sensitivity and fluidity */
+	/* Adaptive center-to-edge zones with enhanced sensitivity for small tiles */
 	double tile_width = tile->right_edge_x - tile->left_edge_x;
 	double tile_height = tile->bottom_edge_y - tile->top_edge_y;
 	
-	/* Use 60% zones with 20% overlap for smoother, more sensitive detection */
-	double zone_extend = 0.6; // Extend zones beyond center for better sensitivity
-	double left_zone_end = tile->left_edge_x + (tile_width * zone_extend);
-	double right_zone_start = tile->right_edge_x - (tile_width * zone_extend);
-	double top_zone_end = tile->top_edge_y + (tile_height * zone_extend);
-	double bottom_zone_start = tile->bottom_edge_y - (tile_height * zone_extend);
+	/* ULTRA-FORGIVING zone calculation - massive overlapping zones for fluid edge detection */
+	double min_zone_size = 80.0; // Very large minimum zone for small tiles
+	double zone_extend = 0.9; // Huge zone extension (90%)
 	
-	/* Overlapping zones for fluid detection */
+	/* Calculate massive zone sizes with complete overlap */
+	double horizontal_zone_size = fmax(tile_width * zone_extend, min_zone_size);
+	double vertical_zone_size = fmax(tile_height * zone_extend, min_zone_size);
+	
+	/* Allow zones to completely overlap for small tiles */
+	double max_zone_ratio = (tile_width < 150 || tile_height < 250) ? 0.98 : 0.9;
+	horizontal_zone_size = fmin(horizontal_zone_size, tile_width * max_zone_ratio);
+	vertical_zone_size = fmin(vertical_zone_size, tile_height * max_zone_ratio);
+	
+	/* Calculate zone boundaries with massive overlap */
+	double left_zone_end = tile->left_edge_x + horizontal_zone_size;
+	double right_zone_start = tile->right_edge_x - horizontal_zone_size;
+	double top_zone_end = tile->top_edge_y + vertical_zone_size;
+	double bottom_zone_start = tile->bottom_edge_y - vertical_zone_size;
+	
+	wlr_log(WLR_ERROR, "[nixtile] ULTRA-FORGIVING ZONE DEBUG: tile_size=(%.1fx%.1f) zone_sizes=(%.1fx%.1f) min_zone=%.1f", 
+	        tile_width, tile_height, horizontal_zone_size, vertical_zone_size, min_zone_size);
+	
+	/* Massive overlapping zones for ultra-fluid detection */
 	bool in_left_zone = (cursor_x >= tile->left_edge_x && cursor_x <= left_zone_end);
 	bool in_right_zone = (cursor_x >= right_zone_start && cursor_x <= tile->right_edge_x);
 	bool in_top_zone = (cursor_y >= tile->top_edge_y && cursor_y <= top_zone_end);
 	bool in_bottom_zone = (cursor_y >= bottom_zone_start && cursor_y <= tile->bottom_edge_y);
 	
-	wlr_log(WLR_ERROR, "[nixtile] ENHANCED ZONE DEBUG: 60%% zones with overlap - left=%d right=%d top=%d bottom=%d", 
+	wlr_log(WLR_ERROR, "[nixtile] ULTRA-FORGIVING ZONE DEBUG: massive zones - left=%d right=%d top=%d bottom=%d", 
 	        in_left_zone, in_right_zone, in_top_zone, in_bottom_zone);
 	
-	/* Priority-based edge selection with anti-hang fallback */
+	/* ALWAYS find an edge - prioritize vertical for stacking tiles */
 	EdgeType selected_edge = EDGE_NONE;
 	
-	/* Primary: Check vertical zones first (preferred for stacking tiles) */
+	/* Primary: Vertical edges (preferred for stacking) */
 	if (tile->top_edge_resizable && in_top_zone) {
 		selected_edge = EDGE_TOP;
-		wlr_log(WLR_ERROR, "[nixtile] ENHANCED EDGE DEBUG: TOP edge selected (primary zone)");
+		wlr_log(WLR_ERROR, "[nixtile] ULTRA-FORGIVING: TOP edge selected (massive zone)");
 		return selected_edge;
 	}
 	
 	if (tile->bottom_edge_resizable && in_bottom_zone) {
 		selected_edge = EDGE_BOTTOM;
-		wlr_log(WLR_ERROR, "[nixtile] ENHANCED EDGE DEBUG: BOTTOM edge selected (primary zone)");
+		wlr_log(WLR_ERROR, "[nixtile] ULTRA-FORGIVING: BOTTOM edge selected (massive zone)");
 		return selected_edge;
 	}
 	
-	/* Secondary: Check horizontal zones */
+	/* Secondary: Horizontal edges */
 	if (tile->left_edge_resizable && in_left_zone) {
 		selected_edge = EDGE_LEFT;
-		wlr_log(WLR_ERROR, "[nixtile] ENHANCED EDGE DEBUG: LEFT edge selected (secondary zone)");
+		wlr_log(WLR_ERROR, "[nixtile] ULTRA-FORGIVING: LEFT edge selected (massive zone)");
 		return selected_edge;
 	}
 	
 	if (tile->right_edge_resizable && in_right_zone) {
 		selected_edge = EDGE_RIGHT;
-		wlr_log(WLR_ERROR, "[nixtile] ENHANCED EDGE DEBUG: RIGHT edge selected (secondary zone)");
+		wlr_log(WLR_ERROR, "[nixtile] ULTRA-FORGIVING: RIGHT edge selected (massive zone)");
 		return selected_edge;
 	}
 	
-	/* ANTI-HANG FALLBACK: If no zones match, find closest resizable edge */
-	double dist_to_top = fabs(cursor_y - tile->top_edge_y);
-	double dist_to_bottom = fabs(cursor_y - tile->bottom_edge_y);
-	double dist_to_left = fabs(cursor_x - tile->left_edge_x);
-	double dist_to_right = fabs(cursor_x - tile->right_edge_x);
+	/* GUARANTEED FALLBACK: Always find the best available resizable edge */
+	wlr_log(WLR_ERROR, "[nixtile] GUARANTEED FALLBACK: No zone hit, selecting best available edge");
 	
-	double min_distance = 1000.0;
-	EdgeType fallback_edge = EDGE_NONE;
-	
-	if (tile->top_edge_resizable && dist_to_top < min_distance) {
-		fallback_edge = EDGE_TOP;
-		min_distance = dist_to_top;
+	/* Priority order: TOP > BOTTOM > LEFT > RIGHT */
+	if (tile->top_edge_resizable) {
+		wlr_log(WLR_ERROR, "[nixtile] GUARANTEED FALLBACK: TOP edge selected (always available)");
+		return EDGE_TOP;
 	}
-	if (tile->bottom_edge_resizable && dist_to_bottom < min_distance) {
-		fallback_edge = EDGE_BOTTOM;
-		min_distance = dist_to_bottom;
+	if (tile->bottom_edge_resizable) {
+		wlr_log(WLR_ERROR, "[nixtile] GUARANTEED FALLBACK: BOTTOM edge selected (always available)");
+		return EDGE_BOTTOM;
 	}
-	if (tile->left_edge_resizable && dist_to_left < min_distance) {
-		fallback_edge = EDGE_LEFT;
-		min_distance = dist_to_left;
+	if (tile->left_edge_resizable) {
+		wlr_log(WLR_ERROR, "[nixtile] GUARANTEED FALLBACK: LEFT edge selected (always available)");
+		return EDGE_LEFT;
 	}
-	if (tile->right_edge_resizable && dist_to_right < min_distance) {
-		fallback_edge = EDGE_RIGHT;
-		min_distance = dist_to_right;
+	if (tile->right_edge_resizable) {
+		wlr_log(WLR_ERROR, "[nixtile] GUARANTEED FALLBACK: RIGHT edge selected (always available)");
+		return EDGE_RIGHT;
 	}
 	
-	if (fallback_edge != EDGE_NONE) {
-		wlr_log(WLR_ERROR, "[nixtile] ANTI-HANG FALLBACK: Selected edge %d (distance %.1f)", fallback_edge, min_distance);
-		return fallback_edge;
-	}
-	
-	wlr_log(WLR_ERROR, "[nixtile] ZONE EDGE DEBUG: Final result: edge=%d (0=NONE, 1=LEFT, 2=RIGHT, 4=TOP, 8=BOTTOM)", selected_edge);
-	return selected_edge;
+	/* This should never happen if neighbor detection works correctly */
+	wlr_log(WLR_ERROR, "[nixtile] CRITICAL: No resizable edges found - this should not happen!");
+	return EDGE_NONE;
 }
 
 /* Apply horizontal resize to entire column */
@@ -5915,26 +5984,18 @@ apply_vertical_resize_between_tiles(Client *tile1, Client *tile2, int delta_y)
 	bottom_tile->geom.y += delta_y;
 	bottom_tile->geom.height -= delta_y;
 	
-	/* Ensure minimum sizes with gap preservation */
+	/* Ensure minimum sizes */
 	const int MIN_HEIGHT = 100;
-	const int gap = innergappx;
-	
-	/* Check if resize would violate minimum height constraints */
 	if (top_tile->geom.height < MIN_HEIGHT) {
 		int correction = MIN_HEIGHT - top_tile->geom.height;
 		top_tile->geom.height = MIN_HEIGHT;
-		/* Adjust bottom tile position and height, preserving gap */
-		bottom_tile->geom.y = top_tile->geom.y + top_tile->geom.height + gap;
-		/* Recalculate bottom tile height based on available space */
-		int available_bottom_space = (top_tile->geom.y + top_tile->geom.height + gap + bottom_tile->geom.height) - bottom_tile->geom.y;
-		bottom_tile->geom.height = available_bottom_space - correction;
+		bottom_tile->geom.y -= correction;
+		bottom_tile->geom.height += correction;
 	}
 	if (bottom_tile->geom.height < MIN_HEIGHT) {
 		int correction = MIN_HEIGHT - bottom_tile->geom.height;
 		bottom_tile->geom.height = MIN_HEIGHT;
-		/* Adjust top tile height, preserving gap */
-		int available_top_space = bottom_tile->geom.y - gap - top_tile->geom.y;
-		top_tile->geom.height = available_top_space;
+		top_tile->geom.height -= correction;
 	}
 }
 
@@ -7294,18 +7355,18 @@ tagmon(const Arg *arg)
 int
 get_optimal_columns(int screen_width)
 {
-	if (screen_width > 3440) {
-		/* Super Ultrawide: 4 columns */
+	if (screen_width >= 3440) {
+		/* Super Ultrawide: 4+ columns for very wide screens */
 		return 4;
 	} else if (screen_width >= 2560) {
-		/* Ultrawide (including 3440px): 3 columns */
+		/* Ultrawide: 3 columns */
 		return 3;
 	} else if (screen_width >= 1600) {
 		/* Normal widescreen: 2 columns */
-		return 2;
+		return 3;
 	} else {
-		/* Standard/narrow screens: 2 columns */
-		return 2;
+		/* Standard/narrow screens: 1 column */
+		return 1;
 	}
 }
 
@@ -7313,18 +7374,18 @@ get_optimal_columns(int screen_width)
 int
 get_optimal_master_tiles(int screen_width)
 {
-	if (screen_width > 3440) {
+	if (screen_width >= 3440) {
 		/* Super Ultrawide: 4 master tiles */
 		return 4;
 	} else if (screen_width >= 2560) {
-		/* Ultrawide (including 3440px): 3 master tiles */
+		/* Ultrawide: 3 master tiles */
 		return 3;
 	} else if (screen_width >= 1600) {
-		/* Normal screen: 2 master tiles */
-		return 2;
+		/* Normal widescreen: 2 master tiles */
+		return 3;
 	} else {
-		/* Standard/narrow screens: 2 master tiles */
-		return 2;
+		/* Standard/narrow screens: 1 master tile */
+		return 1;
 	}
 }
 
@@ -8639,16 +8700,28 @@ static void init_workspace_state(int workspace) {
 	/* Initialize with defaults for independent workspace behavior */
 	selmon->workspace_mfact[workspace] = 0.5f;
 	
-	/* Set workspace-specific defaults based on screen width using centralized functions */
+	/* Set workspace-specific defaults based on screen width */
 	int screen_width = selmon->w.width;
-	selmon->workspace_optimal_columns[workspace] = get_optimal_columns(screen_width);
-	selmon->workspace_nmaster[workspace] = get_optimal_master_tiles(screen_width);
-	
-	wlr_log(WLR_INFO, "[nixtile] ULTRAWIDE FIX: Initialized workspace %d with %d columns and %d master tiles for screen width %d", 
-		workspace, selmon->workspace_optimal_columns[workspace], selmon->workspace_nmaster[workspace], screen_width);
+	if (screen_width >= 3440) {
+		/* Super Ultrawide: 4 columns, 4 master tiles */
+		selmon->workspace_nmaster[workspace] = 4;
+		selmon->workspace_optimal_columns[workspace] = 4;
+	} else if (screen_width >= 2560) {
+		/* Ultrawide: 3 columns, 3 master tiles */
+		selmon->workspace_nmaster[workspace] = 3;
+		selmon->workspace_optimal_columns[workspace] = 3;
+	} else if (screen_width >= 1600) {
+		/* Normal widescreen: 3 columns, 3 master tiles */
+		selmon->workspace_nmaster[workspace] = 3;
+		selmon->workspace_optimal_columns[workspace] = 3;
+	} else {
+		/* Standard/narrow screens: 1 column, 1 master tile */
+		selmon->workspace_nmaster[workspace] = 1;
+		selmon->workspace_optimal_columns[workspace] = 1;
+	}
 	
 	/* Initialize manual resize state */
-	for (int col = 0; col < 4; col++) {
+	for (int col = 0; col < 2; col++) {
 		selmon->workspace_manual_resize_performed[workspace][col] = false;
 	}
 	
@@ -8688,7 +8761,7 @@ static void load_workspace_state() {
 	selmon->nmaster = selmon->workspace_nmaster[workspace];
 	
 	/* CRITICAL WORKSPACE ISOLATION: Load manual resize state from workspace arrays */
-	for (int col = 0; col < 4; col++) {
+	for (int col = 0; col < 2; col++) {
 		manual_resize_performed[col] = selmon->workspace_manual_resize_performed[workspace][col];
 	}
 	
@@ -8700,6 +8773,23 @@ static void load_workspace_state() {
 	pending_left_width = selmon->workspace_pending_left_width[workspace];
 	pending_right_width = selmon->workspace_pending_right_width[workspace];
 	pending_right_x = selmon->workspace_pending_right_x[workspace];
+	
+	/* CRITICAL: Restore individual tile height factors from workspace state */
+	Client *c;
+	int tile_index = 0;
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, selmon) && tile_index < MAX_TILES_PER_WORKSPACE) {
+			float saved_height_factor = selmon->workspace_height_factors[workspace][tile_index];
+			if (saved_height_factor > 0.1f && saved_height_factor < 3.0f) {
+				c->height_factor = saved_height_factor;
+				wlr_log(WLR_DEBUG, "[nixtile] RESTORED height_factor %.2f for tile %d", 
+					c->height_factor, tile_index);
+			} else {
+				c->height_factor = 1.0f; /* Safe default */
+			}
+			tile_index++;
+		}
+	}
 	
 	/* WORKSPACE ISOLATION: Preserve active resize operations across workspace loads */
 	/* Note: Do NOT reset resize_pending flags here as it breaks frame-synced callbacks */
@@ -8741,7 +8831,7 @@ static void save_workspace_state() {
 	selmon->workspace_nmaster[workspace] = selmon->nmaster;
 	
 	/* CRITICAL WORKSPACE ISOLATION: Save manual resize state to workspace arrays */
-	for (int col = 0; col < 4; col++) {
+	for (int col = 0; col < 2; col++) {
 		selmon->workspace_manual_resize_performed[workspace][col] = manual_resize_performed[col];
 	}
 	
@@ -8753,6 +8843,18 @@ static void save_workspace_state() {
 	selmon->workspace_pending_left_width[workspace] = pending_left_width;
 	selmon->workspace_pending_right_width[workspace] = pending_right_width;
 	selmon->workspace_pending_right_x[workspace] = pending_right_x;
+	
+	/* CRITICAL: Save individual tile height factors to workspace state */
+	Client *c;
+	int tile_index = 0;
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, selmon) && tile_index < MAX_TILES_PER_WORKSPACE) {
+			selmon->workspace_height_factors[workspace][tile_index] = c->height_factor;
+			wlr_log(WLR_DEBUG, "[nixtile] SAVED height_factor %.2f for tile %d", 
+				c->height_factor, tile_index);
+			tile_index++;
+		}
+	}
 	
 	wlr_log(WLR_INFO, "[nixtile] WORKSPACE ISOLATION: Saved workspace %d - mfact=%.2f, nmaster=%d, columns=%d, pending_mfact=%.2f", 
 		workspace, selmon->mfact, selmon->nmaster, selmon->workspace_optimal_columns[workspace], pending_target_mfact);
