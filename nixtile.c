@@ -432,6 +432,7 @@ static void setcursor(struct wl_listener *listener, void *data);
 static void setcursorshape(struct wl_listener *listener, void *data);
 static void setfloating(Client *c, int floating);
 static void force_column_tiling(Monitor *m);
+static void rebalance_all_columns(Monitor *m, const char *context);
 static void setfullscreen(Client *c, int fullscreen);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
@@ -536,6 +537,7 @@ static bool resize_pending = false;
 static bool client_destruction_in_progress = false;
 static float pending_target_mfact = 0.0f;
 static bool vertical_resize_pending = false;
+static bool resize_from_top_edge = false;  /* Track which side of shared edge is being resized */
 static float pending_target_height_factor = 0.0f;
 static Client *vertical_resize_client = NULL;
 static Client *vertical_resize_neighbor = NULL;
@@ -3042,8 +3044,9 @@ handletiledrop(Client *c, double x, double y)
 				
 				/* Move single tile to target column */
 				c->column_group = target_column;
-				/* PRESERVE HEIGHT FACTOR: Keep custom sizing */
-				wlr_log(WLR_DEBUG, "[nixtile] Preserving height factor %.2f for moved tile", c->height_factor);
+				/* REBALANCE COLUMN: Reset height factor for equal distribution */
+				c->height_factor = 1.0f;
+				wlr_log(WLR_DEBUG, "[nixtile] REBALANCE: Reset height factor to 1.0f for moved tile", c->height_factor);
 			}
 			
 		} else if (tiles_in_source_column > 0 && tiles_in_target_column == 1) {
@@ -3089,8 +3092,15 @@ handletiledrop(Client *c, double x, double y)
 				wlr_log(WLR_DEBUG, "[nixtile] STACK CREATE: Safely added to end of client list");
 			}
 			
-			/* PRESERVE HEIGHT FACTORS: Keep custom sizing during stack creation */
-			wlr_log(WLR_DEBUG, "[nixtile] Preserving height factor %.2f during stack creation", c->height_factor);
+			/* REBALANCE COLUMN: Reset height factors for equal distribution during stack creation */
+			c->height_factor = 1.0f;
+			/* Also reset target tile height factor for equal distribution */
+			if (target_tile) {
+				target_tile->height_factor = 1.0f;
+				wlr_log(WLR_DEBUG, "[nixtile] REBALANCE: Reset both tiles to height_factor=1.0f during stack creation");
+			} else {
+				wlr_log(WLR_DEBUG, "[nixtile] REBALANCE: Reset moved tile to height_factor=1.0f during stack creation");
+			}
 			
 		} else if (tiles_in_source_column > 0 && tiles_in_target_column > 1) {
 			/* TILE FROM STACK to STACK: Check capacity before joining existing stack */
@@ -3136,14 +3146,17 @@ handletiledrop(Client *c, double x, double y)
 				wlr_log(WLR_DEBUG, "[nixtile] STACK JOIN: Safely added to end of client list");
 			}
 			
-			/* PRESERVE HEIGHT FACTORS: Keep custom sizing during stack join */
-			wlr_log(WLR_DEBUG, "[nixtile] Preserving height factor %.2f during stack join", c->height_factor);
+			/* REBALANCE COLUMN: Reset height factors for equal distribution during stack join */
+			c->height_factor = 1.0f;
+			wlr_log(WLR_DEBUG, "[nixtile] REBALANCE: Reset moved tile to height_factor=1.0f during stack join");
 			
 		} else {
 			/* UNKNOWN CONFIGURATION: Log and abort for safety */
 			wlr_log(WLR_ERROR, "[nixtile] MOVEMENT RESTRICTION: Unknown tile configuration source=%d target=%d - ABORT for safety", tiles_in_source_column, tiles_in_target_column);
 			return;
 		}
+		
+		/* Column rebalancing will be handled by universal rebalancing logic at end of function */
 	}
 	
 	/* SAFETY: Final validation before layout operations */
@@ -3523,13 +3536,7 @@ handletiledrop_old(Client *c, double x, double y)
 			}
 		}
 		
-		/* Reset height factors for both columns */
-		wl_list_for_each(temp_c, &clients, link) {
-			if (temp_c->mon == m && !temp_c->isfloating && 
-			    (temp_c->column_group == old_column || temp_c->column_group == target_column)) {
-				temp_c->height_factor = 1.0f;
-			}
-		}
+		/* Height factor reset will be handled by universal rebalancing logic below */
 		
 		wlr_log(WLR_DEBUG, "[nixtile] Moved tile from column %d to column %d (cross-column swap)", old_column, target_column);
 	}
@@ -3547,6 +3554,9 @@ handletiledrop_old(Client *c, double x, double y)
 	
 	/* EQUAL DISTRIBUTION: Check if we need equal horizontal distribution for single tiles */
 	ensure_equal_horizontal_distribution_for_two_tiles();
+	
+	/* UNIVERSAL COLUMN REBALANCING: Reset all height factors for equal distribution after tile movement */
+	rebalance_all_columns(m, "MOVERESIZE");
 	
 	/* Force layout update */
 	arrange(m);
@@ -4463,6 +4473,9 @@ mapnotify(struct wl_listener *listener, void *data)
 		}
 		
 		wlr_log(WLR_INFO, "[nixtile] MAPNOTIFY: Tile mapped to stack %d, forcing screen fill", c->column_group);
+		
+		/* UNIVERSAL COLUMN REBALANCING: Reset all height factors for equal distribution after new tile creation */
+		rebalance_all_columns(c->mon, "MAPNOTIFY");
 	}
 	
 	printstatus();
@@ -5826,103 +5839,104 @@ typedef int EdgeType;
 EdgeType
 find_closest_resizable_edge(GridTile *tile, double cursor_x, double cursor_y)
 {
-	wlr_log(WLR_ERROR, "[nixtile] ZONE EDGE DEBUG: Starting zone-based edge detection for cursor (%.1f, %.1f)", cursor_x, cursor_y);
-	wlr_log(WLR_ERROR, "[nixtile] ZONE EDGE DEBUG: Tile bounds: left=%.1f right=%.1f top=%.1f bottom=%.1f", 
+	wlr_log(WLR_ERROR, "[nixtile] RELIABLE EDGE DEBUG: Starting reliable edge detection for cursor (%.1f, %.1f)", cursor_x, cursor_y);
+	wlr_log(WLR_ERROR, "[nixtile] RELIABLE EDGE DEBUG: Tile bounds: left=%.1f right=%.1f top=%.1f bottom=%.1f", 
 	        tile->left_edge_x, tile->right_edge_x, tile->top_edge_y, tile->bottom_edge_y);
-	wlr_log(WLR_ERROR, "[nixtile] ZONE EDGE DEBUG: Resizable flags: left=%d right=%d top=%d bottom=%d", 
+	wlr_log(WLR_ERROR, "[nixtile] RELIABLE EDGE DEBUG: Resizable flags: left=%d right=%d top=%d bottom=%d", 
 	        tile->left_edge_resizable, tile->right_edge_resizable, tile->top_edge_resizable, tile->bottom_edge_resizable);
 	
-	/* Calculate tile center and zones */
-	double tile_center_x = tile->left_edge_x + (tile->right_edge_x - tile->left_edge_x) / 2.0;
-	double tile_center_y = tile->top_edge_y + (tile->bottom_edge_y - tile->top_edge_y) / 2.0;
-	
-	/* Adaptive center-to-edge zones with enhanced sensitivity for small tiles */
+	/* Calculate tile dimensions and center */
 	double tile_width = tile->right_edge_x - tile->left_edge_x;
 	double tile_height = tile->bottom_edge_y - tile->top_edge_y;
+	double tile_center_x = tile->left_edge_x + tile_width / 2.0;
+	double tile_center_y = tile->top_edge_y + tile_height / 2.0;
 	
-	/* ULTRA-FORGIVING zone calculation - massive overlapping zones for fluid edge detection */
-	double min_zone_size = 80.0; // Very large minimum zone for small tiles
-	double zone_extend = 0.9; // Huge zone extension (90%)
+	/* CORRECTED ZONE LOGIC: Separate vertical and horizontal zone handling */
 	
-	/* Calculate massive zone sizes with complete overlap */
-	double horizontal_zone_size = fmax(tile_width * zone_extend, min_zone_size);
-	double vertical_zone_size = fmax(tile_height * zone_extend, min_zone_size);
+	/* VERTICAL ZONES (for top/bottom edge detection): Always use simple center line */
+	/* No horizontal restrictions - can click anywhere across tile width */
+	bool in_top_half = (cursor_y <= tile_center_y);
+	bool in_bottom_half = (cursor_y > tile_center_y);
 	
-	/* Allow zones to completely overlap for small tiles */
-	double max_zone_ratio = (tile_width < 150 || tile_height < 250) ? 0.98 : 0.9;
-	horizontal_zone_size = fmin(horizontal_zone_size, tile_width * max_zone_ratio);
-	vertical_zone_size = fmin(vertical_zone_size, tile_height * max_zone_ratio);
+	/* HORIZONTAL ZONES (for left/right edge detection): Enhanced for small tiles */
+	double min_zone_width = 60.0;   /* Minimum 60px zone width for small tiles */
+	double effective_left_zone_right, effective_right_zone_left;
 	
-	/* Calculate zone boundaries with massive overlap */
-	double left_zone_end = tile->left_edge_x + horizontal_zone_size;
-	double right_zone_start = tile->right_edge_x - horizontal_zone_size;
-	double top_zone_end = tile->top_edge_y + vertical_zone_size;
-	double bottom_zone_start = tile->bottom_edge_y - vertical_zone_size;
-	
-	wlr_log(WLR_ERROR, "[nixtile] ULTRA-FORGIVING ZONE DEBUG: tile_size=(%.1fx%.1f) zone_sizes=(%.1fx%.1f) min_zone=%.1f", 
-	        tile_width, tile_height, horizontal_zone_size, vertical_zone_size, min_zone_size);
-	
-	/* Massive overlapping zones for ultra-fluid detection */
-	bool in_left_zone = (cursor_x >= tile->left_edge_x && cursor_x <= left_zone_end);
-	bool in_right_zone = (cursor_x >= right_zone_start && cursor_x <= tile->right_edge_x);
-	bool in_top_zone = (cursor_y >= tile->top_edge_y && cursor_y <= top_zone_end);
-	bool in_bottom_zone = (cursor_y >= bottom_zone_start && cursor_y <= tile->bottom_edge_y);
-	
-	wlr_log(WLR_ERROR, "[nixtile] ULTRA-FORGIVING ZONE DEBUG: massive zones - left=%d right=%d top=%d bottom=%d", 
-	        in_left_zone, in_right_zone, in_top_zone, in_bottom_zone);
-	
-	/* ALWAYS find an edge - prioritize vertical for stacking tiles */
-	EdgeType selected_edge = EDGE_NONE;
-	
-	/* Primary: Vertical edges (preferred for stacking) */
-	if (tile->top_edge_resizable && in_top_zone) {
-		selected_edge = EDGE_TOP;
-		wlr_log(WLR_ERROR, "[nixtile] ULTRA-FORGIVING: TOP edge selected (massive zone)");
-		return selected_edge;
+	if (tile_width < min_zone_width * 2) {
+		/* Very small tile: expand horizontal zones for better detection */
+		double zone_expansion = (min_zone_width * 2 - tile_width) / 2.0;
+		effective_left_zone_right = tile_center_x + zone_expansion;
+		effective_right_zone_left = tile_center_x - zone_expansion;
+		wlr_log(WLR_ERROR, "[nixtile] SMALL TILE: width=%.1f, expanding horizontal zones by %.1f", tile_width, zone_expansion);
+	} else {
+		/* Normal tile: use center-based zones for horizontal detection */
+		effective_left_zone_right = tile_center_x;
+		effective_right_zone_left = tile_center_x;
 	}
 	
-	if (tile->bottom_edge_resizable && in_bottom_zone) {
-		selected_edge = EDGE_BOTTOM;
-		wlr_log(WLR_ERROR, "[nixtile] ULTRA-FORGIVING: BOTTOM edge selected (massive zone)");
-		return selected_edge;
-	}
+	/* HORIZONTAL ZONE DETECTION: Use effective boundaries only for left/right */
+	bool in_left_half = (cursor_x <= effective_left_zone_right);
+	bool in_right_half = (cursor_x >= effective_right_zone_left);
 	
-	/* Secondary: Horizontal edges */
-	if (tile->left_edge_resizable && in_left_zone) {
-		selected_edge = EDGE_LEFT;
-		wlr_log(WLR_ERROR, "[nixtile] ULTRA-FORGIVING: LEFT edge selected (massive zone)");
-		return selected_edge;
-	}
+	wlr_log(WLR_ERROR, "[nixtile] RELIABLE ZONES: top_half=%d bottom_half=%d left_half=%d right_half=%d", 
+	        in_top_half, in_bottom_half, in_left_half, in_right_half);
 	
-	if (tile->right_edge_resizable && in_right_zone) {
-		selected_edge = EDGE_RIGHT;
-		wlr_log(WLR_ERROR, "[nixtile] ULTRA-FORGIVING: RIGHT edge selected (massive zone)");
-		return selected_edge;
-	}
+	/* PURE VERTICAL RESIZING: Only horizontal center line matters, full tile width active */
 	
-	/* GUARANTEED FALLBACK: Always find the best available resizable edge */
-	wlr_log(WLR_ERROR, "[nixtile] GUARANTEED FALLBACK: No zone hit, selecting best available edge");
+	/* PRIORITY: Vertical resizing (stacked tiles) - always check first */
+	/* Each tile divided horizontally at center: top half = TOP edge, bottom half = BOTTOM edge */
 	
-	/* Priority order: TOP > BOTTOM > LEFT > RIGHT */
-	if (tile->top_edge_resizable) {
-		wlr_log(WLR_ERROR, "[nixtile] GUARANTEED FALLBACK: TOP edge selected (always available)");
+	/* TOP EDGE: Click in top half of tile to resize with tile above */
+	/* Works across ENTIRE tile width - horizontal position irrelevant */
+	if (tile->top_edge_resizable && in_top_half) {
+		wlr_log(WLR_ERROR, "[nixtile] VERTICAL RESIZE: TOP edge selected (top half, full width active)");
 		return EDGE_TOP;
 	}
-	if (tile->bottom_edge_resizable) {
-		wlr_log(WLR_ERROR, "[nixtile] GUARANTEED FALLBACK: BOTTOM edge selected (always available)");
+	
+	/* BOTTOM EDGE: Click in bottom half of tile to resize with tile below */
+	/* Works across ENTIRE tile width - horizontal position irrelevant */
+	if (tile->bottom_edge_resizable && in_bottom_half) {
+		wlr_log(WLR_ERROR, "[nixtile] VERTICAL RESIZE: BOTTOM edge selected (bottom half, full width active)");
 		return EDGE_BOTTOM;
 	}
-	if (tile->left_edge_resizable) {
-		wlr_log(WLR_ERROR, "[nixtile] GUARANTEED FALLBACK: LEFT edge selected (always available)");
+	
+	/* HORIZONTAL RESIZING: Only if no vertical edges available */
+	/* Only use horizontal zones if vertical resizing is not possible */
+	
+	/* LEFT EDGE: Only if no vertical resizing available */
+	if (tile->left_edge_resizable && in_left_half && !tile->top_edge_resizable && !tile->bottom_edge_resizable) {
+		wlr_log(WLR_ERROR, "[nixtile] HORIZONTAL RESIZE: LEFT edge selected (no vertical options)");
 		return EDGE_LEFT;
 	}
-	if (tile->right_edge_resizable) {
-		wlr_log(WLR_ERROR, "[nixtile] GUARANTEED FALLBACK: RIGHT edge selected (always available)");
+	
+	/* RIGHT EDGE: Only if no vertical resizing available */
+	if (tile->right_edge_resizable && in_right_half && !tile->top_edge_resizable && !tile->bottom_edge_resizable) {
+		wlr_log(WLR_ERROR, "[nixtile] HORIZONTAL RESIZE: RIGHT edge selected (no vertical options)");
 		return EDGE_RIGHT;
 	}
 	
-	/* This should never happen if neighbor detection works correctly */
-	wlr_log(WLR_ERROR, "[nixtile] CRITICAL: No resizable edges found - this should not happen!");
+	/* GUARANTEED FALLBACK: Always find an edge if any are resizable */
+	wlr_log(WLR_ERROR, "[nixtile] RELIABLE FALLBACK: No half-zone hit, using priority order");
+	
+	/* Priority order: TOP > BOTTOM > LEFT > RIGHT */
+	if (tile->top_edge_resizable) {
+		wlr_log(WLR_ERROR, "[nixtile] RELIABLE FALLBACK: TOP edge selected (priority)");
+		return EDGE_TOP;
+	}
+	if (tile->bottom_edge_resizable) {
+		wlr_log(WLR_ERROR, "[nixtile] RELIABLE FALLBACK: BOTTOM edge selected (priority)");
+		return EDGE_BOTTOM;
+	}
+	if (tile->left_edge_resizable) {
+		wlr_log(WLR_ERROR, "[nixtile] RELIABLE FALLBACK: LEFT edge selected (priority)");
+		return EDGE_LEFT;
+	}
+	if (tile->right_edge_resizable) {
+		wlr_log(WLR_ERROR, "[nixtile] RELIABLE FALLBACK: RIGHT edge selected (priority)");
+		return EDGE_RIGHT;
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] RELIABLE: No resizable edges found!");
 	return EDGE_NONE;
 }
 
@@ -6065,19 +6079,29 @@ tileresize(const Arg *arg)
 	initial_mouse_offset = 0.0f;
 	
 	if (edge == EDGE_TOP || edge == EDGE_BOTTOM) {
-		/* Vertical resize between two tiles */
+		/* BIDIRECTIONAL VERTICAL RESIZE: Handle shared edge between two tiles */
 		if (edge == EDGE_TOP && target_tile->top_neighbor) {
-			vertical_resize_client = grabc;
-			vertical_resize_neighbor = target_tile->top_neighbor;
+			/* Resizing from bottom side of shared edge (clicked on top zone of lower tile) */
+			vertical_resize_client = grabc;  /* Lower tile (clicked tile) */
+			vertical_resize_neighbor = target_tile->top_neighbor;  /* Upper tile */
+			wlr_log(WLR_ERROR, "[nixtile] BIDIRECTIONAL RESIZE: TOP edge - resizing shared edge from lower tile side");
 		} else if (edge == EDGE_BOTTOM && target_tile->bottom_neighbor) {
-			vertical_resize_client = grabc;
-			vertical_resize_neighbor = target_tile->bottom_neighbor;
+			/* Resizing from top side of shared edge (clicked on bottom zone of upper tile) */
+			vertical_resize_client = grabc;  /* Upper tile (clicked tile) */
+			vertical_resize_neighbor = target_tile->bottom_neighbor;  /* Lower tile */
+			wlr_log(WLR_ERROR, "[nixtile] BIDIRECTIONAL RESIZE: BOTTOM edge - resizing shared edge from upper tile side");
 		} else {
-			wlr_log(WLR_DEBUG, "[nixtile] GRID RESIZE: No neighbor for vertical resize");
+			wlr_log(WLR_DEBUG, "[nixtile] BIDIRECTIONAL RESIZE: No neighbor for vertical resize");
 			cursor_mode = CurNormal;
 			return;
 		}
+		
+		/* Store which edge type we're resizing for consistent behavior */
+		resize_from_top_edge = (edge == EDGE_TOP);
 		vertical_resize_pending = true;
+		
+		wlr_log(WLR_ERROR, "[nixtile] BIDIRECTIONAL SETUP: client=%p neighbor=%p resize_from_top=%d", 
+		        (void*)vertical_resize_client, (void*)vertical_resize_neighbor, resize_from_top_edge);
 	} else {
 		/* Horizontal resize: we adjust mfact via motion handler. Do NOT trigger the
 		 * horizontal_column_resize_pending path here since it requires pending
@@ -8811,6 +8835,51 @@ static void load_workspace_state() {
 	
 	wlr_log(WLR_INFO, "[nixtile] WORKSPACE ISOLATION: Loaded workspace %d - mfact=%.2f, nmaster=%d, columns=%d, pending_mfact=%.2f", 
 		workspace, selmon->mfact, selmon->nmaster, selmon->workspace_optimal_columns[workspace], pending_target_mfact);
+}
+
+/* Universal column rebalancing function - resets all height factors to 1.0f for equal distribution */
+void rebalance_all_columns(Monitor *m, const char *context) {
+	if (!m) {
+		wlr_log(WLR_ERROR, "[nixtile] REBALANCE: NULL monitor in %s - ABORT", context);
+		return;
+	}
+	
+	wlr_log(WLR_INFO, "[nixtile] %s REBALANCE: Starting column rebalancing", context);
+	
+	Client *temp_c;
+	int rebalanced_tiles[MAX_COLUMNS] = {0}; /* Track rebalanced tiles per column */
+	int total_tiles_processed = 0;
+	
+	/* Reset height factors for all tiles in all columns */
+	wl_list_for_each(temp_c, &clients, link) {
+		if (temp_c->mon == m && !temp_c->isfloating && VISIBLEON(temp_c, m)) {
+			int column = temp_c->column_group;
+			float old_height_factor = temp_c->height_factor;
+			if (column >= 0 && column < MAX_COLUMNS) {
+				temp_c->height_factor = 1.0f;
+				rebalanced_tiles[column]++;
+				total_tiles_processed++;
+				wlr_log(WLR_DEBUG, "[nixtile] %s REBALANCED: Tile %p in column %d: %.2f -> 1.0f", 
+					context, (void*)temp_c, column, old_height_factor);
+			} else {
+				wlr_log(WLR_ERROR, "[nixtile] %s REBALANCE ERROR: Invalid column %d for tile %p", 
+					context, column, (void*)temp_c);
+			}
+		}
+	}
+	
+	/* Log rebalancing results */
+	wlr_log(WLR_INFO, "[nixtile] %s REBALANCE COMPLETE: Processed %d total tiles", context, total_tiles_processed);
+	for (int col = 0; col < MAX_COLUMNS; col++) {
+		if (rebalanced_tiles[col] > 0) {
+			wlr_log(WLR_INFO, "[nixtile] %s REBALANCE: Reset %d tiles in column %d to equal height (height_factor=1.0f)", 
+				context, rebalanced_tiles[col], col);
+		}
+	}
+	
+	/* CRITICAL: Save rebalanced height factors to workspace state */
+	save_workspace_state();
+	wlr_log(WLR_INFO, "[nixtile] %s REBALANCE: Saved rebalanced height factors to workspace state", context);
 }
 
 /* Save all workspace-specific state */
