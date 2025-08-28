@@ -59,7 +59,7 @@ void force_immediate_equal_heights(Monitor *m, int target_column) {
 		if (m->workspace_manual_resize_performed && target_column < MAX_COLUMNS) {
 			m->workspace_manual_resize_performed[workspace][target_column] = false;
 		}
-		if (target_column < 2) {
+		if (target_column < MAX_COLUMNS) {
 			manual_resize_performed[target_column] = false;
 		}
 		

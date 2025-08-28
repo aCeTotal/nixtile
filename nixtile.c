@@ -258,7 +258,7 @@ struct Monitor {
 	/* PER-WORKSPACE STATE FOR COMPLETE INDEPENDENCE */
 	int workspace_nmaster[9]; /* Per-workspace master tile count */
 	int workspace_optimal_columns[9]; /* Per-workspace column count */
-	bool workspace_manual_resize_performed[9][2]; /* Per-workspace manual resize state [workspace][column] */
+	bool workspace_manual_resize_performed[9][MAX_COLUMNS]; /* Per-workspace manual resize state [workspace][column] */
 	float workspace_height_factors[9][MAX_TILES_PER_WORKSPACE]; /* Per-workspace vertical sizing */
 	bool workspace_initialized[9]; /* Track which workspaces have been initialized */
 	
@@ -491,7 +491,7 @@ static struct wl_list clients; /* tiling order */
 static struct wl_list fstack;  /* focus order */
 
 /* MANUAL RESIZE PRESERVATION: Track manual resize state per column */
-static bool manual_resize_performed[2] = {false, false}; /* [left_column, right_column] */
+static bool manual_resize_performed[MAX_COLUMNS] = {false}; /* Per-column manual resize state */
 static struct wlr_idle_notifier_v1 *idle_notifier;
 static struct wlr_idle_inhibit_manager_v1 *idle_inhibit_mgr;
 static struct wlr_layer_shell_v1 *layer_shell;
@@ -1243,14 +1243,14 @@ rebalance_column_heights(Monitor *m, int target_column)
 	
 	/* Clear manual resize tracking for this column */
 	int workspace = get_current_workspace();
-	if (workspace >= 0 && workspace < 9 && target_column >= 0 && target_column < 2) {
+	if (workspace >= 0 && workspace < 9 && target_column >= 0 && target_column < MAX_COLUMNS) {
 		if (m->workspace_manual_resize_performed) {
 			m->workspace_manual_resize_performed[workspace][target_column] = false;
 			wlr_log(WLR_ERROR, "[nixtile] HEIGHT REBALANCE: Cleared manual resize flag for workspace %d, column %d", 
 			        workspace, target_column);
 		}
 		/* Also clear global state for compatibility */
-		if (target_column < 2) {
+		if (target_column < MAX_COLUMNS) {
 			manual_resize_performed[target_column] = false;
 		}
 	}
@@ -1348,7 +1348,7 @@ force_immediate_equal_heights(Monitor *m, int target_column) {
 		if (m->workspace_manual_resize_performed && target_column < MAX_COLUMNS) {
 			m->workspace_manual_resize_performed[workspace][target_column] = false;
 		}
-		if (target_column < 2) {
+		if (target_column < MAX_COLUMNS) {
 			manual_resize_performed[target_column] = false;
 		}
 		
@@ -2271,7 +2271,7 @@ createmon(struct wl_listener *listener, void *data)
 		m->workspace_mfact[ws] = 0.0f; /* Will be set to 0.5f on first access */
 		m->workspace_nmaster[ws] = 0; /* Will be set based on screen width on first access */
 		m->workspace_optimal_columns[ws] = 0; /* Will be set based on screen width on first access */
-		for (int col = 0; col < 2; col++) {
+		for (int col = 0; col < MAX_COLUMNS; col++) {
 			m->workspace_manual_resize_performed[ws][col] = false;
 		}
 		for (int i = 0; i < MAX_TILES_PER_WORKSPACE; i++) {
@@ -2433,7 +2433,7 @@ createnotify(struct wl_listener *listener, void *data)
 	
 	/* CAPACITY CHECK: Verify if workspace can accept new tiles */
 	int column_counts[MAX_COLUMNS] = {0}; /* Support up to MAX_COLUMNS */
-	const int MAX_TILES_PER_COLUMN = 5;
+	const int MAX_TILES_PER_COLUMN = 4;
 	
 	/* Count current tiles in each column */
 	for (int col = 0; col < optimal_columns && col < MAX_COLUMNS; col++) {
@@ -3232,7 +3232,7 @@ handletiledrop(Client *c, double x, double y)
 		}
 		
 		/* INTELLIGENT CAPACITY CHECK: Allow true swaps, block additions to full columns */
-		const int MAX_TILES_PER_COLUMN = 5;
+		const int MAX_TILES_PER_COLUMN = 4;
 		/* Note: Capacity check moved to specific scenarios below for intelligent handling */
 		
 		/* Check if movement would exceed stack limits */
@@ -5067,18 +5067,17 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			int optimal_columns = get_workspace_optimal_columns();
 			
 			/* For 2-column layout: simple left/right split */
+			/* Dynamic column edge detection based on cursor position */
 			if (optimal_columns == 2) {
 				left_column = 0;
 				right_column = 1;
-			} else if (optimal_columns >= 3) {
-				/* For 3+ columns: determine which edge is being resized */
-				if (cursor_x_ratio < 0.33f) {
-					left_column = 0; right_column = 1; /* Left-middle edge */
-				} else if (cursor_x_ratio < 0.67f) {
-					left_column = 1; right_column = 2; /* Middle-right edge */
-				} else {
-					left_column = 1; right_column = 2; /* Fallback to middle-right */
-				}
+			} else {
+				/* For multi-column layouts: determine which edge is being resized */
+				float column_width_ratio = 1.0f / optimal_columns;
+				int target_edge = (int)(cursor_x_ratio / column_width_ratio);
+				if (target_edge >= optimal_columns - 1) target_edge = optimal_columns - 2;
+				left_column = target_edge;
+				right_column = target_edge + 1;
 			}
 			
 			/* Calculate new edge position based on cursor (pointer-relative) */
@@ -7868,9 +7867,9 @@ tile(Monitor *m)
 	wlr_log(WLR_INFO, "[nixtile] WORKSPACE ISOLATION: workspace=%d, tiles_in_workspace=%d, mfact=%.2f, nmaster=%d, columns=%d", 
 		get_current_workspace(), n, selmon ? selmon->mfact : 0.5f, master_tiles, optimal_columns);
 	
-	/* Use multi-column layout for 2+ columns with 2+ tiles, or always for 3+ columns */
+	/* Use multi-column layout for 2+ columns with 2+ tiles */
 	bool use_multi_column = (optimal_columns >= 2 && n >= 2);
-	bool force_multi_column = (optimal_columns >= 3); /* 3+ columns always use multi-column layout */
+	bool force_multi_column = (optimal_columns >= 2); /* Multi-column layout for 2+ columns */
 	
 	wlr_log(WLR_ERROR, "[nixtile] *** TILE FUNCTION: n=%d, optimal_columns=%d, use_multi_column=%d, force_multi_column=%d ***", 
 		n, optimal_columns, use_multi_column, force_multi_column);
@@ -8021,9 +8020,9 @@ tile(Monitor *m)
 				}
 			}
 			
-			/* Calculate effective columns: number of columns should equal number of tiles */
-			/* This ensures proper width distribution: 2 tiles = 2 columns (50/50), 3 tiles = 3 columns, etc. */
-			int effective_columns = MIN(actual_tiles, optimal_columns);
+			/* Use optimal columns consistently - don't change column count based on tile count */
+			/* This ensures consistent gap calculations and layout regardless of tile count */
+			int effective_columns = optimal_columns;
 			
 			/* Verify that our column assignments match this expectation */
 			if (highest_column_used >= 0 && highest_column_used >= effective_columns) {
@@ -8039,48 +8038,8 @@ tile(Monitor *m)
 			/* MULTI-COLUMN HORIZONTAL RESIZING: Use mfact to control column distribution */
 			int *column_widths = calloc(effective_columns, sizeof(int));
 			
-			if (effective_columns == 2) {
-				/* HORIZONTAL RESIZE SUPPORT: Check for width factors */
-				bool has_width_factors = false;
-				float left_factor = 1.0f, right_factor = 1.0f;
-				
-				Client *wf_check;
-				wl_list_for_each(wf_check, &clients, link) {
-					if (!VISIBLEON(wf_check, m) || wf_check->isfloating || wf_check->isfullscreen)
-						continue;
-					if (wf_check->width_factor > 0.1f && wf_check->width_factor < 1.9f) {
-						has_width_factors = true;
-						if (wf_check->column_group == 0) left_factor = wf_check->width_factor;
-						else if (wf_check->column_group == 1 && effective_columns > 1) right_factor = wf_check->width_factor;
-					}
-				}
-				
-				if (has_width_factors) {
-					/* Use width factors */
-					float total_factors = left_factor + right_factor;
-					if (total_factors > 0.1f) {
-						column_widths[0] = (int)((available_width * left_factor) / total_factors);
-						column_widths[1] = available_width - column_widths[0];
-						wlr_log(WLR_DEBUG, "[nixtile] WIDTH FACTORS: left=%.3f, right=%.3f, widths=(%d,%d)", 
-							left_factor, right_factor, column_widths[0], column_widths[1]);
-					} else {
-						/* WORKSPACE ISOLATION: Fallback to workspace-specific mfact */
-						float workspace_mfact = get_workspace_mfact();
-						column_widths[0] = (int)(available_width * workspace_mfact);
-						column_widths[1] = available_width - column_widths[0];
-						wlr_log(WLR_ERROR, "[nixtile] *** WORKSPACE ISOLATION: MULTI-COLUMN FALLBACK *** workspace_mfact=%.3f, left=%d, right=%d", 
-							workspace_mfact, column_widths[0], column_widths[1]);
-					}
-				} else {
-					/* WORKSPACE ISOLATION: 2 columns - Use workspace-specific mfact (left = mfact, right = 1-mfact) */
-					float workspace_mfact = get_workspace_mfact();
-					column_widths[0] = (int)(available_width * workspace_mfact);
-					column_widths[1] = available_width - column_widths[0];
-					wlr_log(WLR_ERROR, "[nixtile] *** WORKSPACE ISOLATION: APPLYING WORKSPACE MFACT *** workspace_mfact=%.3f, left=%d (%.1f%%), right=%d (%.1f%%)", 
-						workspace_mfact, column_widths[0], workspace_mfact * 100, column_widths[1], (1.0f - workspace_mfact) * 100);
-				}
-			} else {
-				/* Multi-column (3+ columns): Check for width factors first */
+			/* UNIFIED COLUMN WIDTH CALCULATION: Works for any number of columns (2, 3, 4+) */
+				/* Multi-column: Check for width factors first */
 				float column_factors[MAX_COLUMNS] = {1.0f, 1.0f, 1.0f, 1.0f};
 				bool has_width_factors = false;
 				float total_factors = 0.0f;
@@ -8108,7 +8067,7 @@ tile(Monitor *m)
 					wlr_log(WLR_DEBUG, "[nixtile] %d-COLUMN WIDTH FACTORS: factors=(%.3f,%.3f,%.3f,%.3f), total=%.3f", 
 						effective_columns, column_factors[0], column_factors[1], column_factors[2], column_factors[3], total_factors);
 				} else {
-					/* 3+ columns without width factors: apply workspace mfact to master column (index 0),
+					/* Multi-column without width factors: apply workspace mfact to master column (index 0),
 					 * distribute the remainder equally among the other columns. This allows horizontal
 					 * resizing (mfact) to affect layouts even when stacks are present. */
 					float workspace_mfact = get_workspace_mfact();
@@ -8137,7 +8096,6 @@ tile(Monitor *m)
 					wlr_log(WLR_ERROR, "[nixtile] %d-COLUMN MFACT DISTRIBUTION: master_index=%d, mfact=%.3f, left=%d, right=%d (no width factors)",
 						effective_columns, master_index, workspace_mfact, left_width, right_width);
 				}
-			}
 			wlr_log(WLR_ERROR, "[nixtile] *** WIDTH CALCULATION: actual_tiles=%d, effective_columns=%d, mfact=%.3f ***", 
 				actual_tiles, effective_columns, m->mfact);
 			
@@ -8195,8 +8153,8 @@ tile(Monitor *m)
 						}
 					}
 					
-					/* Check if all columns are at max capacity (5 tiles) */
-					const int MAX_TILES_PER_COLUMN = 5;
+					/* Check if all columns are at max capacity (4 tiles) */
+					const int MAX_TILES_PER_COLUMN = 4;
 					if (min_tiles >= MAX_TILES_PER_COLUMN) {
 						wlr_log(WLR_ERROR, "[nixtile] *** DISTRIBUTION: All columns at max capacity (%d tiles each) - blocking new tile ***", MAX_TILES_PER_COLUMN);
 						/* Assign to column 0 as fallback, but log the issue */
@@ -9094,7 +9052,7 @@ static void init_workspace_state(int workspace) {
 	
 	/* Set workspace-specific defaults based on screen width */
 	int screen_width = selmon->w.width;
-	if (screen_width >= 3440) {
+	if (screen_width > 3440) {
 		/* Super Ultrawide: 4 columns, 4 master tiles */
 		selmon->workspace_nmaster[workspace] = 4;
 		selmon->workspace_optimal_columns[workspace] = 4;
@@ -9104,8 +9062,8 @@ static void init_workspace_state(int workspace) {
 		selmon->workspace_optimal_columns[workspace] = 3;
 	} else if (screen_width >= 1600) {
 		/* Normal widescreen: 3 columns, 3 master tiles */
-		selmon->workspace_nmaster[workspace] = 3;
-		selmon->workspace_optimal_columns[workspace] = 3;
+		selmon->workspace_nmaster[workspace] = 2;
+		selmon->workspace_optimal_columns[workspace] = 2;
 	} else {
 		/* Standard/narrow screens: 1 column, 1 master tile */
 		selmon->workspace_nmaster[workspace] = 1;
@@ -9113,7 +9071,7 @@ static void init_workspace_state(int workspace) {
 	}
 	
 	/* Initialize manual resize state */
-	for (int col = 0; col < 2; col++) {
+	for (int col = 0; col < MAX_COLUMNS; col++) {
 		selmon->workspace_manual_resize_performed[workspace][col] = false;
 	}
 	
@@ -9153,7 +9111,7 @@ static void load_workspace_state() {
 	selmon->nmaster = selmon->workspace_nmaster[workspace];
 	
 	/* CRITICAL WORKSPACE ISOLATION: Load manual resize state from workspace arrays */
-	for (int col = 0; col < 2; col++) {
+	for (int col = 0; col < MAX_COLUMNS; col++) {
 		manual_resize_performed[col] = selmon->workspace_manual_resize_performed[workspace][col];
 	}
 	
@@ -9268,7 +9226,7 @@ static void save_workspace_state() {
 	selmon->workspace_nmaster[workspace] = selmon->nmaster;
 	
 	/* CRITICAL WORKSPACE ISOLATION: Save manual resize state to workspace arrays */
-	for (int col = 0; col < 2; col++) {
+	for (int col = 0; col < MAX_COLUMNS; col++) {
 		selmon->workspace_manual_resize_performed[workspace][col] = manual_resize_performed[col];
 	}
 	
