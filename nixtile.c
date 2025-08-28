@@ -116,10 +116,10 @@ static const float launcher_tab_active_color[4] = {0.22, 0.24, 0.32, 1.0};
 #define LISTEN_STATIC(E, H)     do { struct wl_listener *_l = ecalloc(1, sizeof(*_l)); _l->notify = (H); wl_signal_add((E), _l); } while (0)
 
 /* STRICT TILE LIMITS: Norwegian user requirements */
-#define MAX_TILES_PER_STACK     5
+#define MAX_TILES_PER_STACK     4
 #define MAX_STACKS_PER_WORKSPACE 2
 #define MAX_TILES_PER_WORKSPACE (MAX_TILES_PER_STACK * MAX_STACKS_PER_WORKSPACE)
-#define MAX_COLUMNS             3  /* Support up to 3 columns for bidirectional movement */
+#define MAX_COLUMNS             4  /* Support up to 3 columns for bidirectional movement */
 
 /* global variables */
 int statusbar_visible = 1; /* 1 = visible, 0 = hidden */
@@ -1196,6 +1196,213 @@ rebalance_column_assignments(Monitor *m)
 	}
 	
 	wlr_log(WLR_DEBUG, "[nixtile] REBALANCE: Column assignment rebalancing complete");
+}
+
+/* AUTOMATIC TILE HEIGHT REBALANCING: Reset height factors when tiles are added/removed */
+static void
+rebalance_column_heights(Monitor *m, int target_column)
+{
+	if (!m || target_column < 0) {
+		wlr_log(WLR_ERROR, "[nixtile] HEIGHT REBALANCE: Invalid parameters - monitor=%p, column=%d", 
+		        (void*)m, target_column);
+		return;
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] HEIGHT REBALANCE: Starting height rebalancing for column %d", target_column);
+	
+	/* Count tiles in the target column */
+	int tiles_in_column = 0;
+	Client *c;
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen && 
+		    c->column_group == target_column) {
+			tiles_in_column++;
+		}
+	}
+	
+	if (tiles_in_column == 0) {
+		wlr_log(WLR_DEBUG, "[nixtile] HEIGHT REBALANCE: No tiles in column %d", target_column);
+		return;
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] HEIGHT REBALANCE: Found %d tiles in column %d - resetting to equal heights", 
+	        tiles_in_column, target_column);
+	
+	/* Reset all height_factor values to 1.0 for equal distribution */
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen && 
+		    c->column_group == target_column) {
+			
+			float old_height_factor = c->height_factor;
+			c->height_factor = 1.0f;
+			
+			wlr_log(WLR_ERROR, "[nixtile] HEIGHT REBALANCE: Tile %p in column %d - height_factor: %.3f -> 1.000", 
+			        (void*)c, target_column, old_height_factor);
+		}
+	}
+	
+	/* Clear manual resize tracking for this column */
+	int workspace = get_current_workspace();
+	if (workspace >= 0 && workspace < 9 && target_column >= 0 && target_column < 2) {
+		if (m->workspace_manual_resize_performed) {
+			m->workspace_manual_resize_performed[workspace][target_column] = false;
+			wlr_log(WLR_ERROR, "[nixtile] HEIGHT REBALANCE: Cleared manual resize flag for workspace %d, column %d", 
+			        workspace, target_column);
+		}
+		/* Also clear global state for compatibility */
+		if (target_column < 2) {
+			manual_resize_performed[target_column] = false;
+		}
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] HEIGHT REBALANCE: Column %d rebalanced - all tiles now have equal height", target_column);
+}
+
+/* Rebalance heights for all columns that have tiles */
+static void rebalance_all_column_heights(Monitor *m);
+static void force_immediate_equal_heights(Monitor *m, int target_column);
+static void force_immediate_equal_heights_all_columns(Monitor *m);
+
+static void
+rebalance_all_column_heights(Monitor *m)
+{
+	if (!m) {
+		wlr_log(WLR_ERROR, "[nixtile] HEIGHT REBALANCE ALL: NULL monitor");
+		return;
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing");
+	
+	int optimal_columns = get_workspace_optimal_columns();
+	
+	/* Rebalance each column that has tiles */
+	for (int col = 0; col < optimal_columns && col < MAX_COLUMNS; col++) {
+		int tiles_in_column = count_tiles_in_stack(col, m);
+		if (tiles_in_column > 1) {
+			wlr_log(WLR_ERROR, "[nixtile] HEIGHT REBALANCE ALL: Column %d has %d tiles - rebalancing", 
+			        col, tiles_in_column);
+			rebalance_column_heights(m, col);
+		}
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete");
+}
+
+/* DIRECT IMMEDIATE REBALANCING: Nuclear option to force equal heights instantly */
+static void
+force_immediate_equal_heights(Monitor *m, int target_column) {
+	if (!m || target_column < 0) {
+		wlr_log(WLR_ERROR, "[nixtile] IMMEDIATE REBALANCE: Invalid parameters");
+		return;
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] *** IMMEDIATE NUCLEAR REBALANCE *** Column %d - BYPASSING ALL SYSTEMS", target_column);
+	
+	/* Count tiles in target column */
+	int tile_count = 0;
+	Client *c;
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen && 
+		    c->column_group == target_column) {
+			tile_count++;
+		}
+	}
+	
+	if (tile_count <= 1) {
+		wlr_log(WLR_ERROR, "[nixtile] IMMEDIATE: Column %d has %d tiles, no rebalancing needed", target_column, tile_count);
+		return;
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] IMMEDIATE: Found %d tiles in column %d - forcing equal distribution", tile_count, target_column);
+	
+	/* NUCLEAR OPTION: Set all tiles to exactly 1.0f and clear ALL interference */
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen && 
+		    c->column_group == target_column) {
+			
+			float old_factor = c->height_factor;
+			c->height_factor = 1.0f;
+			
+			wlr_log(WLR_ERROR, "[nixtile] NUCLEAR: Tile %p column %d: %.3f -> 1.000 (%.1f%% each)", 
+			        (void*)c, target_column, old_factor, 100.0f / tile_count);
+		}
+	}
+	
+	/* Clear ALL manual resize state that could interfere */
+	int workspace = get_current_workspace();
+	if (workspace >= 0 && workspace < 9) {
+		/* Clear workspace storage for this column */
+		Client *storage_c;
+		int storage_index = 0;
+		wl_list_for_each(storage_c, &clients, link) {
+			if (VISIBLEON(storage_c, m) && storage_index < MAX_TILES_PER_WORKSPACE) {
+				if (!storage_c->isfloating && !storage_c->isfullscreen && 
+				    storage_c->column_group == target_column) {
+					m->workspace_height_factors[workspace][storage_index] = 1.0f;
+				}
+				storage_index++;
+			}
+		}
+		
+		/* Clear manual resize flags */
+		if (m->workspace_manual_resize_performed && target_column < MAX_COLUMNS) {
+			m->workspace_manual_resize_performed[workspace][target_column] = false;
+		}
+		if (target_column < 2) {
+			manual_resize_performed[target_column] = false;
+		}
+		
+		wlr_log(WLR_ERROR, "[nixtile] NUCLEAR: Cleared all interference for column %d workspace %d", target_column, workspace);
+	}
+	
+	/* Force immediate workspace state save */
+	save_workspace_state();
+	
+	/* Verify results immediately */
+	wlr_log(WLR_ERROR, "[nixtile] *** NUCLEAR VERIFICATION *** Column %d results:", target_column);
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen && 
+		    c->column_group == target_column) {
+			wlr_log(WLR_ERROR, "[nixtile] NUCLEAR VERIFY: Tile %p height_factor = %.3f (MUST be 1.000)", 
+			        (void*)c, c->height_factor);
+		}
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] *** NUCLEAR REBALANCE COMPLETE *** Column %d: %d tiles at %.1f%% each", 
+	        target_column, tile_count, 100.0f / tile_count);
+}
+
+/* Force equal heights for ALL columns - complete nuclear option */
+static void
+force_immediate_equal_heights_all_columns(Monitor *m) {
+	if (!m) {
+		wlr_log(WLR_ERROR, "[nixtile] NUCLEAR ALL: NULL monitor");
+		return;
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] *** NUCLEAR REBALANCE ALL COLUMNS *** - COMPLETE RESET");
+	
+	/* Get optimal columns for current workspace */
+	int optimal_columns = get_workspace_optimal_columns();
+	
+	/* Force rebalance each column that has tiles */
+	for (int col = 0; col < optimal_columns && col < MAX_COLUMNS; col++) {
+		int tiles_in_column = 0;
+		Client *c;
+		wl_list_for_each(c, &clients, link) {
+			if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen && 
+			    c->column_group == col) {
+				tiles_in_column++;
+			}
+		}
+		
+		if (tiles_in_column > 1) {
+			wlr_log(WLR_ERROR, "[nixtile] NUCLEAR ALL: Rebalancing column %d (%d tiles)", col, tiles_in_column);
+			force_immediate_equal_heights(m, col);
+		}
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] *** NUCLEAR ALL COMPLETE *** All columns rebalanced");
 }
 
 /* BROKEN PIPE PREVENTION: Throttled arrange function */
@@ -2291,7 +2498,13 @@ createnotify(struct wl_listener *listener, void *data)
 	wlr_log(WLR_ERROR, "[nixtile] *** CREATENOTIFY FINAL ASSIGNMENT: Tile %p assigned to column %d ***", (void*)c, c->column_group);
 	wlr_log(WLR_ERROR, "[nixtile] *** THIS IS THE COLUMN_GROUP SET IN CREATENOTIFY - SHOULD NOT BE OVERWRITTEN ***");
 	
-	/* STEP 4: RESET MANUAL RESIZE - Always reset and enforce equal distribution on tile addition */
+	/* STEP 4: AUTOMATIC HEIGHT REBALANCING - Reset tile heights when new tile is added */
+	if (c->column_group >= 0) {
+		wlr_log(WLR_ERROR, "[nixtile] CREATENOTIFY: New tile added to column %d - triggering height rebalancing", c->column_group);
+		rebalance_column_heights(selmon, c->column_group);
+	}
+	
+	/* STEP 5: RESET MANUAL RESIZE - Always reset and enforce equal distribution on tile addition */
 	int target_column = c->column_group;
 	if (target_column >= 0 && target_column < MAX_COLUMNS) {
 		/* WORKSPACE ISOLATION: Use workspace-specific manual resize state */
@@ -2342,6 +2555,59 @@ createnotify(struct wl_listener *listener, void *data)
 	
 	/* EQUAL DISTRIBUTION: Check if we need equal horizontal distribution for 2 tiles */
 	ensure_equal_horizontal_distribution_for_two_tiles();
+	
+	/* LAYOUT UPDATE: Apply initial layout */
+	arrange(selmon);
+	
+	/* POST-LAYOUT HEIGHT REBALANCING: Force equal heights after tile creation */
+	wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT CREATION: Starting post-layout height rebalancing after tile creation");
+	
+	/* Get current workspace */
+	int current_workspace = get_current_workspace();
+	if (current_workspace >= 0 && current_workspace < 9) {
+		/* Count tiles per column in current workspace */
+		int column_counts[MAX_COLUMNS] = {0};
+		int max_columns = get_workspace_optimal_columns();
+		
+		Client *client;
+		wl_list_for_each(client, &clients, link) {
+			if (!VISIBLEON(client, selmon) || client->isfloating || client->isfullscreen)
+				continue;
+			if (client->column_group >= 0 && client->column_group < max_columns) {
+				column_counts[client->column_group]++;
+			}
+		}
+		
+		/* Force equal heights in each column */
+		for (int col = 0; col < max_columns; col++) {
+			if (column_counts[col] <= 1) continue; /* Skip columns with 0 or 1 tile */
+			
+			wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT CREATION: Rebalancing column %d with %d tiles", col, column_counts[col]);
+			
+			/* Set all tiles in this column to height_factor = 1.0 */
+			wl_list_for_each(client, &clients, link) {
+				if (!VISIBLEON(client, selmon) || client->isfloating || client->isfullscreen)
+					continue;
+				if (client->column_group == col) {
+					float old_factor = client->height_factor;
+					client->height_factor = 1.0f;
+					wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT CREATION: Tile %p in column %d - height_factor: %.3f -> 1.000", 
+						(void*)client, col, old_factor);
+				}
+			}
+			
+			/* Clear workspace storage for this column */
+			for (int i = 0; i < MAX_TILES_PER_WORKSPACE; i++) {
+				selmon->workspace_height_factors[current_workspace][i] = 1.0f;
+			}
+			selmon->workspace_manual_resize_performed[current_workspace][col] = false;
+			wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT CREATION: Cleared workspace storage for column %d", col);
+		}
+		
+		/* Final layout update to apply equal heights */
+		arrange(selmon);
+		wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT CREATION: Final layout update completed - all columns rebalanced");
+	}
 	
 	/* DEFERRED AUTO-FOCUS: Schedule focus with timer for consistent behavior */
 	wlr_log(WLR_DEBUG, "[nixtile] DEFERRED AUTO-FOCUS: Scheduling focus timer after creation");
@@ -3287,6 +3553,61 @@ handletiledrop(Client *c, double x, double y)
 		wlr_log(WLR_DEBUG, "[nixtile] Layout updated with single arrange() call");
 	}
 	
+	/* POST-LAYOUT HEIGHT REBALANCING: Force equal heights after all layout operations */
+	if (!restore_original) {
+		wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT: Starting post-layout height rebalancing");
+		
+		/* Get current workspace */
+		int current_workspace = get_current_workspace();
+		if (current_workspace < 0 || current_workspace >= 9) {
+			wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT: Invalid workspace %d", current_workspace);
+			return;
+		}
+		
+		/* Count tiles per column in current workspace */
+		int column_counts[MAX_COLUMNS] = {0};
+		int max_columns = get_workspace_optimal_columns();
+		
+		Client *client;
+		wl_list_for_each(client, &clients, link) {
+			if (!VISIBLEON(client, m) || client->isfloating || client->isfullscreen)
+				continue;
+			if (client->column_group >= 0 && client->column_group < max_columns) {
+				column_counts[client->column_group]++;
+			}
+		}
+		
+		/* Force equal heights in each column */
+		for (int col = 0; col < max_columns; col++) {
+			if (column_counts[col] <= 1) continue; /* Skip columns with 0 or 1 tile */
+			
+			wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT: Rebalancing column %d with %d tiles", col, column_counts[col]);
+			
+			/* Set all tiles in this column to height_factor = 1.0 */
+			wl_list_for_each(client, &clients, link) {
+				if (!VISIBLEON(client, m) || client->isfloating || client->isfullscreen)
+					continue;
+				if (client->column_group == col) {
+					float old_factor = client->height_factor;
+					client->height_factor = 1.0f;
+					wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT: Tile %p in column %d - height_factor: %.3f -> 1.000", 
+						client, col, old_factor);
+				}
+			}
+			
+			/* Clear workspace storage for this column */
+			for (int i = 0; i < MAX_TILES_PER_WORKSPACE; i++) {
+				m->workspace_height_factors[current_workspace][i] = 1.0f;
+			}
+			m->workspace_manual_resize_performed[current_workspace][col] = false;
+			wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT: Cleared workspace storage for column %d", col);
+		}
+		
+		/* Final layout update to apply equal heights */
+		arrange(m);
+		wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT: Final layout update completed - all columns rebalanced");
+	}
+	
 	wlr_log(WLR_DEBUG, "[nixtile] Tile movement completed: tiles remain tiled");
 }
 
@@ -3549,16 +3870,49 @@ handletiledrop_old(Client *c, double x, double y)
 		manual_resize_performed[1] = false;
 	}
 	
-	ensure_equal_height_distribution_in_stack(0); /* Left column */
-	ensure_equal_height_distribution_in_stack(1); /* Right column */
-	
 	/* EQUAL DISTRIBUTION: Check if we need equal horizontal distribution for single tiles */
 	ensure_equal_horizontal_distribution_for_two_tiles();
 	
-	/* UNIVERSAL COLUMN REBALANCING: Reset all height factors for equal distribution after tile movement */
-	rebalance_all_columns(m, "MOVERESIZE");
+	/* Force layout update FIRST */
+	arrange(m);
 	
-	/* Force layout update */
+	/* POST-LAYOUT REBALANCING: Enkel tilnærming som tvinger lik fordeling ETTER alt annet */
+	wlr_log(WLR_ERROR, "[nixtile] TILE MOVEMENT: Tvinger lik høyde-fordeling etter layout");
+	
+	/* Tell tiles i hver kolonne */
+	int tiles_per_column[MAX_COLUMNS] = {0};
+	Client *count_c;
+	wl_list_for_each(count_c, &clients, link) {
+		if (VISIBLEON(count_c, m) && !count_c->isfloating && !count_c->isfullscreen) {
+			if (count_c->column_group >= 0 && count_c->column_group < MAX_COLUMNS) {
+				tiles_per_column[count_c->column_group]++;
+			}
+		}
+	}
+	
+	/* Tving lik fordeling i hver kolonne */
+	for (int col = 0; col < MAX_COLUMNS; col++) {
+		if (tiles_per_column[col] > 1) {
+			wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT: Kolonne %d har %d tiles - tvinger %.1f%% hver", 
+			        col, tiles_per_column[col], 100.0f / tiles_per_column[col]);
+			
+			Client *rebalance_c;
+			wl_list_for_each(rebalance_c, &clients, link) {
+				if (VISIBLEON(rebalance_c, m) && !rebalance_c->isfloating && !rebalance_c->isfullscreen && 
+				    rebalance_c->column_group == col) {
+					
+					float old_factor = rebalance_c->height_factor;
+					rebalance_c->height_factor = 1.0f;
+					
+					wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT: Tile %p kolonne %d: %.3f -> 1.000", 
+					        (void*)rebalance_c, col, old_factor);
+				}
+			}
+		}
+	}
+	
+	/* Siste layout-oppdatering for å anvende rebalanceringen */
+	wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT: Anvender lik fordeling med siste layout-oppdatering");
 	arrange(m);
 }
 
@@ -3823,6 +4177,10 @@ destroynotify(struct wl_listener *listener, void *data)
 		/* CRITICAL: Rebalance column assignments after tile deletion */
 		wlr_log(WLR_DEBUG, "[nixtile] COLUMN REBALANCE: Fixing column assignments after tile deletion");
 		rebalance_column_assignments(saved_mon);
+		
+		/* AUTOMATIC HEIGHT REBALANCING: Reset tile heights after tile removal */
+		wlr_log(WLR_ERROR, "[nixtile] DESTROYNOTIFY: Tile removed - triggering height rebalancing for all columns");
+		rebalance_all_column_heights(saved_mon);
 		
 		/* Schedule immediate layout update now that destruction is complete */
 		wlr_log(WLR_DEBUG, "[nixtile] SAFE LAYOUT: Triggering deferred arrange after destruction");
@@ -4475,7 +4833,8 @@ mapnotify(struct wl_listener *listener, void *data)
 		wlr_log(WLR_INFO, "[nixtile] MAPNOTIFY: Tile mapped to stack %d, forcing screen fill", c->column_group);
 		
 		/* UNIVERSAL COLUMN REBALANCING: Reset all height factors for equal distribution after new tile creation */
-		rebalance_all_columns(c->mon, "MAPNOTIFY");
+		/* Use robust rebalancing system that properly handles workspace storage */
+		rebalance_all_column_heights(c->mon);
 	}
 	
 	printstatus();
@@ -7379,7 +7738,7 @@ tagmon(const Arg *arg)
 int
 get_optimal_columns(int screen_width)
 {
-	if (screen_width >= 3440) {
+	if (screen_width > 3440) {
 		/* Super Ultrawide: 4+ columns for very wide screens */
 		return 4;
 	} else if (screen_width >= 2560) {
@@ -7387,10 +7746,10 @@ get_optimal_columns(int screen_width)
 		return 3;
 	} else if (screen_width >= 1600) {
 		/* Normal widescreen: 2 columns */
-		return 3;
+		return 2;
 	} else {
 		/* Standard/narrow screens: 1 column */
-		return 1;
+		return 2;
 	}
 }
 
@@ -7398,7 +7757,7 @@ get_optimal_columns(int screen_width)
 int
 get_optimal_master_tiles(int screen_width)
 {
-	if (screen_width >= 3440) {
+	if (screen_width > 3440) {
 		/* Super Ultrawide: 4 master tiles */
 		return 4;
 	} else if (screen_width >= 2560) {
@@ -7406,10 +7765,10 @@ get_optimal_master_tiles(int screen_width)
 		return 3;
 	} else if (screen_width >= 1600) {
 		/* Normal widescreen: 2 master tiles */
-		return 3;
+		return 2;
 	} else {
 		/* Standard/narrow screens: 1 master tile */
-		return 1;
+		return 2;
 	}
 }
 
@@ -7616,7 +7975,8 @@ tile(Monitor *m)
 				wl_list_for_each(factor_c, &clients, link) {
 					if (!VISIBLEON(factor_c, m) || factor_c->isfloating || factor_c->isfullscreen)
 						continue;
-					if ((factor_c->column_group == 0) == is_left_column) {
+					/* FIXED: Count tiles in the SAME column as current tile */
+					if (factor_c->column_group == c->column_group) {
 						total_factors += factor_c->height_factor;
 					}
 				}
@@ -7969,23 +8329,31 @@ tile(Monitor *m)
 					continue;
 				
 				/* Calculate available height for all tiles */
-				int available_height = adjusted_area.height - (n - 1) * innergappx;
+				/* COLUMN ISOLATION: Count tiles in current column only */
+			int tiles_in_column = 0;
+			Client *count_c;
+			wl_list_for_each(count_c, &clients, link) {
+				if (VISIBLEON(count_c, m) && !count_c->isfloating && !count_c->isfullscreen && count_c->column_group == c->column_group) {
+					tiles_in_column++;
+				}
+			}
+			int available_height = adjusted_area.height - (tiles_in_column - 1) * innergappx;
 				
 				/* Calculate tile height with height_factor support */
 				int height;
 				if (c->height_factor > 0.1f && c->height_factor < 1.9f) {
-					/* Calculate total factors for all tiles */
+					/* FIXED: Calculate total factors for tiles in SAME column only */
 					float total_factors = 0.0f;
 					Client *temp_c;
 					wl_list_for_each(temp_c, &clients, link) {
-						if (VISIBLEON(temp_c, m) && !temp_c->isfloating && !temp_c->isfullscreen) {
+						if (VISIBLEON(temp_c, m) && !temp_c->isfloating && !temp_c->isfullscreen && temp_c->column_group == c->column_group) {
 							total_factors += temp_c->height_factor;
 						}
 					}
 					height = (int)((available_height * c->height_factor) / total_factors);
 				} else {
-					/* Equal distribution */
-					height = available_height / n;
+					/* Equal distribution within column */
+					height = available_height / tiles_in_column;
 				}
 				
 				resize(c, (struct wlr_box){
