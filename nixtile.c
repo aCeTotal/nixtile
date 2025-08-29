@@ -386,8 +386,8 @@ static void fullscreennotify(struct wl_listener *listener, void *data);
 static void gpureset(struct wl_listener *listener, void *data);
 static void handlesig(int signo);
 static void incnmaster(const Arg *arg);
-static int get_optimal_columns(int screen_width);
-static int get_optimal_master_tiles(int screen_width);
+static int get_optimal_columns(int screen_width, int screen_height);
+static int get_optimal_master_tiles(int screen_width, int screen_height);
 static void update_dynamic_master_tiles(Monitor *m);
 static void inputdevice(struct wl_listener *listener, void *data);
 static int keybinding(uint32_t mods, xkb_keysym_t sym);
@@ -3235,19 +3235,26 @@ handletiledrop(Client *c, double x, double y)
 		const int MAX_TILES_PER_COLUMN = 4;
 		/* Note: Capacity check moved to specific scenarios below for intelligent handling */
 		
-		/* Check if movement would exceed stack limits */
+		/* Check if movement would exceed stack limits - EXCEPT for master tile swaps */
 		int tiles_after_movement = tiles_in_target_column;
-		if (tiles_in_source_column > 0) {
-			/* Moving from stack to another location adds 1 tile to target */
-			tiles_after_movement += 1;
-		} else {
-			/* Single tile movement */
-			tiles_after_movement += 1;
-		}
+		bool is_master_tile_swap = (tiles_in_source_column == 0 && tiles_in_target_column > 1);
 		
-		if (tiles_after_movement > MAX_TILES_PER_COLUMN) {
-			wlr_log(WLR_ERROR, "[nixtile] *** CAPACITY LIMIT: Movement would exceed limit (%d > %d) - BLOCKING swap ***", tiles_after_movement, MAX_TILES_PER_COLUMN);
-			return;
+		if (!is_master_tile_swap) {
+			/* Only check capacity for non-swap movements */
+			if (tiles_in_source_column > 0) {
+				/* Moving from stack to another location adds 1 tile to target */
+				tiles_after_movement += 1;
+			} else {
+				/* Single tile movement */
+				tiles_after_movement += 1;
+			}
+			
+			if (tiles_after_movement > MAX_TILES_PER_COLUMN) {
+				wlr_log(WLR_ERROR, "[nixtile] *** CAPACITY LIMIT: Movement would exceed limit (%d > %d) - BLOCKING movement ***", tiles_after_movement, MAX_TILES_PER_COLUMN);
+				return;
+			}
+		} else {
+			wlr_log(WLR_INFO, "[nixtile] MASTER TILE SWAP: Bypassing capacity check for master tile swap (target has %d tiles)", tiles_in_target_column);
 		}
 		
 		wlr_log(WLR_INFO, "[nixtile] MOVEMENT ANALYSIS: source_tiles=%d, target_tiles=%d, after_movement=%d (limit=%d)", tiles_in_source_column, tiles_in_target_column, tiles_after_movement, MAX_TILES_PER_STACK);
@@ -7733,40 +7740,58 @@ tagmon(const Arg *arg)
 
 /* DYNAMIC COLUMN AND MASTER TILE CONFIGURATION */
 
-/* Get optimal number of columns based on screen width */
-int
-get_optimal_columns(int screen_width)
+/* Calculate aspect ratio from screen dimensions */
+float
+calculate_aspect_ratio(int width, int height)
 {
-	if (screen_width > 3440) {
-		/* Super Ultrawide: 4+ columns for very wide screens */
+	if (height == 0) return 16.0f / 9.0f; /* Default to 16:9 if invalid height */
+	return (float)width / (float)height;
+}
+
+/* Get optimal number of columns based on aspect ratio */
+int
+get_optimal_columns(int screen_width, int screen_height)
+{
+	float aspect_ratio = calculate_aspect_ratio(screen_width, screen_height);
+	
+	wlr_log(WLR_DEBUG, "[nixtile] ASPECT RATIO: %dx%d = %.2f:1", screen_width, screen_height, aspect_ratio);
+	
+	if (aspect_ratio >= 3.5f) {
+		/* 32:9 or wider: 5+ columns for ultra-wide screens */
+		wlr_log(WLR_INFO, "[nixtile] ASPECT RATIO: Ultra-wide (%.2f:1) = 5 columns", aspect_ratio);
+		return 5;
+	} else if (aspect_ratio >= 3.0f) {
+		/* ~32:9: 4 columns for super ultrawide */
+		wlr_log(WLR_INFO, "[nixtile] ASPECT RATIO: Super ultrawide (%.2f:1) = 4 columns", aspect_ratio);
 		return 4;
-	} else if (screen_width >= 2560) {
-		/* Ultrawide: 3 columns */
+	} else if (aspect_ratio >= 2.2f) {
+		/* ~21:9: 3 columns for ultrawide */
+		wlr_log(WLR_INFO, "[nixtile] ASPECT RATIO: Ultrawide (%.2f:1) = 3 columns", aspect_ratio);
 		return 3;
-	} else if (screen_width >= 1600) {
-		/* Normal widescreen: 2 columns */
-		return 2;
 	} else {
-		/* Standard/narrow screens: 1 column */
+		/* ~16:9 or narrower: 2 columns for standard widescreen */
+		wlr_log(WLR_INFO, "[nixtile] ASPECT RATIO: Standard widescreen (%.2f:1) = 2 columns", aspect_ratio);
 		return 2;
 	}
 }
 
-/* Get optimal number of master tiles based on screen width */
+/* Get optimal number of master tiles based on aspect ratio */
 int
-get_optimal_master_tiles(int screen_width)
+get_optimal_master_tiles(int screen_width, int screen_height)
 {
-	if (screen_width > 3440) {
-		/* Super Ultrawide: 4 master tiles */
+	float aspect_ratio = calculate_aspect_ratio(screen_width, screen_height);
+	
+	if (aspect_ratio >= 3.5f) {
+		/* 32:9 or wider: 5 master tiles */
+		return 5;
+	} else if (aspect_ratio >= 3.0f) {
+		/* ~32:9: 4 master tiles */
 		return 4;
-	} else if (screen_width >= 2560) {
-		/* Ultrawide: 3 master tiles */
+	} else if (aspect_ratio >= 2.2f) {
+		/* ~21:9: 3 master tiles */
 		return 3;
-	} else if (screen_width >= 1600) {
-		/* Normal widescreen: 2 master tiles */
-		return 2;
 	} else {
-		/* Standard/narrow screens: 1 master tile */
+		/* ~16:9 or narrower: 2 master tiles */
 		return 2;
 	}
 }
@@ -7889,7 +7914,7 @@ tile(Monitor *m)
 				.height = adjusted_area.height
 			}, 0);
 		}
-	} else if (optimal_columns == 2 && use_multi_column && !force_multi_column) {
+	} else if (n == 2 && use_multi_column) {
 		wlr_log(WLR_ERROR, "[nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***");
 		/* 2-column layout: mfact-based horizontal resizing (supports stacks) */
 		/* This preserves horizontal resizing functionality for 2-column scenarios only */
@@ -8067,34 +8092,80 @@ tile(Monitor *m)
 					wlr_log(WLR_DEBUG, "[nixtile] %d-COLUMN WIDTH FACTORS: factors=(%.3f,%.3f,%.3f,%.3f), total=%.3f", 
 						effective_columns, column_factors[0], column_factors[1], column_factors[2], column_factors[3], total_factors);
 				} else {
-					/* Multi-column without width factors: apply workspace mfact to master column (index 0),
-					 * distribute the remainder equally among the other columns. This allows horizontal
-					 * resizing (mfact) to affect layouts even when stacks are present. */
-					float workspace_mfact = get_workspace_mfact();
-					int master_index = 0; /* default master column */
-					int left_width = (int)(available_width * workspace_mfact);
-					if (left_width < 1) left_width = 1; /* safety */
-					int right_width = available_width - left_width;
-					if (right_width < 0) right_width = 0;
-
-					/* Assign master column width */
-					for (int col = 0; col < effective_columns; col++) column_widths[col] = 0;
-					column_widths[master_index] = left_width;
-
-					/* Distribute remaining width across non-master columns */
-					int remaining_cols = effective_columns - 1;
-					if (remaining_cols > 0) {
-						int base = right_width / remaining_cols;
-						int rem = right_width % remaining_cols;
-						for (int col = 0, idx = 0; col < effective_columns; col++) {
-							if (col == master_index) continue;
-							column_widths[col] = base + (idx < rem ? 1 : 0);
-							idx++;
+					/* DYNAMIC EQUAL DISTRIBUTION: Equal width for all columns (33.33% for 3 columns, 25% for 4 columns, etc.) */
+					/* Check if we should use equal distribution or master/slave layout */
+					bool use_equal_distribution = true;
+					
+					/* Count tiles in each column to determine layout type */
+					int populated_columns = 0;
+					bool has_stacks = false;
+					for (int col = 0; col < effective_columns; col++) {
+						int tiles_in_col = count_tiles_in_stack(col, selmon);
+						if (tiles_in_col > 0) {
+							populated_columns++;
+						}
+						if (tiles_in_col > 1) {
+							has_stacks = true;
 						}
 					}
+					
+					/* Use equal distribution when:
+					 * 1. Only single tiles (no stacks) OR
+					 * 2. Multiple populated columns with balanced distribution */
+					if (!has_stacks || populated_columns >= 2) {
+						/* CRITICAL FIX: Use populated_columns for width calculation, not effective_columns */
+						/* This ensures 2 tiles get 50/50, not 33.33% each on ultrawide */
+						int columns_to_distribute = populated_columns;
+						
+						/* EQUAL DISTRIBUTION: Only populated columns get width */
+						int base_width = available_width / columns_to_distribute;
+						int remainder = available_width % columns_to_distribute;
+						
+						/* Initialize all columns to 0 width */
+						for (int col = 0; col < effective_columns; col++) {
+							column_widths[col] = 0;
+						}
+						
+						/* Only assign width to populated columns */
+						int width_index = 0;
+						for (int col = 0; col < effective_columns; col++) {
+							int tiles_in_col = count_tiles_in_stack(col, selmon);
+							if (tiles_in_col > 0) {
+								column_widths[col] = base_width + (width_index < remainder ? 1 : 0);
+								width_index++;
+							}
+						}
+						
+						wlr_log(WLR_INFO, "[nixtile] %d-COLUMN EQUAL DISTRIBUTION: %.2f%% per populated column (populated=%d, effective=%d)", 
+							columns_to_distribute, 100.0f / columns_to_distribute, populated_columns, effective_columns);
+					} else {
+						/* MASTER/SLAVE LAYOUT: For single populated column scenarios */
+						float workspace_mfact = get_workspace_mfact();
+						int master_index = 0; /* default master column */
+						int left_width = (int)(available_width * workspace_mfact);
+						if (left_width < 1) left_width = 1; /* safety */
+						int right_width = available_width - left_width;
+						if (right_width < 0) right_width = 0;
 
-					wlr_log(WLR_ERROR, "[nixtile] %d-COLUMN MFACT DISTRIBUTION: master_index=%d, mfact=%.3f, left=%d, right=%d (no width factors)",
-						effective_columns, master_index, workspace_mfact, left_width, right_width);
+						/* Assign master column width */
+						for (int col = 0; col < effective_columns; col++) column_widths[col] = 0;
+						column_widths[master_index] = left_width;
+
+						/* Distribute remaining width across non-master columns */
+						int remaining_cols = effective_columns - 1;
+						if (remaining_cols > 0) {
+							int base = right_width / remaining_cols;
+							int rem = right_width % remaining_cols;
+							for (int col = 0, idx = 0; col < effective_columns; col++) {
+								if (col == master_index) continue;
+								column_widths[col] = base + (idx < rem ? 1 : 0);
+								idx++;
+							}
+						}
+
+						wlr_log(WLR_DEBUG, "[nixtile] %d-COLUMN MASTER/SLAVE: master_index=%d, mfact=%.3f, populated_cols=%d",
+							effective_columns, master_index, workspace_mfact, populated_columns);
+					}
 				}
 			wlr_log(WLR_ERROR, "[nixtile] *** WIDTH CALCULATION: actual_tiles=%d, effective_columns=%d, mfact=%.3f ***", 
 				actual_tiles, effective_columns, m->mfact);
@@ -9455,7 +9526,7 @@ void ensure_equal_height_distribution_in_stack(int column) {
 	}
 }
 
-/* EQUAL HORIZONTAL DISTRIBUTION: Set mfact to 0.5 when only single tiles remain (no stacks) */
+/* DYNAMIC EQUAL HORIZONTAL DISTRIBUTION: Works for 2, 3, or 4 columns based on monitor resolution */
 void ensure_equal_horizontal_distribution_for_two_tiles(void) {
 	/* SAFETY: Validate monitor */
 	if (!selmon) {
@@ -9463,29 +9534,68 @@ void ensure_equal_horizontal_distribution_for_two_tiles(void) {
 		return;
 	}
 	
-	/* Count total tiles across both columns */
-	int left_count = count_tiles_in_stack(0, selmon);
-	int right_count = count_tiles_in_stack(1, selmon);
-	int total_tiles = left_count + right_count;
+	/* Get dynamic column count based on monitor resolution */
+	int max_columns = get_optimal_columns(selmon->w.width, selmon->w.height);
 	
-	wlr_log(WLR_DEBUG, "[nixtile] EQUAL HORIZONTAL: Total tiles=%d (left=%d, right=%d)", total_tiles, left_count, right_count);
+	/* Count tiles in each column */
+	int column_counts[MAX_COLUMNS] = {0};
+	int total_tiles = 0;
+	bool only_single_tiles = true;
+	
+	for (int col = 0; col < max_columns; col++) {
+		column_counts[col] = count_tiles_in_stack(col, selmon);
+		total_tiles += column_counts[col];
+		
+		/* Check if any column has more than 1 tile (is a stack) */
+		if (column_counts[col] > 1) {
+			only_single_tiles = false;
+		}
+	}
+	
+	wlr_log(WLR_DEBUG, "[nixtile] DYNAMIC EQUAL HORIZONTAL: %d columns, total_tiles=%d, only_single_tiles=%d", 
+		max_columns, total_tiles, only_single_tiles);
+	for (int col = 0; col < max_columns; col++) {
+		wlr_log(WLR_DEBUG, "[nixtile] DYNAMIC EQUAL HORIZONTAL: Column %d has %d tiles", col, column_counts[col]);
+	}
 	
 	/* Apply equal distribution when only single tiles remain (no stacks) */
-	bool only_single_tiles = (left_count <= 1 && right_count <= 1 && total_tiles >= 2);
-	if (only_single_tiles) {
+	if (only_single_tiles && total_tiles >= 2) {
 		/* RESET MANUAL RESIZE: Always reset and enforce equal distribution for single tiles */
-		bool any_manual_resize = manual_resize_performed[0] || manual_resize_performed[1];
-		if (any_manual_resize) {
-			wlr_log(WLR_INFO, "[nixtile] EQUAL HORIZONTAL: Resetting manual resize flags - enforcing equal distribution for single tiles");
-			manual_resize_performed[0] = false;
-			manual_resize_performed[1] = false;
+		bool any_manual_resize = false;
+		for (int col = 0; col < max_columns; col++) {
+			if (manual_resize_performed[col]) {
+				any_manual_resize = true;
+				manual_resize_performed[col] = false;
+			}
 		}
 		
-		/* Set equal horizontal distribution */
-		selmon->mfact = 0.5f;
-		wlr_log(WLR_INFO, "[nixtile] EQUAL HORIZONTAL: Set mfact to 0.5 for equal distribution of single tiles (left=%d, right=%d)", left_count, right_count);
+		if (any_manual_resize) {
+			wlr_log(WLR_INFO, "[nixtile] DYNAMIC EQUAL HORIZONTAL: Resetting manual resize flags - enforcing equal distribution for single tiles");
+		}
+		
+		/* Clear all width factors to enforce equal distribution */
+		Client *c;
+		wl_list_for_each(c, &clients, link) {
+			if (VISIBLEON(c, selmon) && !c->isfloating && !c->isfullscreen) {
+				c->width_factor = 1.0f;
+			}
+		}
+		
+		/* For 2 columns: use mfact = 0.5 (50/50) */
+		if (max_columns == 2) {
+			selmon->mfact = 0.5f;
+			wlr_log(WLR_INFO, "[nixtile] DYNAMIC EQUAL HORIZONTAL: Set mfact to 0.5 for 2-column equal distribution");
+		}
+		/* For 3+ columns: equal distribution is handled by width_factor reset above */
+		else {
+			/* Reset mfact to default for multi-column equal distribution */
+			selmon->mfact = 0.5f;
+			wlr_log(WLR_INFO, "[nixtile] DYNAMIC EQUAL HORIZONTAL: Reset width factors for %d-column equal distribution (%.2f%% each)", 
+				max_columns, 100.0f / max_columns);
+		}
 	} else {
-		wlr_log(WLR_DEBUG, "[nixtile] EQUAL HORIZONTAL: Not applicable - stacks exist or insufficient tiles (total=%d, left=%d, right=%d)", total_tiles, left_count, right_count);
+		wlr_log(WLR_DEBUG, "[nixtile] DYNAMIC EQUAL HORIZONTAL: Not applicable - stacks exist or insufficient tiles (total=%d, only_single=%d)", 
+			total_tiles, only_single_tiles);
 	}
 }
 
