@@ -6001,20 +6001,22 @@ build_grid_map(Monitor *m, GridTile *grid_map, int *tile_count)
 			        (void*)c, tile->left_edge_x, tile->top_edge_y, tile->right_edge_x, tile->bottom_edge_y);
 		}
 	} else if (optimal_columns == 2) {
-		/* 2-column layout */
-		int left_width = (int)roundf(adjusted_area.width * workspace_mfact);
-		int right_width = adjusted_area.width - left_width - innergappx;
+		/* 2-column layout with proper gap accounting */
+		int total_gap_width = innergappx; /* Gap between 2 columns */
+		int available_width = adjusted_area.width - total_gap_width;
+		int left_width = (int)roundf(available_width * workspace_mfact);
+		int right_width = available_width - left_width;
 		
 		/* Count tiles in each column */
-		int left_tiles = 0, right_tiles = 0;
+		int left_count = 0, right_count = 0;
 		Client *temp_c;
 		wl_list_for_each(temp_c, &clients, link) {
 			if (!VISIBLEON(temp_c, m) || temp_c->isfloating || temp_c->isfullscreen)
 				continue;
 			if (temp_c->column_group == 0) {
-				left_tiles++;
+				left_count++;
 			} else {
-				right_tiles++;
+				right_count++;
 			}
 		}
 		
@@ -6026,13 +6028,40 @@ build_grid_map(Monitor *m, GridTile *grid_map, int *tile_count)
 			if (*tile_count >= 32) break;
 			
 			bool is_left_column = (c->column_group == 0);
-			int tiles_in_column = is_left_column ? left_tiles : right_tiles;
+			int tiles_in_column = is_left_column ? left_count : right_count;
 			int column_width = is_left_column ? left_width : right_width;
 			int x_pos = is_left_column ? adjusted_area.x : adjusted_area.x + left_width + innergappx;
 			
-			/* Calculate height for this tile in the stack */
-			int available_height = adjusted_area.height - (tiles_in_column - 1) * innergappx;
-			int height = available_height / tiles_in_column;
+			/* Calculate height for this tile in the stack with proper gap accounting */
+			int total_gap_height = (tiles_in_column - 1) * innergappx;
+			int available_height = adjusted_area.height - total_gap_height;
+			int base_height = available_height / tiles_in_column;
+			int remaining_height = available_height % tiles_in_column;
+			
+			/* Calculate tile index within this column */
+			int tile_index_in_column = 0;
+			Client *count_c;
+			wl_list_for_each(count_c, &clients, link) {
+				if (!VISIBLEON(count_c, m) || count_c->isfloating || count_c->isfullscreen)
+					continue;
+				if (count_c->column_group != c->column_group)
+					continue;
+				if (count_c == c)
+					break;
+				tile_index_in_column++;
+			}
+			
+			/* Distribute remainder height to bottom tiles */
+			int height = base_height;
+			if (tile_index_in_column >= tiles_in_column - remaining_height) {
+				height += 1; /* Add 1px to bottom tiles to use remainder */
+			}
+			
+			/* Ensure minimum height and proper gap distribution */
+			if (height < 150) {
+				height = 150;
+				wlr_log(WLR_DEBUG, "[nixtile] HEIGHT: Enforced minimum 150px height for tile in stack");
+			}
 			
 			/* Position the tile */
 			int y_pos = adjusted_area.y + (is_left_column ? left_y : right_y);
@@ -6043,7 +6072,13 @@ build_grid_map(Monitor *m, GridTile *grid_map, int *tile_count)
 			tile->left_edge_x = x_pos;
 			tile->right_edge_x = x_pos + column_width;
 			tile->top_edge_y = y_pos;
-			tile->bottom_edge_y = y_pos + height;
+			
+			/* Ensure bottom tile extends exactly to bottom edge for perfect accuracy */
+			if (tile_index_in_column == tiles_in_column - 1) {
+				tile->bottom_edge_y = adjusted_area.y + adjusted_area.height; /* Perfect bottom edge alignment */
+			} else {
+				tile->bottom_edge_y = y_pos + height;
+			}
 			tile->left_edge_resizable = false;
 			tile->right_edge_resizable = false;
 			tile->top_edge_resizable = false;
@@ -6061,11 +6096,14 @@ build_grid_map(Monitor *m, GridTile *grid_map, int *tile_count)
 			}
 		}
 	} else {
-		/* Multi-column layout (3+ columns) */
-		int column_width = (adjusted_area.width - (optimal_columns - 1) * innergappx) / optimal_columns;
+		/* Multi-column layout (3+ columns) with proper gap accounting */
+		int total_gap_width = (optimal_columns - 1) * innergappx; /* Gaps between columns */
+		int available_width = adjusted_area.width - total_gap_width;
+		int base_column_width = available_width / optimal_columns;
+		int remaining_width = available_width % optimal_columns; /* Handle rounding remainder */
 		
-		wlr_log(WLR_ERROR, "[nixtile] GRID DEBUG: Multi-column layout - adjusted_area=(%d,%d,%d,%d), optimal_columns=%d, innergappx=%d, column_width=%d", 
-		        adjusted_area.x, adjusted_area.y, adjusted_area.width, adjusted_area.height, optimal_columns, innergappx, column_width);
+		wlr_log(WLR_ERROR, "[nixtile] GRID DEBUG: Multi-column layout - adjusted_area=(%d,%d,%d,%d), optimal_columns=%d, innergappx=%d, base_width=%d, remaining=%d", 
+		        adjusted_area.x, adjusted_area.y, adjusted_area.width, adjusted_area.height, optimal_columns, innergappx, base_column_width, remaining_width);
 		
 		/* Count tiles per column */
 		int tiles_per_column[optimal_columns];
@@ -6095,21 +6133,78 @@ build_grid_map(Monitor *m, GridTile *grid_map, int *tile_count)
 				continue;
 			
 			int col = c->column_group;
-			int x_pos = adjusted_area.x + col * (column_width + innergappx);
-			int available_height = adjusted_area.height - (tiles_per_column[col] - 1) * innergappx;
-			int height = available_height / tiles_per_column[col];
+			
+			/* Calculate column width with remainder distribution to rightmost columns */
+			int column_width = base_column_width;
+			if (col >= optimal_columns - remaining_width) {
+				column_width += 1; /* Add 1px to rightmost columns to use remainder */
+			}
+			
+			/* Calculate x position accounting for variable column widths */
+			int x_pos = adjusted_area.x;
+			for (int i = 0; i < col; i++) {
+				int prev_width = base_column_width;
+				if (i >= optimal_columns - remaining_width) {
+					prev_width += 1;
+				}
+				x_pos += prev_width + innergappx;
+			}
+			
+			/* Calculate height for this tile in the stack with proper gap accounting */
+			int total_gap_height = (tiles_per_column[col] - 1) * innergappx;
+			int available_height = adjusted_area.height - total_gap_height;
+			int base_height = available_height / tiles_per_column[col];
+			int remaining_height = available_height % tiles_per_column[col];
+			
+			/* Calculate tile index within this column */
+			int tile_index_in_column = 0;
+			Client *count_c;
+			wl_list_for_each(count_c, &clients, link) {
+				if (!VISIBLEON(count_c, m) || count_c->isfloating || count_c->isfullscreen)
+					continue;
+				if (count_c->column_group != col)
+					continue;
+				if (count_c == c)
+					break;
+				tile_index_in_column++;
+			}
+			
+			/* Distribute remainder height to bottom tiles */
+			int height = base_height;
+			if (tile_index_in_column >= tiles_per_column[col] - remaining_height) {
+				height += 1; /* Add 1px to bottom tiles to use remainder */
+			}
+			
+			/* Ensure minimum height and proper gap distribution */
+			if (height < 150) {
+				height = 150;
+				wlr_log(WLR_DEBUG, "[nixtile] HEIGHT: Enforced minimum 150px height for tile in multi-column stack");
+			}
+			
 			int y_pos = adjusted_area.y + column_y[col];
 			
-			wlr_log(WLR_ERROR, "[nixtile] GRID DEBUG: Tile calc - col=%d, tiles_per_col=%d, x_pos=%d, y_pos=%d, width=%d, height=%d, column_y=%d", 
-			        col, tiles_per_column[col], x_pos, y_pos, column_width, height, column_y[col]);
+			wlr_log(WLR_ERROR, "[nixtile] GRID DEBUG: Tile calc - col=%d, tile_idx=%d, tiles_per_col=%d, x_pos=%d, y_pos=%d, width=%d, height=%d, column_y=%d", 
+			        col, tile_index_in_column, tiles_per_column[col], x_pos, y_pos, column_width, height, column_y[col]);
 			
 			GridTile *tile = &grid_map[(*tile_count)++];
 			tile->tile = c;
 			tile->column_group = c->column_group;
 			tile->left_edge_x = x_pos;
-			tile->right_edge_x = x_pos + column_width;
+			
+			/* Ensure rightmost column extends exactly to screen edge for perfect accuracy */
+			if (col == optimal_columns - 1) {
+				tile->right_edge_x = adjusted_area.x + adjusted_area.width; /* Perfect right edge alignment */
+			} else {
+				tile->right_edge_x = x_pos + column_width;
+			}
 			tile->top_edge_y = y_pos;
-			tile->bottom_edge_y = y_pos + height;
+			
+			/* Ensure bottom tile extends exactly to bottom edge for perfect accuracy */
+			if (tile_index_in_column == tiles_per_column[col] - 1) {
+				tile->bottom_edge_y = adjusted_area.y + adjusted_area.height; /* Perfect bottom edge alignment */
+			} else {
+				tile->bottom_edge_y = y_pos + height;
+			}
 			tile->left_edge_resizable = false;
 			tile->right_edge_resizable = false;
 			tile->top_edge_resizable = false;
@@ -8276,7 +8371,14 @@ tile(Monitor *m)
 				/* Always use equal distribution within each column for robustness */
 				/* This ensures each column always uses full height and distributes equally */
 				if (tiles_in_column > 0) {
-					height = available_height / tiles_in_column;
+					int base_height = available_height / tiles_in_column;
+					int remaining_height = available_height % tiles_in_column;
+					
+					/* Distribute remainder height to bottom tiles */
+					height = base_height;
+					if (column_index >= tiles_in_column - remaining_height) {
+						height += 1; /* Add 1px to bottom tiles to use remainder */
+					}
 				} else {
 					height = available_height; /* Fallback */
 				}
@@ -8331,11 +8433,45 @@ tile(Monitor *m)
 					free(column_widths);
 				}
 				
+				/* Ensure rightmost column extends exactly to screen edge for perfect accuracy */
+				int final_width = width;
+				if (column == effective_columns - 1) {
+					final_width = (adjusted_area.x + adjusted_area.width) - x_pos; /* Perfect right edge alignment */
+				}
+				
+				/* Calculate tile index within this column for bottom edge alignment */
+				int tile_index_in_column = 0;
+				Client *count_c;
+				wl_list_for_each(count_c, &clients, link) {
+					if (!VISIBLEON(count_c, m) || count_c->isfloating || count_c->isfullscreen)
+						continue;
+					if (count_c->column_group != column)
+						continue;
+					if (count_c == c)
+						break;
+					tile_index_in_column++;
+				}
+				
+				/* Get tiles in this column for bottom edge calculation */
+				int tiles_in_this_column = 0;
+				wl_list_for_each(count_c, &clients, link) {
+					if (!VISIBLEON(count_c, m) || count_c->isfloating || count_c->isfullscreen)
+						continue;
+					if (count_c->column_group == column)
+						tiles_in_this_column++;
+				}
+				
+				/* Ensure bottom tile extends exactly to bottom edge for perfect accuracy */
+				int final_height = height;
+				if (column_index == tiles_in_this_column - 1) {
+					final_height = (adjusted_area.y + adjusted_area.height) - y_pos; /* Perfect bottom edge alignment */
+				}
+				
 				resize(c, (struct wlr_box){
 					.x = x_pos,
 					.y = y_pos,
-					.width = width,
-					.height = height
+					.width = final_width,
+					.height = final_height
 				}, 0);
 				
 				/* Update y position for next tile in this column */
