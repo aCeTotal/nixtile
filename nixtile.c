@@ -8002,6 +8002,8 @@ tile(Monitor *m)
 				break;
 		}
 		if (c) {
+			wlr_log(WLR_DEBUG, "[nixtile] SINGLE TILE GAP CALCULATION: adjusted_area=(%d,%d,%d,%d), outergappx=%d", 
+				adjusted_area.x, adjusted_area.y, adjusted_area.width, adjusted_area.height, outergappx);
 			resize(c, (struct wlr_box){
 				.x = adjusted_area.x,
 				.y = adjusted_area.y,
@@ -8055,6 +8057,8 @@ tile(Monitor *m)
 			left_width = (int)roundf(adjusted_area.width * workspace_mfact);
 			right_width = adjusted_area.width - left_width - innergappx;
 			wlr_log(WLR_DEBUG, "[nixtile] WORKSPACE ISOLATION: Using workspace mfact %.3f for layout calculation", workspace_mfact);
+			wlr_log(WLR_DEBUG, "[nixtile] 2-COLUMN GAP CALCULATION: adjusted_area.width=%d, left_width=%d, right_width=%d, innergappx=%d, outergappx=%d", 
+				adjusted_area.width, left_width, right_width, innergappx, outergappx);
 		}
 		
 		/* Count tiles in each column for proper stack handling */
@@ -8074,9 +8078,13 @@ tile(Monitor *m)
 		/* Position all tiles in each column with proper stacking */
 		int left_y = 0, right_y = 0;
 		wl_list_for_each(c, &clients, link) {
-			/* Use robust visibility check instead of strict VISIBLEON */
-			if (!c->mon || c->isfloating || c->isfullscreen)
+			/* WORKSPACE ISOLATION FIX: Use proper VISIBLEON check like other layout paths */
+			/* This ensures 2-column layout respects workspace boundaries for gap calculations */
+			if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 				continue;
+			
+			wlr_log(WLR_DEBUG, "[nixtile] 2-COLUMN WORKSPACE ISOLATION: Processing tile %p in workspace, column_group=%d", 
+				(void*)c, c->column_group);
 			
 			bool is_left_column = (c->column_group == 0);
 			int tiles_in_column = is_left_column ? left_tiles : right_tiles;
@@ -8152,8 +8160,14 @@ tile(Monitor *m)
 			
 			wlr_log(WLR_DEBUG, "[nixtile] EFFECTIVE COLUMNS: actual_tiles=%d, highest_column_used=%d, effective_columns=%d, optimal_columns=%d", 
 				actual_tiles, highest_column_used, effective_columns, optimal_columns);
+			
+			/* OUTER GAP FIX: Ensure consistent gap calculations for all column types */
+			/* The adjusted_area already has outer gaps applied, so we only need inner gaps */
 			int total_gaps = (effective_columns - 1) * innergappx;
 			int available_width = adjusted_area.width - total_gaps;
+			
+			wlr_log(WLR_DEBUG, "[nixtile] GAP CALCULATION: adjusted_area.width=%d, total_gaps=%d, available_width=%d, outergappx=%d", 
+				adjusted_area.width, total_gaps, available_width, outergappx);
 			
 			/* MULTI-COLUMN HORIZONTAL RESIZING: Use mfact to control column distribution */
 			int *column_widths = calloc(effective_columns, sizeof(int));
@@ -8433,39 +8447,21 @@ tile(Monitor *m)
 					free(column_widths);
 				}
 				
-				/* Ensure rightmost column extends exactly to screen edge for perfect accuracy */
+				/* OUTER GAP FIX: Remove problematic right edge alignment that eliminates outer gaps */
+				/* The adjusted_area already accounts for outer gaps, so tiles should not extend beyond it */
+				/* This ensures rightmost columns maintain proper right outer gaps */
 				int final_width = width;
-				if (column == effective_columns - 1) {
-					final_width = (adjusted_area.x + adjusted_area.width) - x_pos; /* Perfect right edge alignment */
-				}
 				
-				/* Calculate tile index within this column for bottom edge alignment */
-				int tile_index_in_column = 0;
-				Client *count_c;
-				wl_list_for_each(count_c, &clients, link) {
-					if (!VISIBLEON(count_c, m) || count_c->isfloating || count_c->isfullscreen)
-						continue;
-					if (count_c->column_group != column)
-						continue;
-					if (count_c == c)
-						break;
-					tile_index_in_column++;
-				}
+				wlr_log(WLR_DEBUG, "[nixtile] RIGHT GAP FIX: column=%d, width=%d, x_pos=%d, adjusted_area.width=%d, maintaining outer gaps", 
+					column, width, x_pos, adjusted_area.width);
 				
-				/* Get tiles in this column for bottom edge calculation */
-				int tiles_in_this_column = 0;
-				wl_list_for_each(count_c, &clients, link) {
-					if (!VISIBLEON(count_c, m) || count_c->isfloating || count_c->isfullscreen)
-						continue;
-					if (count_c->column_group == column)
-						tiles_in_this_column++;
-				}
-				
-				/* Ensure bottom tile extends exactly to bottom edge for perfect accuracy */
+				/* OUTER GAP FIX: Remove problematic bottom edge alignment that eliminates outer gaps */
+				/* The adjusted_area already accounts for outer gaps, so tiles should not extend beyond it */
+				/* This ensures single-tile columns maintain proper bottom outer gaps */
 				int final_height = height;
-				if (column_index == tiles_in_this_column - 1) {
-					final_height = (adjusted_area.y + adjusted_area.height) - y_pos; /* Perfect bottom edge alignment */
-				}
+				
+				wlr_log(WLR_DEBUG, "[nixtile] BOTTOM GAP FIX: column=%d, height=%d, y_pos=%d, adjusted_area.height=%d, maintaining outer gaps", 
+					column, height, y_pos, adjusted_area.height);
 				
 				resize(c, (struct wlr_box){
 					.x = x_pos,
