@@ -5059,9 +5059,9 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 		bool do_vertical_resize = false;
 		
 		/* Check if we have horizontal edges available */
-		bool has_horizontal_edges = (resize_edge_type == EDGE_LEFT || resize_edge_type == EDGE_RIGHT);
+		bool has_horizontal_edges = (resize_edge_type & (EDGE_LEFT | EDGE_RIGHT)) != 0;
 		/* Check if we have vertical edges available */
-		bool has_vertical_edges = (resize_edge_type == EDGE_TOP || resize_edge_type == EDGE_BOTTOM);
+		bool has_vertical_edges = (resize_edge_type & (EDGE_TOP | EDGE_BOTTOM)) != 0;
 		
 		if (abs_horizontal > 1.0f && abs_vertical > 1.0f) {
 			/* DIAGONAL MOVEMENT: Bi-axial resizing - both horizontal and vertical if available */
@@ -5086,40 +5086,17 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			cursor->x, cursor->y, grabcx, grabcy, horizontal_delta, vertical_delta, resize_edge_type, resize_target_column);
 		
 		/* HORIZONTAL RESIZING: Direct tile width adjustment like vertical resizing */
-		if (do_horizontal_resize) {
+		if (do_horizontal_resize && horizontal_resize_client && horizontal_resize_neighbor) {
 			/* Rate limiting for smooth resizing */
 			uint32_t current_time = get_time_ms();
 			if (current_time - last_horizontal_resize_time < 16) {
-				goto resize_cleanup;
+				/* Skip horizontal resize this frame, but allow vertical resize to continue */
+				goto skip_horizontal_resize;
 			}
 			last_horizontal_resize_time = current_time;
 			
-			/* Find the adjacent tile in neighboring column */
-			Client *neighbor_tile = NULL;
-			Client *temp_c;
-			int current_column = grabc->column_group;
-			int neighbor_column = -1;
-			
-			/* Determine neighbor column based on edge type */
-			if (resize_edge_type == EDGE_LEFT && current_column > 0) {
-				neighbor_column = current_column - 1;
-			} else if (resize_edge_type == EDGE_RIGHT) {
-				int optimal_columns = get_workspace_optimal_columns();
-				if (current_column < optimal_columns - 1) {
-					neighbor_column = current_column + 1;
-				}
-			}
-			
-			/* Find any tile in the neighboring column */
-			if (neighbor_column >= 0) {
-				wl_list_for_each(temp_c, &clients, link) {
-					if (VISIBLEON(temp_c, selmon) && !temp_c->isfloating && 
-					    temp_c->column_group == neighbor_column) {
-						neighbor_tile = temp_c;
-						break;
-					}
-				}
-			}
+			/* Use the already identified neighbor from tileresize setup */
+			Client *neighbor_tile = horizontal_resize_neighbor;
 			
 			if (neighbor_tile) {
 				/* POINTER-RELATIVE: Calculate where edge should be based on current mouse position */
@@ -5128,20 +5105,20 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 				/* Calculate original mouse offset from edge when resize started */
 				if (!offset_initialized) {
 					/* Store initial offset between mouse and edge */
-					if (resize_edge_type == EDGE_LEFT) {
+					if (resizing_from_left_edge) {
 						initial_mouse_offset = grabcx - grabc->geom.x;
 					} else {
 						initial_mouse_offset = grabcx - (grabc->geom.x + grabc->geom.width);
 					}
 					offset_initialized = true;
-					wlr_log(WLR_DEBUG, "[nixtile] HORIZONTAL OFFSET INIT: mouse_offset=%.1f, edge_type=%d", initial_mouse_offset, resize_edge_type);
+					wlr_log(WLR_DEBUG, "[nixtile] HORIZONTAL OFFSET INIT: mouse_offset=%.1f, from_left=%d", initial_mouse_offset, resizing_from_left_edge);
 				}
 				
 				/* Calculate new edge position: mouse position minus original offset */
 				float new_edge_x = cursor->x - initial_mouse_offset;
 				
 				/* Apply bounds checking to prevent tiles from becoming too small */
-				if (resize_edge_type == EDGE_LEFT) {
+				if (resizing_from_left_edge) {
 					/* EDGE_LEFT: CRITICAL - Right edge and its gap must remain completely unaffected */
 					int gap = innergappx;
 					
@@ -5299,29 +5276,19 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			}
 		}
 		
+skip_horizontal_resize:
 		/* TRUE POINTER-RELATIVE VERTICAL RESIZING: Mouse-to-edge distance stays constant */
-		if (do_vertical_resize) {
-			
-			/* Find the adjacent tile */
-			Client *neighbor_tile = NULL;
-			Client *temp_c;
-			wl_list_for_each(temp_c, &clients, link) {
-				if (temp_c->mon != selmon || temp_c->column_group != grabc->column_group) continue;
-				
-				if (resize_edge_type == EDGE_TOP) {
-					/* Find tile directly above */
-					if (abs(temp_c->geom.y + temp_c->geom.height - grabc->geom.y) <= 5) {
-						neighbor_tile = temp_c;
-						break;
-					}
-				} else if (resize_edge_type == EDGE_BOTTOM) {
-					/* Find tile directly below */
-					if (abs(temp_c->geom.y - (grabc->geom.y + grabc->geom.height)) <= 5) {
-						neighbor_tile = temp_c;
-						break;
-					}
-				}
+		if (do_vertical_resize && vertical_resize_client && vertical_resize_neighbor) {
+			/* Rate limiting for smooth vertical resizing */
+			uint32_t current_time = get_time_ms();
+			if (current_time - last_vertical_resize_time < 16) {
+				/* Skip vertical resize this frame, but don't exit completely */
+				goto skip_vertical_resize;
 			}
+			last_vertical_resize_time = current_time;
+			
+			/* Use the already identified neighbor from tileresize setup */
+			Client *neighbor_tile = vertical_resize_neighbor;
 			
 			if (neighbor_tile) {
 				/* POINTER-RELATIVE: Calculate where edge should be based on current mouse position */
@@ -5330,20 +5297,20 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 				/* Calculate original mouse offset from edge when resize started */
 				if (!offset_initialized) {
 					/* Store initial offset between mouse and edge */
-					if (resize_edge_type == EDGE_TOP) {
+					if (resize_from_top_edge) {
 						initial_mouse_offset = grabcy - grabc->geom.y;
 					} else {
 						initial_mouse_offset = grabcy - (grabc->geom.y + grabc->geom.height);
 					}
 					offset_initialized = true;
-					wlr_log(WLR_DEBUG, "[nixtile] OFFSET INIT: mouse_offset=%.1f, edge_type=%d", initial_mouse_offset, resize_edge_type);
+					wlr_log(WLR_DEBUG, "[nixtile] VERTICAL OFFSET INIT: mouse_offset=%.1f, from_top=%d", initial_mouse_offset, resize_from_top_edge);
 				}
 				
 				/* Calculate new edge position: mouse position minus original offset */
 				float new_edge_y = cursor->y - initial_mouse_offset;
 				
 				/* Apply bounds checking to prevent tiles from becoming too small */
-				if (resize_edge_type == EDGE_TOP) {
+				if (resize_from_top_edge) {
 					/* EDGE_TOP: CRITICAL - Bottom edge and its gap must remain completely unaffected */
 					int gap = innergappx;
 					
@@ -5518,6 +5485,7 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 			}
 		}
 		
+skip_vertical_resize:
 		/* Grid-based resizing complete - frame-synced updates handled by timer above */
 		wlr_log(WLR_DEBUG, "[nixtile] GRID RESIZE MOTION: h_delta=%.1f, v_delta=%.1f, edge_type=%d, pending_updates: h=%d, v=%d", 
 			horizontal_delta, vertical_delta, resize_edge_type, resize_pending, vertical_resize_pending);
@@ -6688,41 +6656,66 @@ tileresize(const Arg *arg)
 		return;
 	}
 	
-	/* HORIZONTAL AND VERTICAL EDGE DETECTION: Split each tile into quadrants */
+	/* BI-AXIAL EDGE DETECTION: Split each tile into zones that support corner resizing */
 	EdgeType edge = EDGE_NONE;
 	
-	/* Calculate cursor position relative to tile center */
-	float tile_center_x = target_tile->tile->geom.x + (target_tile->tile->geom.width / 2.0f);
-	float tile_center_y = target_tile->tile->geom.y + (target_tile->tile->geom.height / 2.0f);
+	/* Calculate cursor position relative to tile boundaries */
+	float tile_left = target_tile->tile->geom.x;
+	float tile_right = target_tile->tile->geom.x + target_tile->tile->geom.width;
+	float tile_top = target_tile->tile->geom.y;
+	float tile_bottom = target_tile->tile->geom.y + target_tile->tile->geom.height;
 	
-	/* Determine primary edge based on cursor position within tile */
-	float horizontal_distance = fabs(cursor->x - tile_center_x);
-	float vertical_distance = fabs(cursor->y - tile_center_y);
+	/* Calculate relative position within tile (0.0 to 1.0) */
+	float rel_x = (cursor->x - tile_left) / target_tile->tile->geom.width;
+	float rel_y = (cursor->y - tile_top) / target_tile->tile->geom.height;
 	
-	if (horizontal_distance > vertical_distance) {
-		/* Horizontal edge: left/right halves */
-		if (cursor->x < tile_center_x) {
-			/* Left half of tile - controls left edge (affects this column and left neighbor) */
-			edge = EDGE_LEFT;
-			wlr_log(WLR_ERROR, "[nixtile] HORIZONTAL EDGE: Left half detected - will resize left edge");
+	/* Define corner zones for bi-axial resizing (30% from each edge) */
+	float corner_threshold = 0.3f;
+	
+	/* Determine edge based on cursor position - corners enable bi-axial resizing */
+	if (rel_x < corner_threshold) {
+		/* Left side of tile */
+		if (rel_y < corner_threshold) {
+			/* Top-left corner: can resize both left edge and top edge */
+			edge = EDGE_LEFT | EDGE_TOP;  /* Bi-axial corner */
+			wlr_log(WLR_ERROR, "[nixtile] BI-AXIAL CORNER: Top-left detected - can resize left+top edges");
+		} else if (rel_y > (1.0f - corner_threshold)) {
+			/* Bottom-left corner: can resize both left edge and bottom edge */
+			edge = EDGE_LEFT | EDGE_BOTTOM;  /* Bi-axial corner */
+			wlr_log(WLR_ERROR, "[nixtile] BI-AXIAL CORNER: Bottom-left detected - can resize left+bottom edges");
 		} else {
-			/* Right half of tile - controls right edge (affects this column and right neighbor) */
+			/* Left edge only */
+			edge = EDGE_LEFT;
+			wlr_log(WLR_ERROR, "[nixtile] HORIZONTAL EDGE: Left edge detected");
+		}
+	} else if (rel_x > (1.0f - corner_threshold)) {
+		/* Right side of tile */
+		if (rel_y < corner_threshold) {
+			/* Top-right corner: can resize both right edge and top edge */
+			edge = EDGE_RIGHT | EDGE_TOP;  /* Bi-axial corner */
+			wlr_log(WLR_ERROR, "[nixtile] BI-AXIAL CORNER: Top-right detected - can resize right+top edges");
+		} else if (rel_y > (1.0f - corner_threshold)) {
+			/* Bottom-right corner: can resize both right edge and bottom edge */
+			edge = EDGE_RIGHT | EDGE_BOTTOM;  /* Bi-axial corner */
+			wlr_log(WLR_ERROR, "[nixtile] BI-AXIAL CORNER: Bottom-right detected - can resize right+bottom edges");
+		} else {
+			/* Right edge only */
 			edge = EDGE_RIGHT;
-			wlr_log(WLR_ERROR, "[nixtile] HORIZONTAL EDGE: Right half detected - will resize right edge");
+			wlr_log(WLR_ERROR, "[nixtile] HORIZONTAL EDGE: Right edge detected");
 		}
 	} else {
-		/* Vertical edge: top/bottom halves */
-		if (cursor->y < tile_center_y) {
+		/* Center area - vertical edges only */
+		if (rel_y < 0.5f) {
 			edge = EDGE_TOP;
-			wlr_log(WLR_ERROR, "[nixtile] VERTICAL EDGE: Top half detected - will resize top edge");
+			wlr_log(WLR_ERROR, "[nixtile] VERTICAL EDGE: Top edge detected");
 		} else {
 			edge = EDGE_BOTTOM;
-			wlr_log(WLR_ERROR, "[nixtile] VERTICAL EDGE: Bottom half detected - will resize bottom edge");
+			wlr_log(WLR_ERROR, "[nixtile] VERTICAL EDGE: Bottom edge detected");
 		}
 	}
 	
-	wlr_log(WLR_ERROR, "[nixtile] EDGE DETECTION: cursor=(%.1f,%.1f), tile_center=(%.1f,%.1f), h_dist=%.1f, v_dist=%.1f, edge=%d", 
-		cursor->x, cursor->y, tile_center_x, tile_center_y, horizontal_distance, vertical_distance, edge);
+	wlr_log(WLR_ERROR, "[nixtile] EDGE DETECTION: cursor=(%.1f,%.1f), rel_pos=(%.2f,%.2f), edge=0x%x", 
+		cursor->x, cursor->y, rel_x, rel_y, edge);
 	
 	if (edge == EDGE_NONE) {
 		wlr_log(WLR_ERROR, "[nixtile] GRID RESIZE: No resizable edge found near cursor - ABORT");
@@ -6744,38 +6737,87 @@ tileresize(const Arg *arg)
 	offset_initialized = false;
 	initial_mouse_offset = 0.0f;
 	
-	if (edge == EDGE_TOP || edge == EDGE_BOTTOM) {
-		/* BIDIRECTIONAL VERTICAL RESIZE: Handle shared edge between two tiles */
-		if (edge == EDGE_TOP && target_tile->top_neighbor) {
+	/* BI-AXIAL SETUP: Handle both horizontal and vertical edges */
+	bool has_vertical_edge = (edge & (EDGE_TOP | EDGE_BOTTOM)) != 0;
+	bool has_horizontal_edge = (edge & (EDGE_LEFT | EDGE_RIGHT)) != 0;
+	
+	/* VERTICAL RESIZE SETUP: Handle shared edge between tiles in same column */
+	if (has_vertical_edge) {
+		EdgeType vertical_edge = edge & (EDGE_TOP | EDGE_BOTTOM);
+		
+		if (vertical_edge == EDGE_TOP && target_tile->top_neighbor) {
 			/* Resizing from bottom side of shared edge (clicked on top zone of lower tile) */
 			vertical_resize_client = grabc;  /* Lower tile (clicked tile) */
 			vertical_resize_neighbor = target_tile->top_neighbor;  /* Upper tile */
-			wlr_log(WLR_ERROR, "[nixtile] BIDIRECTIONAL RESIZE: TOP edge - resizing shared edge from lower tile side");
-		} else if (edge == EDGE_BOTTOM && target_tile->bottom_neighbor) {
+			resize_from_top_edge = true;
+			vertical_resize_pending = true;
+			wlr_log(WLR_ERROR, "[nixtile] VERTICAL SETUP: TOP edge - client=%p neighbor=%p", 
+			        (void*)vertical_resize_client, (void*)vertical_resize_neighbor);
+		} else if (vertical_edge == EDGE_BOTTOM && target_tile->bottom_neighbor) {
 			/* Resizing from top side of shared edge (clicked on bottom zone of upper tile) */
 			vertical_resize_client = grabc;  /* Upper tile (clicked tile) */
 			vertical_resize_neighbor = target_tile->bottom_neighbor;  /* Lower tile */
-			wlr_log(WLR_ERROR, "[nixtile] BIDIRECTIONAL RESIZE: BOTTOM edge - resizing shared edge from upper tile side");
+			resize_from_top_edge = false;
+			vertical_resize_pending = true;
+			wlr_log(WLR_ERROR, "[nixtile] VERTICAL SETUP: BOTTOM edge - client=%p neighbor=%p", 
+			        (void*)vertical_resize_client, (void*)vertical_resize_neighbor);
 		} else {
-			wlr_log(WLR_DEBUG, "[nixtile] BIDIRECTIONAL RESIZE: No neighbor for vertical resize");
-			cursor_mode = CurNormal;
-			return;
+			wlr_log(WLR_DEBUG, "[nixtile] VERTICAL SETUP: No neighbor found for vertical edge");
+			if (!has_horizontal_edge) {
+				/* No horizontal edge either - abort */
+				cursor_mode = CurNormal;
+				return;
+			}
+		}
+	}
+	
+	/* HORIZONTAL RESIZE SETUP: Find neighboring columns for edge resizing */
+	if (has_horizontal_edge) {
+		EdgeType horizontal_edge = edge & (EDGE_LEFT | EDGE_RIGHT);
+		int current_column = target_tile->column_group;
+		int neighbor_column = -1;
+		
+		if (horizontal_edge == EDGE_LEFT && current_column > 0) {
+			neighbor_column = current_column - 1;
+		} else if (horizontal_edge == EDGE_RIGHT) {
+			int optimal_columns = get_workspace_optimal_columns();
+			if (current_column < optimal_columns - 1) {
+				neighbor_column = current_column + 1;
+			}
 		}
 		
-		/* Store which edge type we're resizing for consistent behavior */
-		resize_from_top_edge = (edge == EDGE_TOP);
-		vertical_resize_pending = true;
-		
-		wlr_log(WLR_ERROR, "[nixtile] BIDIRECTIONAL SETUP: client=%p neighbor=%p resize_from_top=%d", 
-		        (void*)vertical_resize_client, (void*)vertical_resize_neighbor, resize_from_top_edge);
-	} else {
-		/* Horizontal resize: we adjust mfact via motion handler. Do NOT trigger the
-		 * horizontal_column_resize_pending path here since it requires pending
-		 * left/right width state to be prepared (pending_left_width/right_width,
-		 * pending_left_column/right_column). Using it without setting those leads
-		 * to incorrect width factors. Horizontal updates will be applied via
-		 * pending_target_mfact + resize_pending instead. */
-		/* no-op: horizontal_column_resize_pending remains false */
+		if (neighbor_column >= 0) {
+			/* Find any tile in the neighboring column */
+			Client *temp_c;
+			wl_list_for_each(temp_c, &clients, link) {
+				if (VISIBLEON(temp_c, selmon) && !temp_c->isfloating && 
+				    temp_c->column_group == neighbor_column) {
+					horizontal_resize_client = grabc;
+					horizontal_resize_neighbor = temp_c;
+					resizing_from_left_edge = (horizontal_edge == EDGE_LEFT);
+					wlr_log(WLR_ERROR, "[nixtile] HORIZONTAL SETUP: edge=%s, current_col=%d, neighbor_col=%d, neighbor=%p", 
+					        (horizontal_edge == EDGE_LEFT) ? "LEFT" : "RIGHT", current_column, neighbor_column, 
+					        (void*)horizontal_resize_neighbor);
+					break;
+				}
+			}
+		} else {
+			wlr_log(WLR_DEBUG, "[nixtile] HORIZONTAL SETUP: No neighbor column for horizontal edge");
+			if (!has_vertical_edge) {
+				/* No vertical edge either - abort */
+				cursor_mode = CurNormal;
+				return;
+			}
+		}
+	}
+	
+	/* BI-AXIAL CONFIRMATION: Log what resize modes are active */
+	if (has_vertical_edge && has_horizontal_edge) {
+		wlr_log(WLR_ERROR, "[nixtile] BI-AXIAL SETUP: Both vertical and horizontal resizing enabled - corner zone detected");
+	} else if (has_vertical_edge) {
+		wlr_log(WLR_ERROR, "[nixtile] VERTICAL-ONLY SETUP: Only vertical resizing enabled");
+	} else if (has_horizontal_edge) {
+		wlr_log(WLR_ERROR, "[nixtile] HORIZONTAL-ONLY SETUP: Only horizontal resizing enabled");
 	}
 	
 	wlr_log(WLR_DEBUG, "[nixtile] GRID RESIZE: Started %s resize on edge %d", 
