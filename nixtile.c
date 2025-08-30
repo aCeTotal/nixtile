@@ -6815,9 +6815,26 @@ tileresize(const Arg *arg)
 	
 	/* VERTICAL RESIZE SETUP: Handle shared edge between tiles in same column */
 	if (has_vertical_edge) {
-		EdgeType vertical_edge = edge & (EDGE_TOP | EDGE_BOTTOM);
+		/* MASTER TILE PROTECTION: Prevent vertical resizing for tiles that are alone in their column */
+		int tiles_in_current_column = count_tiles_in_stack(target_tile->column_group, selmon);
+		if (tiles_in_current_column <= 1) {
+			wlr_log(WLR_ERROR, "[nixtile] MASTER TILE PROTECTION: Tile is alone in column %d (%d tiles) - disabling vertical resizing", 
+				target_tile->column_group, tiles_in_current_column);
+			has_vertical_edge = false;
+			if (!has_horizontal_edge) {
+				/* No horizontal edge either - abort resize */
+				cursor_mode = CurNormal;
+				return;
+			}
+		} else {
+			wlr_log(WLR_ERROR, "[nixtile] VERTICAL RESIZE ALLOWED: Column %d has %d tiles - vertical resizing enabled", 
+				target_tile->column_group, tiles_in_current_column);
+		}
 		
-		if (vertical_edge == EDGE_TOP && target_tile->top_neighbor) {
+		if (has_vertical_edge) {
+			EdgeType vertical_edge = edge & (EDGE_TOP | EDGE_BOTTOM);
+			
+			if (vertical_edge == EDGE_TOP && target_tile->top_neighbor) {
 			/* Resizing from bottom side of shared edge (clicked on top zone of lower tile) */
 			vertical_resize_client = grabc;  /* Lower tile (clicked tile) */
 			vertical_resize_neighbor = target_tile->top_neighbor;  /* Upper tile */
@@ -6833,12 +6850,13 @@ tileresize(const Arg *arg)
 			vertical_resize_pending = true;
 			wlr_log(WLR_ERROR, "[nixtile] VERTICAL SETUP: BOTTOM edge - client=%p neighbor=%p", 
 			        (void*)vertical_resize_client, (void*)vertical_resize_neighbor);
-		} else {
-			wlr_log(WLR_DEBUG, "[nixtile] VERTICAL SETUP: No neighbor found for vertical edge");
-			if (!has_horizontal_edge) {
-				/* No horizontal edge either - abort */
-				cursor_mode = CurNormal;
-				return;
+			} else {
+				wlr_log(WLR_DEBUG, "[nixtile] VERTICAL SETUP: No neighbor found for vertical edge");
+				if (!has_horizontal_edge) {
+					/* No horizontal edge either - abort */
+					cursor_mode = CurNormal;
+					return;
+				}
 			}
 		}
 	}
