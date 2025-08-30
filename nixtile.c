@@ -260,6 +260,7 @@ struct Monitor {
 	int workspace_optimal_columns[9]; /* Per-workspace column count */
 	bool workspace_manual_resize_performed[9][MAX_COLUMNS]; /* Per-workspace manual resize state [workspace][column] */
 	float workspace_height_factors[9][MAX_TILES_PER_WORKSPACE]; /* Per-workspace vertical sizing */
+	float workspace_width_factors[9][MAX_TILES_PER_WORKSPACE]; /* Per-workspace horizontal sizing */
 	bool workspace_initialized[9]; /* Track which workspaces have been initialized */
 	
 	/* PER-WORKSPACE PENDING STATE FOR LAYOUT ISOLATION */
@@ -4533,6 +4534,10 @@ incnmaster(const Arg *arg)
 	if (!arg || !selmon)
 		return;
 	selmon->nmaster = MAX(selmon->nmaster + arg->i, 0);
+	
+	/* Save the new nmaster value to workspace state for persistence */
+	save_workspace_state();
+	
 	arrange(selmon);
 }
 
@@ -5269,6 +5274,69 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 					}
 				}
 				
+				/* CRITICAL: Calculate and update width_factor values based on new geometry */
+				/* This ensures horizontal resizing changes are properly saved to workspace state */
+				int total_width = grabc->geom.width + neighbor_tile->geom.width + innergappx;
+				if (total_width > 0) {
+					float grabc_width_factor = (float)grabc->geom.width / (float)total_width;
+					float neighbor_width_factor = (float)neighbor_tile->geom.width / (float)total_width;
+					
+					/* Apply bounds checking to width factors */
+					if (grabc_width_factor < 0.1f) grabc_width_factor = 0.1f;
+					if (grabc_width_factor > 3.0f) grabc_width_factor = 3.0f;
+					if (neighbor_width_factor < 0.1f) neighbor_width_factor = 0.1f;
+					if (neighbor_width_factor > 3.0f) neighbor_width_factor = 3.0f;
+					
+					/* Update width_factor values */
+					grabc->width_factor = grabc_width_factor;
+					neighbor_tile->width_factor = neighbor_width_factor;
+					
+					/* Update width_factor for all tiles in the same columns */
+					wl_list_for_each(sync_c, &clients, link) {
+						if (!VISIBLEON(sync_c, selmon) || sync_c->isfloating || sync_c->isfullscreen)
+							continue;
+						
+						/* Update width_factor for all tiles in grabc's column */
+						if (sync_c->column_group == grabc->column_group) {
+							sync_c->width_factor = grabc_width_factor;
+						}
+						
+						/* Update width_factor for all tiles in neighbor's column */
+						if (sync_c->column_group == neighbor_tile->column_group) {
+							sync_c->width_factor = neighbor_width_factor;
+						}
+					}
+					
+					wlr_log(WLR_DEBUG, "[nixtile] WIDTH FACTORS UPDATED: grabc=%.3f, neighbor=%.3f (total_width=%d)", 
+				grabc_width_factor, neighbor_width_factor, total_width);
+				
+				/* CRITICAL: Calculate and update mfact based on column widths */
+				/* For 2-column layout, mfact represents the ratio of left column to total width */
+				int total_available_width = selmon->w.width - 2 * outergappx;
+				if (total_available_width > 0) {
+					/* Determine which column is left and which is right */
+					Client *left_column_tile = (grabc->column_group < neighbor_tile->column_group) ? grabc : neighbor_tile;
+					int left_column_width = left_column_tile->geom.width;
+					
+					/* Calculate new mfact: left_column_width / total_available_width */
+					float new_mfact = (float)left_column_width / (float)total_available_width;
+					
+					/* Apply bounds checking to mfact */
+					if (new_mfact < 0.1f) new_mfact = 0.1f;
+					if (new_mfact > 0.9f) new_mfact = 0.9f;
+					
+					/* Update mfact */
+					selmon->mfact = new_mfact;
+					
+					wlr_log(WLR_DEBUG, "[nixtile] MFACT UPDATED: new_mfact=%.3f (left_width=%d, total_width=%d)", 
+						new_mfact, left_column_width, total_available_width);
+				}
+				
+				/* CRITICAL: Save workspace state to persist width_factor and mfact changes */
+				save_workspace_state();
+				wlr_log(WLR_DEBUG, "[nixtile] PERSISTENCE: Saved width_factor and mfact changes from motionnotify to workspace state");
+				}
+				
 				wlr_log(WLR_DEBUG, "[nixtile] HORIZONTAL POINTER-RELATIVE RESIZE: cursor_x=%.1f, edge_x=%.1f, offset=%.1f, grabc_w=%d, neighbor_w=%d", 
 					cursor->x, new_edge_x, initial_mouse_offset, grabc->geom.width, neighbor_tile->geom.width);
 			} else {
@@ -5878,6 +5946,10 @@ frame_synced_resize_callback(void *data)
 			
 			wlr_log(WLR_DEBUG, "[nixtile] WIDTH FACTORS APPLIED: Updated %d tiles, left_factor=%.3f, right_factor=%.3f", 
 				tiles_updated, left_width_factor, right_width_factor);
+			
+			/* CRITICAL: Save workspace state to persist width_factor changes */
+			save_workspace_state();
+			wlr_log(WLR_DEBUG, "[nixtile] PERSISTENCE: Saved width_factor changes to workspace state");
 		}
 		
 		horizontal_column_resize_pending = false;
@@ -7206,7 +7278,14 @@ void hide_launcher(void) {
 
 
 void toggle_statusbar(const Arg *arg) {
+    /* Save current workspace state before layout recalculation */
+    save_workspace_state();
+    
     statusbar_visible = !statusbar_visible;
+    
+    /* Load workspace state to preserve tile adjustments after arrange() */
+    load_workspace_state();
+    
     arrange(selmon);
     printstatus(); // Triggers redraw
     if (selmon && selmon->wlr_output)
@@ -7633,11 +7712,19 @@ setlayout(const Arg *arg)
 {
 	if (!selmon)
 		return;
+	
+	/* Save current workspace state before layout change */
+	save_workspace_state();
+	
 	if (!arg || !arg->v || arg->v != selmon->lt[selmon->sellt])
 		selmon->sellt ^= 1;
 	if (arg && arg->v)
 		selmon->lt[selmon->sellt] = (Layout *)arg->v;
 	strncpy(selmon->ltsymbol, selmon->lt[selmon->sellt]->symbol, LENGTH(selmon->ltsymbol));
+	
+	/* Load workspace state to preserve tile adjustments after arrange() */
+	load_workspace_state();
+	
 	arrange(selmon);
 	printstatus();
 }
@@ -7654,6 +7741,10 @@ setmfact(const Arg *arg)
 	if (f < 0.1 || f > 0.9)
 		return;
 	selmon->mfact = f;
+	
+	/* Save the new mfact value to workspace state for persistence */
+	save_workspace_mfact();
+	
 	arrange(selmon);
 }
 
@@ -9531,6 +9622,11 @@ static void init_workspace_state(int workspace) {
 		selmon->workspace_height_factors[workspace][i] = 1.0f;
 	}
 	
+	/* Initialize width factors */
+	for (int i = 0; i < MAX_TILES_PER_WORKSPACE; i++) {
+		selmon->workspace_width_factors[workspace][i] = 1.0f;
+	}
+	
 	/* WORKSPACE ISOLATION: Initialize pending state for layout isolation */
 	selmon->workspace_pending_target_mfact[workspace] = 0.5f;
 	selmon->workspace_pending_target_height_factor[workspace] = 1.0f;
@@ -9575,19 +9671,30 @@ static void load_workspace_state() {
 	pending_right_width = selmon->workspace_pending_right_width[workspace];
 	pending_right_x = selmon->workspace_pending_right_x[workspace];
 	
-	/* CRITICAL: Restore individual tile height factors from workspace state */
+	/* CRITICAL: Restore individual tile height and width factors from workspace state */
 	Client *c;
 	int tile_index = 0;
 	wl_list_for_each(c, &clients, link) {
 		if (VISIBLEON(c, selmon) && tile_index < MAX_TILES_PER_WORKSPACE) {
 			float saved_height_factor = selmon->workspace_height_factors[workspace][tile_index];
+			float saved_width_factor = selmon->workspace_width_factors[workspace][tile_index];
+			
+			/* Restore height_factor */
 			if (saved_height_factor > 0.1f && saved_height_factor < 3.0f) {
 				c->height_factor = saved_height_factor;
-				wlr_log(WLR_DEBUG, "[nixtile] RESTORED height_factor %.2f for tile %d", 
-					c->height_factor, tile_index);
 			} else {
 				c->height_factor = 1.0f; /* Safe default */
 			}
+			
+			/* Restore width_factor */
+			if (saved_width_factor > 0.1f && saved_width_factor < 3.0f) {
+				c->width_factor = saved_width_factor;
+			} else {
+				c->width_factor = 1.0f; /* Safe default */
+			}
+			
+			wlr_log(WLR_DEBUG, "[nixtile] RESTORED height_factor %.2f, width_factor %.2f for tile %d", 
+				c->height_factor, c->width_factor, tile_index);
 			tile_index++;
 		}
 	}
@@ -9690,14 +9797,15 @@ static void save_workspace_state() {
 	selmon->workspace_pending_right_width[workspace] = pending_right_width;
 	selmon->workspace_pending_right_x[workspace] = pending_right_x;
 	
-	/* CRITICAL: Save individual tile height factors to workspace state */
+	/* CRITICAL: Save individual tile height and width factors to workspace state */
 	Client *c;
 	int tile_index = 0;
 	wl_list_for_each(c, &clients, link) {
 		if (VISIBLEON(c, selmon) && tile_index < MAX_TILES_PER_WORKSPACE) {
 			selmon->workspace_height_factors[workspace][tile_index] = c->height_factor;
-			wlr_log(WLR_DEBUG, "[nixtile] SAVED height_factor %.2f for tile %d", 
-				c->height_factor, tile_index);
+			selmon->workspace_width_factors[workspace][tile_index] = c->width_factor;
+			wlr_log(WLR_DEBUG, "[nixtile] SAVED height_factor %.2f, width_factor %.2f for tile %d", 
+				c->height_factor, c->width_factor, tile_index);
 			tile_index++;
 		}
 	}
@@ -9789,12 +9897,23 @@ void ensure_equal_width_distribution(Client *new_client) {
 			existing_tiles++;
 	}
 	
-	/* Only reset mfact for truly new workspaces (0 or 1 existing tiles) */
-	if (existing_tiles <= 1) {
-		selmon->mfact = 0.5f; /* Always equal 50/50 distribution for new workspaces */
-		wlr_log(WLR_DEBUG, "[nixtile] Reset mfact to 0.5 for equal width distribution (existing_tiles=%d)", existing_tiles);
+	/* Check if workspace has saved mfact value before resetting */
+	int workspace = get_current_workspace();
+	float saved_mfact = selmon->workspace_mfact[workspace];
+	
+	/* Only reset mfact for truly new workspaces that have no saved value */
+	if (existing_tiles <= 1 && saved_mfact == 0.0f) {
+		selmon->mfact = 0.5f; /* Equal 50/50 distribution for genuinely new workspaces */
+		save_workspace_mfact(); /* Save the new default value */
+		wlr_log(WLR_DEBUG, "[nixtile] Reset mfact to 0.5 for new workspace (existing_tiles=%d, saved_mfact=%.3f)", existing_tiles, saved_mfact);
 	} else {
-		wlr_log(WLR_DEBUG, "[nixtile] PRESERVING EXISTING LAYOUT: Not changing mfact (existing_tiles=%d, current_mfact=%.3f)", existing_tiles, current_mfact);
+		/* Preserve saved workspace mfact value */
+		if (saved_mfact > 0.0f) {
+			selmon->mfact = saved_mfact;
+			wlr_log(WLR_DEBUG, "[nixtile] PRESERVING SAVED MFACT: Restored mfact=%.3f for workspace %d (existing_tiles=%d)", saved_mfact, workspace, existing_tiles);
+		} else {
+			wlr_log(WLR_DEBUG, "[nixtile] PRESERVING EXISTING LAYOUT: Not changing mfact (existing_tiles=%d, current_mfact=%.3f)", existing_tiles, current_mfact);
+		}
 	}
 }
 
@@ -9961,17 +10080,35 @@ void ensure_equal_horizontal_distribution_for_two_tiles(void) {
 			}
 		}
 		
-		/* For 2 columns: use mfact = 0.5 (50/50) */
+		/* Check if workspace has saved mfact value before resetting */
+		int workspace = get_current_workspace();
+		float saved_mfact = selmon->workspace_mfact[workspace];
+		
+		/* For 2 columns: only reset mfact if no saved value exists */
 		if (max_columns == 2) {
-			selmon->mfact = 0.5f;
-			wlr_log(WLR_INFO, "[nixtile] DYNAMIC EQUAL HORIZONTAL: Set mfact to 0.5 for 2-column equal distribution");
+			if (saved_mfact == 0.0f) {
+				selmon->mfact = 0.5f;
+				save_workspace_mfact(); /* Save the new default value */
+				wlr_log(WLR_INFO, "[nixtile] DYNAMIC EQUAL HORIZONTAL: Set mfact to 0.5 for new 2-column workspace");
+			} else {
+				/* Preserve saved workspace mfact value */
+				selmon->mfact = saved_mfact;
+				wlr_log(WLR_INFO, "[nixtile] DYNAMIC EQUAL HORIZONTAL: Preserved saved mfact=%.3f for workspace %d", saved_mfact, workspace);
+			}
 		}
 		/* For 3+ columns: equal distribution is handled by width_factor reset above */
 		else {
-			/* Reset mfact to default for multi-column equal distribution */
-			selmon->mfact = 0.5f;
-			wlr_log(WLR_INFO, "[nixtile] DYNAMIC EQUAL HORIZONTAL: Reset width factors for %d-column equal distribution (%.2f%% each)", 
-				max_columns, 100.0f / max_columns);
+			/* Only reset mfact if no saved value exists */
+			if (saved_mfact == 0.0f) {
+				selmon->mfact = 0.5f;
+				save_workspace_mfact(); /* Save the new default value */
+				wlr_log(WLR_INFO, "[nixtile] DYNAMIC EQUAL HORIZONTAL: Reset mfact for new %d-column workspace (%.2f%% each)", 
+					max_columns, 100.0f / max_columns);
+			} else {
+				/* Preserve saved workspace mfact value */
+				selmon->mfact = saved_mfact;
+				wlr_log(WLR_INFO, "[nixtile] DYNAMIC EQUAL HORIZONTAL: Preserved saved mfact=%.3f for %d-column workspace %d", saved_mfact, max_columns, workspace);
+			}
 		}
 	} else {
 		wlr_log(WLR_DEBUG, "[nixtile] DYNAMIC EQUAL HORIZONTAL: Not applicable - stacks exist or insufficient tiles (total=%d, only_single=%d)", 
