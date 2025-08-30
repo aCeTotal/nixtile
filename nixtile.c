@@ -1264,6 +1264,12 @@ static void rebalance_all_column_heights(Monitor *m);
 static void force_immediate_equal_heights(Monitor *m, int target_column);
 static void force_immediate_equal_heights_all_columns(Monitor *m);
 
+/* Reset resizing factors for columns */
+static void comprehensive_reset_all_resizing(Monitor *m, const char *trigger_reason);
+static void reset_column_resizing_factors(Monitor *m, int target_column);
+static void reset_all_column_resizing_factors(Monitor *m);
+static void reset_resizing_on_tile_movement(Monitor *m, int target_column, Client *moved_tile);
+
 static void
 rebalance_all_column_heights(Monitor *m)
 {
@@ -1404,6 +1410,161 @@ force_immediate_equal_heights_all_columns(Monitor *m) {
 	}
 	
 	wlr_log(WLR_ERROR, "[nixtile] *** NUCLEAR ALL COMPLETE *** All columns rebalanced");
+}
+
+/* COMPREHENSIVE RESET: Reset all resizing factors for complete equal distribution */
+static void
+comprehensive_reset_all_resizing(Monitor *m, const char *trigger_reason)
+{
+	if (!m) {
+		wlr_log(WLR_ERROR, "[nixtile] COMPREHENSIVE RESET: NULL monitor");
+		return;
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] *** COMPREHENSIVE RESET *** Triggered by: %s", trigger_reason);
+	
+	/* Step 1: Force all tiles to be tiled (prevent floating) */
+	Client *c;
+	int total_tiles = 0;
+	int forced_tiled = 0;
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, m) && !c->isfullscreen) {
+			total_tiles++;
+			if (c->isfloating) {
+				c->isfloating = 0; /* Force tiled */
+				forced_tiled++;
+				wlr_log(WLR_ERROR, "[nixtile] FORCED TILED: Tile %p was floating, now tiled", (void*)c);
+			}
+		}
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] COMPREHENSIVE RESET: %d total tiles, %d forced to tiled", total_tiles, forced_tiled);
+	
+	/* Step 2: Count tiles per column and total columns */
+	int max_columns = get_workspace_optimal_columns();
+	int column_counts[MAX_COLUMNS] = {0};
+	int active_columns = 0;
+	
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen) {
+			if (c->column_group >= 0 && c->column_group < max_columns) {
+				column_counts[c->column_group]++;
+			}
+		}
+	}
+	
+	/* Count active columns */
+	for (int col = 0; col < max_columns; col++) {
+		if (column_counts[col] > 0) {
+			active_columns++;
+		}
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] COMPREHENSIVE RESET: %d active columns detected", active_columns);
+	
+	/* Step 3: Reset ALL tiles to equal distribution */
+	int reset_tiles = 0;
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen) {
+			float old_height = c->height_factor;
+			float old_width = c->width_factor;
+			
+			/* Reset to equal distribution */
+			c->height_factor = 1.0f;
+			c->width_factor = 1.0f;
+			
+			wlr_log(WLR_ERROR, "[nixtile] RESET TILE: %p col=%d height %.3f->1.000 width %.3f->1.000", 
+				(void*)c, c->column_group, old_height, old_width);
+			
+			reset_tiles++;
+		}
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] COMPREHENSIVE RESET: Reset %d tiles to equal distribution", reset_tiles);
+	
+	/* Step 4: Clear ALL workspace storage completely */
+	int current_workspace = get_current_workspace();
+	if (current_workspace >= 0 && current_workspace < 9) {
+		/* Clear all workspace storage arrays */
+		for (int i = 0; i < MAX_TILES_PER_WORKSPACE; i++) {
+			m->workspace_height_factors[current_workspace][i] = 1.0f;
+			m->workspace_width_factors[current_workspace][i] = 1.0f;
+		}
+		
+		/* Clear all manual resize flags */
+		for (int col = 0; col < MAX_COLUMNS; col++) {
+			m->workspace_manual_resize_performed[current_workspace][col] = false;
+			manual_resize_performed[col] = false;
+		}
+		
+		/* Reset workspace mfact to default equal distribution */
+		if (active_columns == 2) {
+			m->workspace_mfact[current_workspace] = 0.5f; /* 50/50 */
+			m->mfact = 0.5f;
+		} else if (active_columns == 3) {
+			m->workspace_mfact[current_workspace] = 0.333f; /* 33.33% each */
+			m->mfact = 0.333f;
+		} else {
+			m->workspace_mfact[current_workspace] = 0.5f; /* Default */
+			m->mfact = 0.5f;
+		}
+		
+		wlr_log(WLR_ERROR, "[nixtile] WORKSPACE RESET: Cleared workspace %d storage, set mfact=%.3f for %d columns", 
+			current_workspace, m->mfact, active_columns);
+	}
+	
+	/* Step 5: Force immediate layout update */
+	arrange(m);
+	
+	wlr_log(WLR_ERROR, "[nixtile] *** COMPREHENSIVE RESET COMPLETE *** All tiles reset to equal distribution");
+}
+
+/* Reset all resizing factors (height and width) for a specific column */
+static void
+reset_column_resizing_factors(Monitor *m, int target_column)
+{
+	if (!m || target_column < 0) {
+		wlr_log(WLR_ERROR, "[nixtile] RESET RESIZING: Invalid parameters - monitor=%p, column=%d", 
+			(void*)m, target_column);
+		return;
+	}
+	
+	/* Use comprehensive reset instead for complete consistency */
+	comprehensive_reset_all_resizing(m, "column reset");
+}
+
+/* Reset all resizing factors for all columns that have multiple tiles */
+static void
+reset_all_column_resizing_factors(Monitor *m)
+{
+	if (!m) {
+		wlr_log(WLR_ERROR, "[nixtile] RESET ALL RESIZING: NULL monitor");
+		return;
+	}
+	
+	/* Use comprehensive reset for complete consistency */
+	comprehensive_reset_all_resizing(m, "all columns reset");
+}
+
+/* Reset resizing factors when a tile is moved to a new column */
+static void
+reset_resizing_on_tile_movement(Monitor *m, int target_column, Client *moved_tile)
+{
+	if (!m || target_column < 0 || !moved_tile) {
+		wlr_log(WLR_ERROR, "[nixtile] RESET ON MOVEMENT: Invalid parameters");
+		return;
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] *** RESET ON TILE MOVEMENT *** Tile %p moved to column %d", 
+		(void*)moved_tile, target_column);
+	
+	/* Use comprehensive reset for complete consistency */
+	comprehensive_reset_all_resizing(m, "tile movement");
+	
+	/* Save the reset state to workspace */
+	save_workspace_state();
+	
+	wlr_log(WLR_ERROR, "[nixtile] RESET ON MOVEMENT: Saved reset state to workspace");
 }
 
 /* BROKEN PIPE PREVENTION: Throttled arrange function */
@@ -2529,6 +2690,8 @@ createnotify(struct wl_listener *listener, void *data)
 				wlr_log(WLR_DEBUG, "[nixtile] WORKSPACE ISOLATION: Reset height factor for tile %p in workspace %d column %d", (void*)temp_c, workspace, target_column);
 			}
 		}
+		
+		/* COMPREHENSIVE RESET: Will be called at the end after all processing */
 	} else {
 		/* Invalid column - fallback to equal distribution */
 		wlr_log(WLR_ERROR, "[nixtile] INVALID COLUMN: %d, using fallback equal distribution", target_column);
@@ -2619,6 +2782,10 @@ createnotify(struct wl_listener *listener, void *data)
 	if (creation_focus_timer) {
 		wl_event_source_timer_update(creation_focus_timer, 25); /* 25ms delay for creation */
 	}
+	
+	/* COMPREHENSIVE RESET: Final reset after all processing to ensure equal distribution */
+	wlr_log(WLR_ERROR, "[nixtile] CREATENOTIFY FINAL: Calling comprehensive reset after all processing");
+	comprehensive_reset_all_resizing(selmon, "tile creation final");
 }
 
 void
@@ -3333,6 +3500,10 @@ handletiledrop(Client *c, double x, double y)
 			wlr_log(WLR_DEBUG, "[nixtile] ALLOWED: Tile from stack joining single tile to create new stack in column %d (will have 2 tiles)", target_column);
 			c->column_group = target_column;
 			
+			/* RESET RESIZING: Reset resizing factors when tile moves to create new stack */
+			wlr_log(WLR_ERROR, "[nixtile] HANDLETILEDROP: Tile moved to create stack in column %d - resetting resizing factors", target_column);
+			reset_resizing_on_tile_movement(selmon, target_column, c);
+			
 			/* CRASH PREVENTION: Safe list manipulation for stack creation */
 			/* SAFETY: Validate client link before removal */
 			if (!c->link.prev || !c->link.next) {
@@ -3386,6 +3557,10 @@ handletiledrop(Client *c, double x, double y)
 			
 			wlr_log(WLR_DEBUG, "[nixtile] ALLOWED: Moving tile from stack to join existing stack in column %d (tiles=%d/%d)", target_column, tiles_in_target_column, MAX_TILES_PER_COLUMN);
 			c->column_group = target_column;
+			
+			/* RESET RESIZING: Reset resizing factors when tile moves to new column */
+			wlr_log(WLR_ERROR, "[nixtile] HANDLETILEDROP: Tile moved to column %d - resetting resizing factors", target_column);
+			reset_resizing_on_tile_movement(selmon, target_column, c);
 			
 			/* CRASH PREVENTION: Safe list manipulation for stack joining */
 			/* SAFETY: Validate client link before removal */
