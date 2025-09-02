@@ -560,8 +560,87 @@ static int resize_target_column = -1;         /* Column being resized */
 /* vertical_resize_neighbor already declared above */
 
 /* Pointer-relative resize offset variables */
-static float initial_mouse_offset = 0.0f;     /* Initial offset between mouse and edge */
-static bool offset_initialized = false;       /* Whether offset has been calculated */
+static float initial_mouse_offset = 0.0f;     /* Initial offset between mouse and edge (vertical) */
+static bool offset_initialized = false;       /* Whether vertical offset has been calculated */
+static float horizontal_mouse_offset = 0.0f;  /* Initial offset between mouse and edge (horizontal) */
+static bool horizontal_offset_initialized = false; /* Whether horizontal offset has been calculated */
+
+/* Tile safety and validation variables */
+static int pre_resize_tile_count = 0;         /* Number of tiles before resize operation */
+static bool tile_validation_enabled = true;   /* Enable comprehensive tile validation */
+
+/* Comprehensive tile validation and recovery */
+static void validate_tile_geometry(Client *c, const char *context) {
+	if (!c || !tile_validation_enabled) return;
+	
+	bool geometry_invalid = (c->geom.width <= 0 || c->geom.height <= 0 || 
+	                        c->geom.x < -10000 || c->geom.y < -10000 ||
+	                        c->geom.width > 20000 || c->geom.height > 20000);
+	
+	if (geometry_invalid) {
+		wlr_log(WLR_ERROR, "[nixtile] CRITICAL: Invalid tile geometry detected in %s - w=%d h=%d x=%d y=%d", 
+			context, c->geom.width, c->geom.height, c->geom.x, c->geom.y);
+		
+		/* Emergency geometry recovery */
+		if (c->geom.width <= 0) c->geom.width = 400;
+		if (c->geom.height <= 0) c->geom.height = 300;
+		if (c->geom.x < -5000) c->geom.x = 100;
+		if (c->geom.y < -5000) c->geom.y = 100;
+		
+		wlr_log(WLR_ERROR, "[nixtile] RECOVERY: Fixed geometry to w=%d h=%d x=%d y=%d", 
+			c->geom.width, c->geom.height, c->geom.x, c->geom.y);
+		
+		/* Force immediate rebalancing */
+		if (c->mon) arrange(c->mon);
+	}
+}
+
+static int count_visible_tiles_safe(Monitor *m) {
+	if (!m) return 0;
+	
+	int count = 0;
+	Client *c;
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen) {
+			validate_tile_geometry(c, "count_visible_tiles");
+			count++;
+		}
+	}
+	return count;
+}
+
+static void emergency_tile_recovery(Monitor *m, const char *context);
+
+static void emergency_tile_recovery(Monitor *m, const char *context) {
+	if (!m) return;
+	
+	wlr_log(WLR_ERROR, "[nixtile] EMERGENCY: Tile recovery triggered from %s", context);
+	
+	/* Count and validate all tiles */
+	int valid_tiles = 0;
+	Client *c;
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen) {
+			validate_tile_geometry(c, "emergency_recovery");
+			valid_tiles++;
+		}
+	}
+	
+	wlr_log(WLR_ERROR, "[nixtile] EMERGENCY: Found %d valid tiles, forcing rebalance", valid_tiles);
+	
+	/* Reset all height factors to ensure equal distribution */
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen) {
+			c->height_factor = 1.0f;
+		}
+	}
+	
+	/* Force immediate layout recalculation */
+	arrange(m);
+	
+	/* Update tile count for next validation */
+	pre_resize_tile_count = count_visible_tiles_safe(m);
+}
 
 /* Ultra-smooth resizing: Multi-threading and CPU optimization */
 
@@ -1648,6 +1727,15 @@ arrange(Monitor *m)
 void
 arrange_immediate(Monitor *m)
 {
+	/* SAFETY: Validate all tiles before arrange */
+	if (tile_validation_enabled) {
+		Client *c;
+		wl_list_for_each(c, &clients, link) {
+			if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen) {
+				validate_tile_geometry(c, "pre_arrange");
+			}
+		}
+	}
 	Client *c;
 
 	/* BROKEN PIPE PREVENTION: Validate monitor and output */
@@ -5283,19 +5371,19 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 				/* The edge follows the mouse while maintaining the original offset */
 				
 				/* Calculate original mouse offset from edge when resize started */
-				if (!offset_initialized) {
-					/* Store initial offset between mouse and edge */
+				if (!horizontal_offset_initialized) {
+					/* Store initial offset between mouse and edge - use absolute cursor position for horizontal */
 					if (resizing_from_left_edge) {
-						initial_mouse_offset = grabcx - grabc->geom.x;
+						horizontal_mouse_offset = (float)((int)cursor->x - grabc->geom.x);
 					} else {
-						initial_mouse_offset = grabcx - (grabc->geom.x + grabc->geom.width);
+						horizontal_mouse_offset = (float)((int)cursor->x - (grabc->geom.x + grabc->geom.width));
 					}
-					offset_initialized = true;
-					wlr_log(WLR_DEBUG, "[nixtile] HORIZONTAL OFFSET INIT: mouse_offset=%.1f, from_left=%d", initial_mouse_offset, resizing_from_left_edge);
+					horizontal_offset_initialized = true;
+					wlr_log(WLR_DEBUG, "[nixtile] HORIZONTAL OFFSET INIT: mouse_offset=%.1f, from_left=%d", horizontal_mouse_offset, resizing_from_left_edge);
 				}
 				
 				/* Calculate new edge position: mouse position minus original offset */
-				float new_edge_x = cursor->x - initial_mouse_offset;
+				float new_edge_x = cursor->x - horizontal_mouse_offset;
 				
 				/* Apply bounds checking to prevent tiles from becoming too small */
 				if (resizing_from_left_edge) {
@@ -5349,12 +5437,22 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 							(int)new_edge_x, new_current_width, new_neighbor_width);
 					}
 					
-					/* Update current tile - move left edge only */
-					grabc->geom.x = (int)new_edge_x;
-					grabc->geom.width = absolute_right_x - grabc->geom.x;
+					/* SAFETY: Validate geometry before applying */
+					int safe_new_x = (int)new_edge_x;
+					int safe_new_width = absolute_right_x - safe_new_x;
+					int safe_new_neighbor_width = (safe_new_x - gap) - neighbor_tile->geom.x;
 					
-					/* Update neighbor tile - maintain gap */
-					neighbor_tile->geom.width = (grabc->geom.x - gap) - neighbor_tile->geom.x;
+					if (safe_new_width >= 50 && safe_new_neighbor_width >= 50 && safe_new_x >= 0) {
+						/* Update current tile - move left edge only */
+						grabc->geom.x = safe_new_x;
+						grabc->geom.width = safe_new_width;
+						
+						/* Update neighbor tile - maintain gap */
+						neighbor_tile->geom.width = safe_new_neighbor_width;
+					} else {
+						wlr_log(WLR_ERROR, "[nixtile] SAFETY: Prevented invalid geometry - current=%d, neighbor=%d at x=%d", 
+							safe_new_width, safe_new_neighbor_width, safe_new_x);
+					}
 					
 					/* VERIFICATION: Right edge should remain at absolute_right_x */
 					wlr_log(WLR_DEBUG, "[nixtile] EDGE_LEFT: Right edge locked at %d, new left at %.1f, width=%d", 
@@ -5412,21 +5510,50 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 							(int)new_edge_x, new_current_width, new_neighbor_width);
 					}
 					
-					/* Update current tile - move right edge only */
-					grabc->geom.width = (int)new_edge_x - absolute_left_x;
+					/* SAFETY: Validate geometry before applying */
+					int safe_right_width = (int)new_edge_x - absolute_left_x;
+					int safe_right_neighbor_x = (int)new_edge_x + gap;
+					int safe_right_neighbor_width = old_neighbor_right - safe_right_neighbor_x;
 					
-					/* Update neighbor tile - maintain gap */
-					neighbor_tile->geom.x = (int)new_edge_x + gap;
-					neighbor_tile->geom.width = old_neighbor_right - neighbor_tile->geom.x;
+					if (safe_right_width >= 50 && safe_right_neighbor_width >= 50 && safe_right_neighbor_x >= 0) {
+						/* Update current tile - move right edge only */
+						grabc->geom.width = safe_right_width;
+						
+						/* Update neighbor tile - maintain gap */
+						neighbor_tile->geom.x = safe_right_neighbor_x;
+						neighbor_tile->geom.width = safe_right_neighbor_width;
+					} else {
+						wlr_log(WLR_ERROR, "[nixtile] SAFETY: Prevented invalid geometry - current=%d, neighbor=%d at x=%d", 
+							safe_right_width, safe_right_neighbor_width, safe_right_neighbor_x);
+					}
 					
 					/* VERIFICATION: Left edge should remain at absolute_left_x */
 					wlr_log(WLR_DEBUG, "[nixtile] EDGE_RIGHT: Left edge locked at %d, new right at %.1f, width=%d", 
 						absolute_left_x, new_edge_x, grabc->geom.width);
 				}
 				
-				/* Apply changes immediately for real-time feedback */
-				client_set_size(grabc, grabc->geom.width, grabc->geom.height);
-				client_set_size(neighbor_tile, neighbor_tile->geom.width, neighbor_tile->geom.height);
+				/* SAFETY: Final validation before applying changes */
+				if (grabc->geom.width > 0 && grabc->geom.height > 0 && 
+				    neighbor_tile->geom.width > 0 && neighbor_tile->geom.height > 0) {
+					/* Apply changes immediately for real-time feedback */
+					client_set_size(grabc, grabc->geom.width, grabc->geom.height);
+					client_set_size(neighbor_tile, neighbor_tile->geom.width, neighbor_tile->geom.height);
+					
+					/* POST-RESIZE VALIDATION: Check if tiles disappeared */
+					validate_tile_geometry(grabc, "post_horizontal_resize");
+					validate_tile_geometry(neighbor_tile, "post_horizontal_resize");
+					
+					int post_resize_tile_count = count_visible_tiles_safe(selmon);
+					if (post_resize_tile_count < pre_resize_tile_count) {
+						wlr_log(WLR_ERROR, "[nixtile] TILE LOSS DETECTED: %d -> %d tiles, triggering emergency recovery", 
+							pre_resize_tile_count, post_resize_tile_count);
+						emergency_tile_recovery(selmon, "horizontal_resize_tile_loss");
+					}
+				} else {
+					wlr_log(WLR_ERROR, "[nixtile] CRITICAL SAFETY: Prevented zero/negative size - grabc=%dx%d, neighbor=%dx%d", 
+						grabc->geom.width, grabc->geom.height, neighbor_tile->geom.width, neighbor_tile->geom.height);
+					emergency_tile_recovery(selmon, "horizontal_resize_invalid_geometry");
+				}
 				
 				/* COLUMN SYNCHRONIZATION: Update all tiles in both affected columns */
 				Client *sync_c;
@@ -5539,18 +5666,35 @@ skip_horizontal_resize:
 				
 				/* Calculate original mouse offset from edge when resize started */
 				if (!offset_initialized) {
-					/* Store initial offset between mouse and edge */
+					/* Store initial offset between cursor and actual edge position */
 					if (resize_from_top_edge) {
-						initial_mouse_offset = grabcy - grabc->geom.y;
+						/* For top edge: offset from cursor to top edge */
+						initial_mouse_offset = cursor->y - (float)grabc->geom.y;
+						wlr_log(WLR_DEBUG, "[nixtile] TOP EDGE OFFSET: cursor_y=%.1f, top_edge=%d, offset=%.1f", 
+							cursor->y, grabc->geom.y, initial_mouse_offset);
 					} else {
-						initial_mouse_offset = grabcy - (grabc->geom.y + grabc->geom.height);
+						/* For bottom edge: offset from cursor to bottom edge */
+						int bottom_edge = grabc->geom.y + grabc->geom.height;
+						initial_mouse_offset = cursor->y - (float)bottom_edge;
+						wlr_log(WLR_DEBUG, "[nixtile] BOTTOM EDGE OFFSET: cursor_y=%.1f, bottom_edge=%d, offset=%.1f", 
+							cursor->y, bottom_edge, initial_mouse_offset);
 					}
 					offset_initialized = true;
-					wlr_log(WLR_DEBUG, "[nixtile] VERTICAL OFFSET INIT: mouse_offset=%.1f, from_top=%d", initial_mouse_offset, resize_from_top_edge);
 				}
 				
-				/* Calculate new edge position: mouse position minus original offset */
-				float new_edge_y = cursor->y - initial_mouse_offset;
+				/* Calculate new edge position: maintain constant cursor-to-edge distance for both edges */
+				float new_edge_y;
+				if (resize_from_top_edge) {
+					/* For top edge: new edge follows cursor maintaining offset */
+					new_edge_y = cursor->y - initial_mouse_offset;
+					wlr_log(WLR_DEBUG, "[nixtile] TOP EDGE CALC: cursor_y=%.1f, offset=%.1f, new_edge=%.1f", 
+						cursor->y, initial_mouse_offset, new_edge_y);
+				} else {
+					/* For bottom edge: new edge follows cursor maintaining offset */
+					new_edge_y = cursor->y - initial_mouse_offset;
+					wlr_log(WLR_DEBUG, "[nixtile] BOTTOM EDGE CALC: cursor_y=%.1f, offset=%.1f, new_edge=%.1f", 
+						cursor->y, initial_mouse_offset, new_edge_y);
+				}
 				
 				/* Apply bounds checking to prevent tiles from becoming too small */
 				if (resize_from_top_edge) {
@@ -5609,11 +5753,26 @@ skip_horizontal_resize:
 					/* SIMPLE UPDATE: 150px minimum already guaranteed above */
 					
 					/* Update current tile - move top edge only */
-					grabc->geom.y = (int)new_edge_y;
-					grabc->geom.height = absolute_bottom_y - grabc->geom.y;
+					/* ANTI-JUMP: Ensure first update doesn't cause visual jump */
+					int target_y = (int)new_edge_y;
 					
-					/* Update neighbor tile - maintain gap */
-					neighbor_tile->geom.height = (grabc->geom.y - gap) - neighbor_tile->geom.y;
+					/* SAFETY: Validate geometry before applying */
+					int safe_top_height = absolute_bottom_y - target_y;
+					int safe_top_neighbor_height = (target_y - gap) - neighbor_tile->geom.y;
+					
+					if (safe_top_height >= 50 && safe_top_neighbor_height >= 50) {
+						grabc->geom.y = target_y;
+						grabc->geom.height = safe_top_height;
+						
+						wlr_log(WLR_DEBUG, "[nixtile] TOP EDGE UPDATE: target_y=%d, actual_y=%d, height=%d", 
+							target_y, grabc->geom.y, grabc->geom.height);
+						
+						/* Update neighbor tile - maintain gap */
+						neighbor_tile->geom.height = safe_top_neighbor_height;
+					} else {
+						wlr_log(WLR_ERROR, "[nixtile] SAFETY: Prevented invalid geometry - current=%d, neighbor=%d", 
+							safe_top_height, safe_top_neighbor_height);
+					}
 					
 					/* VERIFICATION: Bottom edge should remain at absolute_bottom_y */
 					wlr_log(WLR_DEBUG, "[nixtile] EDGE_TOP: Bottom edge locked at %d, new top at %.1f, height=%d", 
@@ -5675,21 +5834,50 @@ skip_horizontal_resize:
 					
 					/* SIMPLE UPDATE: 150px minimum already guaranteed above */
 					
-					/* Update current tile - move bottom edge only */
-					grabc->geom.height = (int)new_edge_y - absolute_top_y;
+					/* SAFETY: Validate geometry before applying */
+					int safe_bottom_height = (int)new_edge_y - absolute_top_y;
+					int safe_bottom_neighbor_y = (int)new_edge_y + gap;
+					int safe_bottom_neighbor_height = old_neighbor_bottom - safe_bottom_neighbor_y;
 					
-					/* Update neighbor tile - maintain gap */
-					neighbor_tile->geom.y = (int)new_edge_y + gap;
-					neighbor_tile->geom.height = old_neighbor_bottom - neighbor_tile->geom.y;
+					if (safe_bottom_height >= 50 && safe_bottom_neighbor_height >= 50 && safe_bottom_neighbor_y >= 0) {
+						/* Update current tile - move bottom edge only */
+						grabc->geom.height = safe_bottom_height;
+						
+						/* Update neighbor tile - maintain gap */
+						neighbor_tile->geom.y = safe_bottom_neighbor_y;
+						neighbor_tile->geom.height = safe_bottom_neighbor_height;
+					} else {
+						wlr_log(WLR_ERROR, "[nixtile] SAFETY: Prevented invalid geometry - current=%d, neighbor=%d at y=%d", 
+							safe_bottom_height, safe_bottom_neighbor_height, safe_bottom_neighbor_y);
+					}
 					
 					/* VERIFICATION: Top edge should remain at absolute_top_y */
 					wlr_log(WLR_DEBUG, "[nixtile] EDGE_BOTTOM: Top edge locked at %d, new bottom at %.1f, height=%d", 
 						absolute_top_y, new_edge_y, grabc->geom.height);
 				}
 				
-				/* Apply changes immediately for real-time feedback */
-				client_set_size(grabc, grabc->geom.width, grabc->geom.height);
-				client_set_size(neighbor_tile, neighbor_tile->geom.width, neighbor_tile->geom.height);
+				/* SAFETY: Final validation before applying changes */
+				if (grabc->geom.width > 0 && grabc->geom.height > 0 && 
+				    neighbor_tile->geom.width > 0 && neighbor_tile->geom.height > 0) {
+					/* Apply changes immediately for real-time feedback */
+					client_set_size(grabc, grabc->geom.width, grabc->geom.height);
+					client_set_size(neighbor_tile, neighbor_tile->geom.width, neighbor_tile->geom.height);
+					
+					/* POST-RESIZE VALIDATION: Check if tiles disappeared */
+					validate_tile_geometry(grabc, "post_vertical_resize");
+					validate_tile_geometry(neighbor_tile, "post_vertical_resize");
+					
+					int post_resize_tile_count = count_visible_tiles_safe(selmon);
+					if (post_resize_tile_count < pre_resize_tile_count) {
+						wlr_log(WLR_ERROR, "[nixtile] TILE LOSS DETECTED: %d -> %d tiles, triggering emergency recovery", 
+							pre_resize_tile_count, post_resize_tile_count);
+						emergency_tile_recovery(selmon, "vertical_resize_tile_loss");
+					}
+				} else {
+					wlr_log(WLR_ERROR, "[nixtile] CRITICAL SAFETY: Prevented zero/negative size - grabc=%dx%d, neighbor=%dx%d", 
+						grabc->geom.width, grabc->geom.height, neighbor_tile->geom.width, neighbor_tile->geom.height);
+					emergency_tile_recovery(selmon, "vertical_resize_invalid_geometry");
+				}
 				
 				/* WORKSPACE PERSISTENCE: Update height factors to preserve changes across workspace switches */
 				int workspace = get_current_workspace();
@@ -6969,9 +7157,9 @@ tileresize(const Arg *arg)
 		return;
 	}
 	
-	/* Store initial state */
-	grabcx = (int)cursor->x;
-	grabcy = (int)cursor->y;
+	/* Store initial state - use relative position for consistent bi-axial behavior */
+	grabcx = (int)cursor->x - target_tile->tile->geom.x;
+	grabcy = (int)cursor->y - target_tile->tile->geom.y;
 	
 	/* Set cursor mode and store resize context */
 	cursor_mode = CurTileResize;
@@ -6983,6 +7171,11 @@ tileresize(const Arg *arg)
 	/* CRITICAL: Reset offset for true 1:1 pointer-relative behavior from first movement */
 	offset_initialized = false;
 	initial_mouse_offset = 0.0f;
+	horizontal_offset_initialized = false;
+	horizontal_mouse_offset = 0.0f;
+	
+	/* SAFETY: Record tile count before resize operation */
+	pre_resize_tile_count = count_visible_tiles_safe(selmon);
 	
 	/* BI-AXIAL SETUP: Handle both horizontal and vertical edges */
 	bool has_vertical_edge = (edge & (EDGE_TOP | EDGE_BOTTOM)) != 0;
