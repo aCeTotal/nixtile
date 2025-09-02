@@ -2754,37 +2754,25 @@ createnotify(struct wl_listener *listener, void *data)
 		rebalance_column_heights(selmon, c->column_group);
 	}
 	
-	/* STEP 5: RESET MANUAL RESIZE - Always reset and enforce equal distribution on tile addition */
-	int target_column = c->column_group;
-	if (target_column >= 0 && target_column < MAX_COLUMNS) {
-		/* WORKSPACE ISOLATION: Use workspace-specific manual resize state */
-		int workspace = get_current_workspace();
-		if (selmon && workspace >= 0 && workspace < 9 && selmon->workspace_manual_resize_performed[workspace][target_column]) {
-			wlr_log(WLR_INFO, "[nixtile] WORKSPACE ISOLATION: Resetting manual resize flag for workspace %d column %d - enforcing equal distribution on tile addition", workspace, target_column);
-			selmon->workspace_manual_resize_performed[workspace][target_column] = false;
-			/* Also update global state for compatibility */
-			manual_resize_performed[target_column] = false;
+	/* STEP 5: RESET MANUAL RESIZE - Always reset ALL manual resize flags on tile addition */
+	int workspace = get_current_workspace();
+	if (selmon && workspace >= 0 && workspace < 9) {
+		/* Reset ALL manual resize flags for ALL columns when any tile is added */
+		for (int col = 0; col < MAX_COLUMNS; col++) {
+			selmon->workspace_manual_resize_performed[workspace][col] = false;
+			manual_resize_performed[col] = false;
 		}
-		
-		/* WORKSPACE ISOLATION: Set all tiles in target column to equal height factors (workspace-specific) */
-		wlr_log(WLR_INFO, "[nixtile] WORKSPACE ISOLATION: Setting equal height factors in workspace %d column %d", workspace, target_column);
-		Client *temp_c;
-		wl_list_for_each(temp_c, &clients, link) {
-			/* WORKSPACE ISOLATION: Only affect tiles in current workspace */
-			if (!VISIBLEON(temp_c, selmon) || temp_c->isfloating || temp_c->isfullscreen)
-				continue;
-			if (temp_c->column_group == target_column) {
-				temp_c->height_factor = 1.0f;
-				wlr_log(WLR_DEBUG, "[nixtile] WORKSPACE ISOLATION: Reset height factor for tile %p in workspace %d column %d", (void*)temp_c, workspace, target_column);
-			}
-		}
-		
-		/* COMPREHENSIVE RESET: Will be called at the end after all processing */
-	} else {
-		/* Invalid column - fallback to equal distribution */
-		wlr_log(WLR_ERROR, "[nixtile] INVALID COLUMN: %d, using fallback equal distribution", target_column);
-		c->height_factor = 1.0f;
-		c->width_factor = 1.0f;
+		wlr_log(WLR_ERROR, "[nixtile] CREATENOTIFY: Reset ALL manual resize flags for workspace %d on tile addition", workspace);
+	}
+	
+	/* RESET ALL HEIGHT FACTORS: Set all tiles to equal height factors on tile addition */
+	Client *reset_c;
+	wl_list_for_each(reset_c, &clients, link) {
+		/* Only affect tiles in current workspace */
+		if (!VISIBLEON(reset_c, selmon) || reset_c->isfloating || reset_c->isfullscreen)
+			continue;
+		reset_c->height_factor = 1.0f;
+		wlr_log(WLR_DEBUG, "[nixtile] CREATENOTIFY: Reset height factor for tile %p in workspace %d", (void*)reset_c, workspace);
 	}
 	
 	/* STEP 5: Final verification */
@@ -4133,12 +4121,15 @@ handletiledrop_old(Client *c, double x, double y)
 		wlr_log(WLR_DEBUG, "[nixtile] Moved tile from column %d to column %d (cross-column swap)", old_column, target_column);
 	}
 	
-	/* EQUAL DISTRIBUTION: Reset manual resize flags and ensure equal distribution after tile movement */
-	/* Reset manual resize flags to enforce equal distribution on tile movement */
-	if (manual_resize_performed[0] || manual_resize_performed[1]) {
-		wlr_log(WLR_INFO, "[nixtile] EQUAL DISTRIBUTION: Resetting manual resize flags on tile movement - enforcing equal distribution");
-		manual_resize_performed[0] = false;
-		manual_resize_performed[1] = false;
+	/* RESET MANUAL RESIZE STATE: Clear all manual resize flags on tile movement */
+	int workspace = get_current_workspace();
+	if (workspace >= 0 && workspace < 9) {
+		/* Reset ALL manual resize flags for ALL columns when any tile is moved */
+		for (int col = 0; col < MAX_COLUMNS; col++) {
+			m->workspace_manual_resize_performed[workspace][col] = false;
+			manual_resize_performed[col] = false;
+		}
+		wlr_log(WLR_ERROR, "[nixtile] HANDLETILEDROP: Reset ALL manual resize flags for workspace %d on tile movement", workspace);
 	}
 	
 	/* EQUAL DISTRIBUTION: Check if we need equal horizontal distribution for single tiles */
@@ -4161,24 +4152,14 @@ handletiledrop_old(Client *c, double x, double y)
 		}
 	}
 	
-	/* Tving lik fordeling i hver kolonne */
-	for (int col = 0; col < MAX_COLUMNS; col++) {
-		if (tiles_per_column[col] > 1) {
-			wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT: Kolonne %d har %d tiles - tvinger %.1f%% hver", 
-			        col, tiles_per_column[col], 100.0f / tiles_per_column[col]);
-			
-			Client *rebalance_c;
-			wl_list_for_each(rebalance_c, &clients, link) {
-				if (VISIBLEON(rebalance_c, m) && !rebalance_c->isfloating && !rebalance_c->isfullscreen && 
-				    rebalance_c->column_group == col) {
-					
-					float old_factor = rebalance_c->height_factor;
-					rebalance_c->height_factor = 1.0f;
-					
-					wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT: Tile %p kolonne %d: %.3f -> 1.000", 
-					        (void*)rebalance_c, col, old_factor);
-				}
-			}
+	/* RESET ALL HEIGHT FACTORS: Set all tiles to equal height factors on tile movement */
+	Client *reset_all_c;
+	wl_list_for_each(reset_all_c, &clients, link) {
+		if (VISIBLEON(reset_all_c, m) && !reset_all_c->isfloating && !reset_all_c->isfullscreen) {
+			float old_factor = reset_all_c->height_factor;
+			reset_all_c->height_factor = 1.0f;
+			wlr_log(WLR_ERROR, "[nixtile] HANDLETILEDROP: Reset height factor for tile %p: %.3f -> 1.000", 
+			        (void*)reset_all_c, old_factor);
 		}
 	}
 	
@@ -4445,9 +4426,30 @@ destroynotify(struct wl_listener *listener, void *data)
 		/* Clear emergency protection flag to allow future arrange() calls */
 		client_destruction_in_progress = 0;
 		
+		/* RESET MANUAL RESIZE STATE: Clear all manual resize flags on tile deletion */
+		int workspace = get_current_workspace();
+		if (workspace >= 0 && workspace < 9) {
+			for (int col = 0; col < MAX_COLUMNS; col++) {
+				saved_mon->workspace_manual_resize_performed[workspace][col] = false;
+				manual_resize_performed[col] = false;
+			}
+			wlr_log(WLR_ERROR, "[nixtile] DESTROYNOTIFY: Reset all manual resize flags for workspace %d", workspace);
+		}
+		
 		/* CRITICAL: Rebalance column assignments after tile deletion */
 		wlr_log(WLR_DEBUG, "[nixtile] COLUMN REBALANCE: Fixing column assignments after tile deletion");
 		rebalance_column_assignments(saved_mon);
+		
+		/* RESET ALL HEIGHT FACTORS: Set all remaining tiles to equal height factors on tile deletion */
+		Client *reset_remaining_c;
+		wl_list_for_each(reset_remaining_c, &clients, link) {
+			if (VISIBLEON(reset_remaining_c, saved_mon) && !reset_remaining_c->isfloating && !reset_remaining_c->isfullscreen) {
+				float old_factor = reset_remaining_c->height_factor;
+				reset_remaining_c->height_factor = 1.0f;
+				wlr_log(WLR_ERROR, "[nixtile] DESTROYNOTIFY: Reset height factor for remaining tile %p: %.3f -> 1.000", 
+				        (void*)reset_remaining_c, old_factor);
+			}
+		}
 		
 		/* AUTOMATIC HEIGHT REBALANCING: Reset tile heights after tile removal */
 		wlr_log(WLR_ERROR, "[nixtile] DESTROYNOTIFY: Tile removed - triggering height rebalancing for all columns");
