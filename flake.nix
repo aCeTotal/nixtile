@@ -10,7 +10,8 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
-        nixtilePackage = pkgs.callPackage ./nix/nixtile/package.nix { };
+        wlrootsPkg = pkgs.wlroots_0_19;
+        nixtilePackage = pkgs.callPackage ./nix/nixtile/package.nix { wlroots = wlrootsPkg; };
       in {
         packages = {
           default = nixtilePackage;
@@ -28,7 +29,7 @@
             pkgs.gcc
             pkgs.pkg-config
             pkgs.wayland
-            pkgs.wlroots
+            wlrootsPkg
             pkgs.libinput
             pkgs.xorg.libxcb
             pkgs.xorg.xcbutil
@@ -46,6 +47,7 @@
             pkgs.xorg.libXi
             pkgs.libxkbcommon
             pkgs.mesa
+            pkgs.vulkan-loader
             pkgs.libGL
             pkgs.libglvnd
             pkgs.wayland-protocols

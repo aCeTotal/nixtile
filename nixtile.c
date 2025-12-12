@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <time.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <sched.h>
@@ -85,9 +86,9 @@ static struct wlr_scene_rect *launcher_rect = NULL;
 static struct wlr_scene_rect *launcher_tab_rects[3] = {NULL, NULL, NULL};
 
 // Launcher colors (RGBA)
-static const float launcher_bg_color[4] = {0.08, 0.09, 0.12, 0.97};
-static const float launcher_tab_color[4] = {0.13, 0.14, 0.18, 1.0};
-static const float launcher_tab_active_color[4] = {0.22, 0.24, 0.32, 1.0};
+static const float launcher_bg_color[4] = {0.08f, 0.09f, 0.12f, 0.97f};
+static const float launcher_tab_color[4] = {0.13f, 0.14f, 0.18f, 1.0f};
+static const float launcher_tab_active_color[4] = {0.22f, 0.24f, 0.32f, 1.0f};
 
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
@@ -101,7 +102,6 @@ static const float launcher_tab_active_color[4] = {0.22, 0.24, 0.32, 1.0};
 
 #include "util.h"
 #include "gpu_acceleration.h"
-#include <wlr/render/gles2.h>
 #include <wlr/render/pixman.h>
 
 /* macros */
@@ -114,6 +114,7 @@ static const float launcher_tab_active_color[4] = {0.22, 0.24, 0.32, 1.0};
 #define TAGMASK                 ((1u << TAGCOUNT) - 1)
 #define LISTEN(E, L, H)         wl_signal_add((E), ((L)->notify = (H), (L)))
 #define LISTEN_STATIC(E, H)     do { struct wl_listener *_l = ecalloc(1, sizeof(*_l)); _l->notify = (H); wl_signal_add((E), _l); } while (0)
+#define UNUSED __attribute__((unused))
 
 /* STRICT TILE LIMITS: Norwegian user requirements */
 #define MAX_TILES_PER_STACK     4
@@ -338,6 +339,7 @@ static void createkeyboard(struct wlr_keyboard *keyboard);
 static KeyboardGroup *createkeyboardgroup(void);
 static void createlayersurface(struct wl_listener *listener, void *data);
 static void createlocksurface(struct wl_listener *listener, void *data);
+static void apply_system_keymap_defaults(struct xkb_rule_names *rules);
 static void createmon(struct wl_listener *listener, void *data);
 static void createnotify(struct wl_listener *listener, void *data);
 static void createpointer(struct wlr_pointer *pointer);
@@ -361,10 +363,10 @@ static void handle_empty_column_expansion(void);
 static bool validate_client_list_integrity(void);
 static int count_tiles_in_stack(int column, Monitor *m);
 static int count_total_tiles_in_workspace(Monitor *m);
-static int find_available_stack(Monitor *m);
+static int find_available_stack(Monitor *m) UNUSED;
 static int find_available_workspace(void);
 static int get_current_workspace(void);
-static void load_workspace_mfact(void);
+static void load_workspace_mfact(void) UNUSED;
 static void save_workspace_mfact(void);
 static float get_workspace_mfact(void);
 static void init_workspace_state(int workspace);
@@ -372,8 +374,8 @@ static void load_workspace_state(void);
 static void save_workspace_state(void);
 static int get_workspace_nmaster(void);
 static int get_workspace_optimal_columns(void);
-static void set_workspace_nmaster(int value);
-static void set_workspace_optimal_columns(int value);
+static void set_workspace_nmaster(int value) UNUSED;
+static void set_workspace_optimal_columns(int value) UNUSED;
 static void destroysessionlock(struct wl_listener *listener, void *data);
 static void destroykeyboardgroup(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(enum wlr_direction dir);
@@ -388,7 +390,6 @@ static void gpureset(struct wl_listener *listener, void *data);
 static void handlesig(int signo);
 static void incnmaster(const Arg *arg);
 static int get_optimal_columns(int screen_width, int screen_height);
-static int get_optimal_master_tiles(int screen_width, int screen_height);
 static void update_dynamic_master_tiles(Monitor *m);
 static void inputdevice(struct wl_listener *listener, void *data);
 static int keybinding(uint32_t mods, xkb_keysym_t sym);
@@ -413,8 +414,6 @@ static void motionrelative(struct wl_listener *listener, void *data);
 static void moveresize(const Arg *arg);
 static void tileresize(const Arg *arg);
 static void handletiledrop(Client *c, double x, double y);
-static void swap_tiles_in_list(Client *c1, Client *c2);
-static void handletiledrop_old(Client *c, double x, double y);
 static void outputmgrapply(struct wl_listener *listener, void *data);
 static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test);
 static void outputmgrtest(struct wl_listener *listener, void *data);
@@ -426,6 +425,7 @@ static void quit(const Arg *arg);
 static void rendermon(struct wl_listener *listener, void *data);
 static void requestdecorationmode(struct wl_listener *listener, void *data);
 static void requeststartdrag(struct wl_listener *listener, void *data);
+static void schedule_statusbar_timer(void);
 static void requestmonstate(struct wl_listener *listener, void *data);
 static void resize(Client *c, struct wlr_box geo, int interact);
 static void run(char *startup_cmd);
@@ -433,7 +433,6 @@ static void setcursor(struct wl_listener *listener, void *data);
 static void setcursorshape(struct wl_listener *listener, void *data);
 static void setfloating(Client *c, int floating);
 static void force_column_tiling(Monitor *m);
-static void rebalance_all_columns(Monitor *m, const char *context);
 static void setfullscreen(Client *c, int fullscreen);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
@@ -449,13 +448,14 @@ static void startdrag(struct wl_listener *listener, void *data);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
-static void togglecolumn(const Arg *arg);
+static void togglecolumn(const Arg *arg) UNUSED;
 static void togglefloating(const Arg *arg);
 static void togglefullscreen(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void unlocksession(struct wl_listener *listener, void *data);
 static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
+static int statusbar_tick(void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static void updatemons(struct wl_listener *listener, void *data);
 static void updatetitle(struct wl_listener *listener, void *data);
@@ -466,7 +466,8 @@ static void virtualpointer(struct wl_listener *listener, void *data);
 static Monitor *xytomon(double x, double y);
 static void xytonode(double x, double y, struct wlr_surface **psurface,
 		Client **pc, LayerSurface **pl, double *nx, double *ny);
-static void zoom(const Arg *arg);
+static void zoom(const Arg *arg) UNUSED;
+static bool layout_is_norwegian(const char *layout);
 
 /* variables */
 static pid_t child_pid = -1;
@@ -514,18 +515,13 @@ static struct wlr_session_lock_manager_v1 *session_lock_mgr;
 static struct wlr_scene_rect *locked_bg;
 static struct wlr_session_lock_v1 *cur_lock;
 
+static bool keyboard_layout_is_norwegian = false;
+static struct wl_event_source *statusbar_timer;
 static struct wlr_seat *seat;
 static KeyboardGroup *kb_group;
 static unsigned int cursor_mode;
 static Client *grabc;
 static int grabcx, grabcy, grabedge; /* client-relative */
-static float initial_mfact; /* for pointer-relative resizing */
-static int initial_edge_x; /* for pointer-relative resizing */
-static int initial_edge_y; /* for vertical pointer-relative resizing */
-static Client *initial_resize_client; /* client being resized vertically */
-static Client *initial_resize_neighbor; /* neighbor client for vertical resizing */
-static bool resizing_from_top_edge; /* true if resizing from top edge of a tile */
-
 /* Horizontal tile resizing variables */
 static Client *horizontal_resize_client; /* client being resized horizontally */
 static Client *horizontal_resize_neighbor; /* neighbor client for horizontal resizing */
@@ -551,7 +547,6 @@ static int pending_left_width = 0;
 static int pending_right_x = 0;
 static int pending_right_width = 0;
 static struct wl_event_source *resize_timer = NULL;
-static struct timespec resize_start_time = {0}; /* Track resize operation start time */
 static bool resize_operation_active = false;    /* Track if resize is currently active */
 
 /* Grid-based resizing variables */
@@ -654,11 +649,7 @@ static Monitor *pending_arrange_monitor = NULL;
 /* Missing resize timing variables */
 static uint32_t last_horizontal_resize_time = 0;
 static uint32_t last_vertical_resize_time = 0;
-static struct wl_event_source *resize_timer_source = NULL;
-static int gap = 5;  /* Default gap value */
-static pthread_t layout_thread;
 static pthread_mutex_t layout_mutex = PTHREAD_MUTEX_INITIALIZER;
-static bool layout_thread_active = false;
 static bool high_performance_mode = false;
 
 static struct wlr_output_layout *output_layout;
@@ -1341,12 +1332,9 @@ rebalance_column_heights(Monitor *m, int target_column)
 /* Rebalance heights for all columns that have tiles */
 static void rebalance_all_column_heights(Monitor *m);
 static void force_immediate_equal_heights(Monitor *m, int target_column);
-static void force_immediate_equal_heights_all_columns(Monitor *m);
 
 /* Reset resizing factors for columns */
 static void comprehensive_reset_all_resizing(Monitor *m, const char *trigger_reason);
-static void reset_column_resizing_factors(Monitor *m, int target_column);
-static void reset_all_column_resizing_factors(Monitor *m);
 static void reset_resizing_on_tile_movement(Monitor *m, int target_column, Client *moved_tile);
 
 static void
@@ -1375,7 +1363,7 @@ rebalance_all_column_heights(Monitor *m)
 }
 
 /* DIRECT IMMEDIATE REBALANCING: Nuclear option to force equal heights instantly */
-static void
+static void UNUSED
 force_immediate_equal_heights(Monitor *m, int target_column) {
 	if (!m || target_column < 0) {
 		wlr_log(WLR_ERROR, "[nixtile] IMMEDIATE REBALANCE: Invalid parameters");
@@ -1456,39 +1444,6 @@ force_immediate_equal_heights(Monitor *m, int target_column) {
 	
 	wlr_log(WLR_ERROR, "[nixtile] *** NUCLEAR REBALANCE COMPLETE *** Column %d: %d tiles at %.1f%% each", 
 	        target_column, tile_count, 100.0f / tile_count);
-}
-
-/* Force equal heights for ALL columns - complete nuclear option */
-static void
-force_immediate_equal_heights_all_columns(Monitor *m) {
-	if (!m) {
-		wlr_log(WLR_ERROR, "[nixtile] NUCLEAR ALL: NULL monitor");
-		return;
-	}
-	
-	wlr_log(WLR_ERROR, "[nixtile] *** NUCLEAR REBALANCE ALL COLUMNS *** - COMPLETE RESET");
-	
-	/* Get optimal columns for current workspace */
-	int optimal_columns = get_workspace_optimal_columns();
-	
-	/* Force rebalance each column that has tiles */
-	for (int col = 0; col < optimal_columns && col < MAX_COLUMNS; col++) {
-		int tiles_in_column = 0;
-		Client *c;
-		wl_list_for_each(c, &clients, link) {
-			if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen && 
-			    c->column_group == col) {
-				tiles_in_column++;
-			}
-		}
-		
-		if (tiles_in_column > 1) {
-			wlr_log(WLR_ERROR, "[nixtile] NUCLEAR ALL: Rebalancing column %d (%d tiles)", col, tiles_in_column);
-			force_immediate_equal_heights(m, col);
-		}
-	}
-	
-	wlr_log(WLR_ERROR, "[nixtile] *** NUCLEAR ALL COMPLETE *** All columns rebalanced");
 }
 
 /* COMPREHENSIVE RESET: Reset all resizing factors for complete equal distribution */
@@ -1596,33 +1551,6 @@ comprehensive_reset_all_resizing(Monitor *m, const char *trigger_reason)
 	arrange(m);
 	
 	wlr_log(WLR_ERROR, "[nixtile] *** COMPREHENSIVE RESET COMPLETE *** All tiles reset to equal distribution");
-}
-
-/* Reset all resizing factors (height and width) for a specific column */
-static void
-reset_column_resizing_factors(Monitor *m, int target_column)
-{
-	if (!m || target_column < 0) {
-		wlr_log(WLR_ERROR, "[nixtile] RESET RESIZING: Invalid parameters - monitor=%p, column=%d", 
-			(void*)m, target_column);
-		return;
-	}
-	
-	/* Use comprehensive reset instead for complete consistency */
-	comprehensive_reset_all_resizing(m, "column reset");
-}
-
-/* Reset all resizing factors for all columns that have multiple tiles */
-static void
-reset_all_column_resizing_factors(Monitor *m)
-{
-	if (!m) {
-		wlr_log(WLR_ERROR, "[nixtile] RESET ALL RESIZING: NULL monitor");
-		return;
-	}
-	
-	/* Use comprehensive reset for complete consistency */
-	comprehensive_reset_all_resizing(m, "all columns reset");
 }
 
 /* Reset resizing factors when a tile is moved to a new column */
@@ -2340,9 +2268,23 @@ createkeyboardgroup(void)
 
 	/* Prepare an XKB keymap and assign it to the keyboard group. */
 	context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-	if (!(keymap = xkb_keymap_new_from_names(context, &xkb_rules,
-				XKB_KEYMAP_COMPILE_NO_FLAGS)))
+
+	struct xkb_rule_names rules = xkb_rules; /* user config takes priority */
+	apply_system_keymap_defaults(&rules);    /* fill from system/env if config left them empty */
+
+	if (!(keymap = xkb_keymap_new_from_names(context, &rules, XKB_KEYMAP_COMPILE_NO_FLAGS)))
 		die("failed to compile keymap");
+
+	keyboard_layout_is_norwegian = layout_is_norwegian(rules.layout);
+	wlr_log(WLR_INFO,
+		"[nixtile] KEYBOARD: Using keymap rules=%s model=%s layout=%s variant=%s options=%s",
+		rules.rules ? rules.rules : "default",
+		rules.model ? rules.model : "default",
+		rules.layout ? rules.layout : "default",
+		rules.variant ? rules.variant : "default",
+		rules.options ? rules.options : "default");
+	if (keyboard_layout_is_norwegian)
+		wlr_log(WLR_INFO, "[nixtile] KEYBOARD: Norwegian layout detected -> using 24h clock format");
 
 	wlr_keyboard_set_keymap(&group->wlr_group->keyboard, keymap);
 	xkb_keymap_unref(keymap);
@@ -2416,7 +2358,141 @@ createlocksurface(struct wl_listener *listener, void *data)
 		client_notify_enter(lock_surface->surface, wlr_seat_get_keyboard(seat));
 }
 
+static void
+trim_whitespace_and_quotes(char *value)
+{
+	if (!value)
+		return;
+
+	while (isspace((unsigned char)*value))
+		memmove(value, value + 1, strlen(value));
+
+	for (ssize_t i = (ssize_t)strlen(value) - 1; i >= 0 && isspace((unsigned char)value[i]); i--)
+		value[i] = '\0';
+
+	size_t len = strlen(value);
+	if (len >= 2 && value[0] == '"' && value[len - 1] == '"') {
+		value[len - 1] = '\0';
+		memmove(value, value + 1, len - 1);
+	}
+}
+
+static void
+maybe_assign_rule(const char **field, const char *value, bool copy)
+{
+	if (*field || !value || !*value)
+		return;
+
+	if (copy) {
+		char *dup = strdup(value);
+		if (!dup)
+			return;
+		*field = dup;
+	} else {
+		*field = value;
+	}
+}
+
+static void
+apply_env_keymap_defaults(struct xkb_rule_names *rules)
+{
+	maybe_assign_rule(&rules->rules, getenv("XKB_DEFAULT_RULES"), false);
+	maybe_assign_rule(&rules->model, getenv("XKB_DEFAULT_MODEL"), false);
+	maybe_assign_rule(&rules->layout, getenv("XKB_DEFAULT_LAYOUT"), false);
+	maybe_assign_rule(&rules->variant, getenv("XKB_DEFAULT_VARIANT"), false);
+	maybe_assign_rule(&rules->options, getenv("XKB_DEFAULT_OPTIONS"), false);
+}
+
+static void
+apply_keymap_from_file(struct xkb_rule_names *rules, const char *path)
+{
+	FILE *f = fopen(path, "r");
+	char *line = NULL;
+	size_t len = 0;
+	if (!f)
+		return;
+
+	while (getline(&line, &len, f) != -1) {
+		char *eq = strchr(line, '=');
+		if (!eq)
+			continue;
+		*eq++ = '\0';
+		trim_whitespace_and_quotes(line);
+		trim_whitespace_and_quotes(eq);
+		if (!*eq)
+			continue;
+
+		if (strcmp(line, "XKBLAYOUT") == 0 || strcmp(line, "KEYMAP") == 0) {
+			maybe_assign_rule(&rules->layout, eq, true);
+		} else if (strcmp(line, "XKBVARIANT") == 0) {
+			maybe_assign_rule(&rules->variant, eq, true);
+		} else if (strcmp(line, "XKBOPTIONS") == 0) {
+			maybe_assign_rule(&rules->options, eq, true);
+		} else if (strcmp(line, "XKBMODEL") == 0) {
+			maybe_assign_rule(&rules->model, eq, true);
+		} else if (strcmp(line, "XKBRULES") == 0) {
+			maybe_assign_rule(&rules->rules, eq, true);
+		}
+	}
+
+	free(line);
+	fclose(f);
+}
+
+static void
+apply_system_keymap_defaults(struct xkb_rule_names *rules)
+{
+	if (!rules)
+		return;
+
+	/* Environment (e.g., XKB_DEFAULT_LAYOUT) takes priority over system files */
+	apply_env_keymap_defaults(rules);
+
+	/* Pull from common distro config locations if fields are still unset */
+	apply_keymap_from_file(rules, "/etc/default/keyboard");
+	apply_keymap_from_file(rules, "/etc/vconsole.conf");
+}
+
+static bool
+layout_is_norwegian(const char *layout)
+{
+	if (!layout || !*layout)
+		return false;
+
+	const char *p = layout;
+	while (*p) {
+		size_t len = strcspn(p, ",");
+		if ((len == 2 && strncmp(p, "no", 2) == 0) ||
+		    (len == 2 && strncmp(p, "nb", 2) == 0)) {
+			return true;
+		}
+		if (!p[len])
+			break;
+		p += len + 1;
+	}
+	return false;
+}
+
 /* GPU Acceleration Functions */
+static bool
+renderer_is_hardware(struct wlr_renderer *renderer)
+{
+	return renderer && !wlr_renderer_is_pixman(renderer);
+}
+
+static const char *
+renderer_name_for_log(struct wlr_renderer *renderer)
+{
+	if (!renderer)
+		return "Unknown";
+	if (wlr_renderer_is_pixman(renderer))
+		return "Pixman (Software Fallback)";
+	const char *requested = getenv("WLR_RENDERER");
+	if (requested && strcmp(requested, "vulkan") == 0)
+		return "Vulkan (Hardware Accelerated)";
+	return "Hardware Renderer";
+}
+
 static gpu_capabilities_t
 detect_gpu_capabilities(struct wlr_renderer *renderer, struct wlr_output *output)
 {
@@ -2427,9 +2503,8 @@ detect_gpu_capabilities(struct wlr_renderer *renderer, struct wlr_output *output
 		return caps;
 	}
 	
-	/* Detect hardware acceleration */
-	caps.hardware_acceleration = wlr_renderer_is_gles2(renderer);
-	caps.renderer_name = caps.hardware_acceleration ? "GLES2" : "Software";
+	caps.hardware_acceleration = renderer_is_hardware(renderer);
+	caps.renderer_name = renderer_name_for_log(renderer);
 	
 	/* Detect adaptive sync support */
 	caps.adaptive_sync = output->adaptive_sync_supported;
@@ -2463,14 +2538,10 @@ optimize_for_gpu(gpu_capabilities_t *caps)
 		wlr_log(WLR_INFO, "[nixtile] GPU OPTIMIZATION: High performance mode enabled");
 		
 		/* Set environment variables for optimal GPU performance */
-		setenv("WLR_RENDERER", "gles2", 0); /* Don't override if already set */
+		setenv("WLR_RENDERER", "vulkan", 0); /* Don't override if already set */
 		setenv("WLR_DRM_NO_ATOMIC", "0", 0);
 		setenv("WLR_DRM_NO_MODIFIERS", "0", 0);
 		setenv("WLR_NO_HARDWARE_CURSORS", "0", 0);
-		
-		/* Enable VSync for smooth rendering */
-		setenv("__GL_SYNC_TO_VBLANK", "1", 0); /* NVIDIA */
-		setenv("vblank_mode", "1", 0);        /* AMD/Intel */
 	} else {
 		wlr_log(WLR_ERROR, "[nixtile] GPU OPTIMIZATION: Hardware acceleration not available, using software rendering");
 		high_performance_mode = false;
@@ -2667,9 +2738,9 @@ createnotify(struct wl_listener *listener, void *data)
 	wlr_log(WLR_INFO, "[nixtile] INTELLIGENT PLACEMENT: Creating new tile with screen-filling priority");
 	
 	/* STEP 1: Check current workspace tile situation */
-	/* Count existing tiles (excluding the current tile being assigned) */
-	int current_workspace_tiles = 0;
-	Client *temp_c;
+		/* Count existing tiles (excluding the current tile being assigned) */
+		int current_workspace_tiles = 0;
+		Client *temp_c;
 	wl_list_for_each(temp_c, &clients, link) {
 		if (temp_c != c && VISIBLEON(temp_c, selmon) && !temp_c->isfloating && !temp_c->isfullscreen) {
 			current_workspace_tiles++;
@@ -2899,8 +2970,8 @@ handletiledrop(Client *c, double x, double y)
 	}
 	
 	/* GPU ACCELERATION: Prepare for hardware-accelerated tile movement */
-	if (high_performance_mode && drw && wlr_renderer_is_gles2(drw)) {
-		wlr_log(WLR_DEBUG, "[nixtile] GPU ACCELERATION: Starting hardware-accelerated tile movement");
+	if (high_performance_mode && renderer_is_hardware(drw)) {
+		wlr_log(WLR_DEBUG, "[nixtile] GPU ACCELERATION: Starting hardware-accelerated tile movement (%s)", renderer_name_for_log(drw));
 		
 		/* Enable GPU texture caching for smooth tile animations */
 		if (c->scene && c->scene_surface) {
@@ -3870,7 +3941,7 @@ handletiledrop(Client *c, double x, double y)
 	wlr_log(WLR_DEBUG, "[nixtile] Tile movement completed: tiles remain tiled");
 }
 
-void
+static void UNUSED
 swap_tiles_in_list(Client *c1, Client *c2)
 {
 	struct wl_list *c1_prev, *c1_next, *c2_prev, *c2_next;
@@ -3898,7 +3969,7 @@ swap_tiles_in_list(Client *c1, Client *c2)
 	wlr_log(WLR_DEBUG, "[nixtile] Swapped tile positions in list");
 }
 
-void
+static void UNUSED
 handletiledrop_old(Client *c, double x, double y)
 {
 	if (!c || !c->mon || c->isfloating) {
@@ -4397,8 +4468,6 @@ destroynotify(struct wl_listener *listener, void *data)
 	if (c == exclusive_focus) exclusive_focus = NULL;
 	if (c == vertical_resize_client) vertical_resize_client = NULL;
 	if (c == vertical_resize_neighbor) vertical_resize_neighbor = NULL;
-	if (c == initial_resize_client) initial_resize_client = NULL;
-	if (c == initial_resize_neighbor) initial_resize_neighbor = NULL;
 	if (c == horizontal_resize_client) horizontal_resize_client = NULL;
 	if (c == horizontal_resize_neighbor) horizontal_resize_neighbor = NULL;
 	
@@ -5228,7 +5297,7 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 		}
 
 		/* ULTRA-SMOOTH GPU ACCELERATION: Optimize cursor movement */
-		if (high_performance_mode && drw && wlr_renderer_is_gles2(drw)) {
+		if (high_performance_mode && renderer_is_hardware(drw)) {
 			/* GPU-accelerated cursor movement for butter-smooth experience */
 			wlr_cursor_move(cursor, device, dx, dy);
 			/* Immediate GPU buffer swap for minimal latency */
@@ -6138,7 +6207,7 @@ frame_synced_resize_callback(void *data)
 		pthread_mutex_lock(&layout_mutex);
 		
 		/* GPU ACCELERATION: Prepare for hardware-accelerated rendering */
-		if (drw && wlr_renderer_is_gles2(drw)) {
+		if (renderer_is_hardware(drw)) {
 			/* Enable GPU texture caching for smooth animations */
 			wlr_log(WLR_DEBUG, "[nixtile] GPU ACCELERATION: Using hardware-accelerated rendering for smooth resize");
 		}
@@ -7461,9 +7530,143 @@ quit(const Arg *arg)
 	wl_display_terminate(dpy);
 }
 
+static void
+schedule_statusbar_timer(void)
+{
+	if (!statusbar_timer)
+		return;
+
+	struct timespec ts;
+	if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+		wl_event_source_timer_update(statusbar_timer, 1000);
+		return;
+	}
+	long ms = 1000 - ((ts.tv_nsec / 1000000) % 1000);
+	if (ms <= 0 || ms > 1000)
+		ms = 1000;
+	wl_event_source_timer_update(statusbar_timer, ms);
+}
+
+static int
+statusbar_tick(void *data)
+{
+	Monitor *m;
+	wl_list_for_each(m, &mons, link) {
+		if (m->wlr_output)
+			wlr_output_schedule_frame(m->wlr_output);
+	}
+	schedule_statusbar_timer();
+	return 0;
+}
+
 // --- Status bar implementation ---
 
 static struct wlr_scene_rect *statusbar_rect = NULL;
+static struct wlr_scene_tree *statusbar_tree = NULL;
+
+/* Minimal 3x5 bitmap font for status bar text */
+typedef struct {
+	char ch;
+	const char *rows[5];
+} StatusGlyph;
+
+static const StatusGlyph status_glyphs[] = {
+	{'0', {"###", "# #", "# #", "# #", "###"}},
+/* Refined “1” with a clear stem and left pixel to avoid clipping */
+	{'1', {"## ", " # ", " # ", " # ", "###"}},
+	{'2', {"###", "  #", "###", "#  ", "###"}},
+	{'3', {"###", "  #", "###", "  #", "###"}},
+	{'4', {"# #", "# #", "###", "  #", "  #"}},
+	{'5', {"###", "#  ", "###", "  #", "###"}},
+	{'6', {"###", "#  ", "###", "# #", "###"}},
+	{'7', {"###", "  #", "  #", "  #", "  #"}},
+	{'8', {"###", "# #", "###", "# #", "###"}},
+	{'9', {"###", "# #", "###", "  #", "###"}},
+	{':', {"   ", " # ", "   ", " # ", "   "}},
+	{'A', {" # ", "# #", "###", "# #", "# #"}},
+	{'B', {"## ", "# #", "## ", "# #", "## "}},
+	{'C', {" ##", "#  ", "#  ", "#  ", " ##"}},
+	{'D', {"## ", "# #", "# #", "# #", "## "}},
+	{'E', {"###", "#  ", "## ", "#  ", "###"}},
+	{'F', {"###", "#  ", "## ", "#  ", "#  "}},
+	{'I', {"###", " # ", " # ", " # ", "###"}},
+	{'K', {"# #", "# #", "## ", "# #", "# #"}},
+	{'L', {"#  ", "#  ", "#  ", "#  ", "###"}},
+	{'M', {"# #", "###", "###", "# #", "# #"}},
+	{'N', {"# #", "###", "###", "###", "# #"}},
+	{'O', {"###", "# #", "# #", "# #", "###"}},
+	{'R', {"## ", "# #", "## ", "# #", "# #"}},
+	{'S', {"###", "#  ", "###", "  #", "###"}},
+	{'T', {"###", " # ", " # ", " # ", " # "}},
+	{'U', {"# #", "# #", "# #", "# #", "###"}},
+	{'V', {"# #", "# #", "# #", "# #", " # "}},
+	{'W', {"# #", "# #", "###", "###", "# #"}},
+	{'Y', {"# #", "# #", " # ", " # ", " # "}},
+	{'-', {"   ", "   ", "###", "   ", "   "}},
+	{' ', {"   ", "   ", "   ", "   ", "   "}},
+	{0,   {"   ", "   ", "   ", "   ", "   "}},
+};
+
+static const StatusGlyph *
+status_lookup_glyph(char ch)
+{
+	ch = toupper((unsigned char)ch);
+	for (size_t i = 0; status_glyphs[i].ch; i++) {
+		if (status_glyphs[i].ch == ch)
+			return &status_glyphs[i];
+	}
+	return &status_glyphs[LENGTH(status_glyphs) - 1];
+}
+
+static int
+status_measure_text(const char *text, int cell, int gap)
+{
+	if (!text || !*text)
+		return 0;
+	int width = 0;
+	for (const char *p = text; *p; p++) {
+		width += 3 * cell;
+		if (*(p + 1))
+			width += gap;
+	}
+	return width;
+}
+
+static void
+status_render_text(struct wlr_scene_tree *parent, int x, int y, const char *text,
+		const float color[4], int cell, int gap)
+{
+	if (!parent || !text || !*text)
+		return;
+
+	for (const char *p = text; *p; p++) {
+		const StatusGlyph *g = status_lookup_glyph(*p);
+		for (int row = 0; row < 5; row++) {
+			for (int col = 0; col < 3; col++) {
+				if (g->rows[row][col] == '#') {
+					struct wlr_scene_rect *r = wlr_scene_rect_create(parent,
+							cell, cell, color);
+					wlr_scene_node_set_position(&r->node,
+							x + col * cell, y + row * cell);
+				}
+			}
+		}
+		x += 3 * cell + gap;
+	}
+}
+
+static void
+destroy_statusbar_nodes(void)
+{
+	if (statusbar_rect) {
+		wlr_scene_node_destroy(&statusbar_rect->node);
+		statusbar_rect = NULL;
+	}
+	if (statusbar_tree) {
+		wlr_scene_node_destroy(&statusbar_tree->node);
+		statusbar_tree = NULL;
+	}
+}
 
 int launcher_just_closed = 0;
 
@@ -7681,48 +7884,87 @@ void toggle_statusbar(const Arg *arg) {
 }
 
 static void draw_status_bar(Monitor *m) {
-    int bar_x = 0, bar_y = 0, bar_w = 0, bar_h = 0;
-    float color[4];
-    // Always remove previous bar if it exists
-    if (statusbar_rect) {
-        wlr_scene_node_destroy(&statusbar_rect->node);
-        statusbar_rect = NULL;
-    }
-    if (!statusbar_visible) {
-        return;
-    }
+	int bar_x = 0, bar_y = 0, bar_w = 0, bar_h = 0;
+	float color[4];
+	float fg[4] = {
+		statusbar_fg_color[0],
+		statusbar_fg_color[1],
+		statusbar_fg_color[2],
+		statusbar_fg_color[3],
+	};
 
-    bar_w = m->wlr_output->width;
-    bar_h = statusbar_height;
-    if (strcmp(statusbar_position, "top") == 0) {
-        bar_x = statusbar_side_gap;
-        bar_y = statusbar_top_gap;
-        bar_w = m->wlr_output->width - (2 * statusbar_side_gap);
-        bar_h = statusbar_height;
-    } else if (strcmp(statusbar_position, "bottom") == 0) {
-        bar_x = statusbar_side_gap;
-        bar_y = m->wlr_output->height - statusbar_height; /* Bottom gap ignored as requested */
-        bar_w = m->wlr_output->width - (2 * statusbar_side_gap);
-        bar_h = statusbar_height;
-    } else if (strcmp(statusbar_position, "left") == 0) {
-        bar_x = statusbar_side_gap;
-        bar_y = statusbar_top_gap;
-        bar_w = statusbar_height;
-        bar_h = m->wlr_output->height - statusbar_top_gap; /* Bottom gap ignored */
-    } else if (strcmp(statusbar_position, "right") == 0) {
-        bar_x = m->wlr_output->width - statusbar_height - statusbar_side_gap;
-        bar_y = statusbar_top_gap;
-        bar_w = statusbar_height;
-        bar_h = m->wlr_output->height - statusbar_top_gap; /* Bottom gap ignored */
-    }
+	destroy_statusbar_nodes();
+	if (!statusbar_visible || !m)
+		return;
 
-    color[0] = statusbar_color[0];
-    color[1] = statusbar_color[1];
-    color[2] = statusbar_color[2];
-    color[3] = statusbar_alpha;
-    statusbar_rect = wlr_scene_rect_create(&scene->tree, bar_w, bar_h, color);
-    wlr_scene_node_set_position(&statusbar_rect->node, bar_x, bar_y);
-    wlr_scene_node_place_above(&statusbar_rect->node, &layers[LyrTop]->node);
+	bar_w = m->wlr_output->width;
+	bar_h = statusbar_height;
+	if (strcmp(statusbar_position, "top") == 0) {
+		bar_x = statusbar_side_gap;
+		bar_y = statusbar_top_gap;
+		bar_w = m->wlr_output->width - (2 * statusbar_side_gap);
+		bar_h = statusbar_height;
+	} else if (strcmp(statusbar_position, "bottom") == 0) {
+		bar_x = statusbar_side_gap;
+		bar_y = m->wlr_output->height - statusbar_height; /* Bottom gap ignored as requested */
+		bar_w = m->wlr_output->width - (2 * statusbar_side_gap);
+		bar_h = statusbar_height;
+	} else if (strcmp(statusbar_position, "left") == 0) {
+		bar_x = statusbar_side_gap;
+		bar_y = statusbar_top_gap;
+		bar_w = statusbar_height;
+		bar_h = m->wlr_output->height - statusbar_top_gap; /* Bottom gap ignored */
+	} else if (strcmp(statusbar_position, "right") == 0) {
+		bar_x = m->wlr_output->width - statusbar_height - statusbar_side_gap;
+		bar_y = statusbar_top_gap;
+		bar_w = statusbar_height;
+		bar_h = m->wlr_output->height - statusbar_top_gap; /* Bottom gap ignored */
+	}
+
+	color[0] = statusbar_color[0];
+	color[1] = statusbar_color[1];
+	color[2] = statusbar_color[2];
+	color[3] = statusbar_alpha;
+	statusbar_rect = wlr_scene_rect_create(&scene->tree, bar_w, bar_h, color);
+	wlr_scene_node_set_position(&statusbar_rect->node, bar_x, bar_y);
+	wlr_scene_node_place_above(&statusbar_rect->node, &layers[LyrTop]->node);
+
+	/* Derive glyph metrics from available bar height to avoid clipping */
+	int padding = MAX(4, bar_h / 8);
+	int cell = (bar_h - 2 * padding) / 5;
+	if (cell < 4)
+		cell = 4;
+	int font_h = 5 * cell;
+	if (font_h + 2 * padding > bar_h) {
+		padding = (bar_h - font_h) / 2;
+		if (padding < 0)
+			padding = 0;
+		cell = MAX(2, (bar_h - 2 * padding) / 5);
+		font_h = 5 * cell;
+	}
+	int gap = MAX(2, cell / 2);
+
+	statusbar_tree = wlr_scene_tree_create(&scene->tree);
+	wlr_scene_node_set_position(&statusbar_tree->node, bar_x, bar_y);
+	wlr_scene_node_place_above(&statusbar_tree->node, &statusbar_rect->node);
+
+	int text_y = (bar_h - font_h) / 2;
+	if (text_y < 0)
+		text_y = 0;
+
+	/* Clock aligned to the right */
+	time_t t = time(NULL);
+	struct tm local;
+	localtime_r(&t, &local);
+	char timebuf[16];
+	const char *time_fmt = keyboard_layout_is_norwegian ? "%H:%M" : "%H:%M";
+	if (!strftime(timebuf, sizeof(timebuf), time_fmt, &local))
+		snprintf(timebuf, sizeof(timebuf), "--:--");
+	int clock_w = status_measure_text(timebuf, cell, gap);
+	int clock_x = bar_w - padding - clock_w;
+	if (clock_x < padding)
+		clock_x = padding;
+	status_render_text(statusbar_tree, clock_x, text_y, timebuf, fg, cell, gap);
 }
 
 void
@@ -7748,7 +7990,7 @@ rendermon(struct wl_listener *listener, void *data)
 	log_frame_timing_stats(m);
 	
 	/* GPU ACCELERATION: Enable hardware-accelerated frame rendering */
-	if (high_performance_mode && drw && wlr_renderer_is_gles2(drw)) {
+	if (high_performance_mode && renderer_is_hardware(drw)) {
 		/* Hardware-accelerated rendering path for ultra-smooth performance */
 		static int frame_count = 0;
 		frame_count++;
@@ -7781,7 +8023,7 @@ rendermon(struct wl_listener *listener, void *data)
 	draw_status_bar(m);
 	
 	/* GPU ACCELERATION: Hardware-accelerated scene commit for smooth animations */
-	if (high_performance_mode && drw && wlr_renderer_is_gles2(drw)) {
+	if (high_performance_mode && renderer_is_hardware(drw)) {
 		/* Enable GPU buffer optimization for ultra-smooth tile movements */
 		wlr_scene_output_commit(m->scene_output, NULL);
 		wlr_log(WLR_DEBUG, "[nixtile] GPU ACCELERATION: Hardware-accelerated scene commit completed");
@@ -8205,7 +8447,7 @@ setup(void)
 	}
 	
 	/* Enable GPU acceleration environment variables */
-	setenv("WLR_RENDERER", "gles2", 0); /* Prefer hardware-accelerated GLES2 */
+	setenv("WLR_RENDERER", "vulkan", 0); /* Prefer hardware-accelerated Vulkan renderer */
 	setenv("WLR_DRM_NO_ATOMIC", "0", 0); /* Enable atomic modesetting for smooth updates */
 	setenv("WLR_DRM_NO_MODIFIERS", "0", 0); /* Enable DRM modifiers for better performance */
 	setenv("WLR_SCENE_DISABLE_VISIBILITY", "0", 0); /* Enable scene visibility optimizations */
@@ -8241,18 +8483,12 @@ setup(void)
 	
 	/* ULTRA-SMOOTH GPU ACCELERATION: Configure renderer for maximum performance */
 	if (drw) {
-		/* Log renderer capabilities for debugging */
-		const char *renderer_name = "unknown";
-		if (wlr_renderer_is_gles2(drw)) {
-			renderer_name = "OpenGL ES 2.0 (Hardware Accelerated)";
-			wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Using hardware-accelerated OpenGL ES 2.0 renderer");
-		} else if (wlr_renderer_is_pixman(drw)) {
-			renderer_name = "Pixman (Software Fallback)";
+		const char *renderer_name = renderer_name_for_log(drw);
+		if (renderer_is_hardware(drw))
+			wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Using %s renderer", renderer_name);
+		else
 			wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Using software Pixman renderer (no hardware acceleration)");
-		} else {
-			wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Using unknown renderer type");
-		}
-		
+
 		/* Enable all available GPU features for ultra-smooth performance */
 		wlr_log(WLR_DEBUG, "[nixtile] GPU ACCELERATION: Renderer name: %s", renderer_name);
 	}
@@ -8319,6 +8555,8 @@ setup(void)
 	/* Configure a listener to be notified when new outputs are available on the
 	 * backend. */
 	wl_list_init(&mons);
+	statusbar_timer = wl_event_loop_add_timer(event_loop, statusbar_tick, NULL);
+	schedule_statusbar_timer();
 	wl_signal_add(&backend->events.new_output, &new_output);
 
 	/* Set up our client lists, the xdg-shell and the layer-shell. The xdg-shell is a
@@ -8598,7 +8836,7 @@ get_optimal_columns(int screen_width, int screen_height)
 }
 
 /* Get optimal number of master tiles based on aspect ratio */
-int
+static int UNUSED
 get_optimal_master_tiles(int screen_width, int screen_height)
 {
 	float aspect_ratio = calculate_aspect_ratio(screen_width, screen_height);
@@ -8707,7 +8945,6 @@ tile(Monitor *m)
 	update_dynamic_master_tiles(m);
 	
 	/* Determine layout based on workspace-specific configuration */
-	int screen_width = adjusted_area.width;
 	int optimal_columns = get_workspace_optimal_columns();
 	int master_tiles = get_workspace_nmaster();
 	
@@ -9261,13 +9498,16 @@ tile(Monitor *m)
 void
 togglefloating(const Arg *arg)
 {
-	Client *sel = focustop(selmon);
+	Client *sel;
+	int optimal_columns;
+
+	sel = focustop(selmon);
 	/* FORCE: Disable floating toggle - all tiles must stay tiled */
 	if (sel && !sel->isfullscreen) {
 		/* Force tile to stay tiled */
 		sel->isfloating = 0;
 		/* Ensure valid column assignment for multi-column layout */
-		int optimal_columns = get_workspace_optimal_columns();
+		optimal_columns = get_workspace_optimal_columns();
 		if (sel->column_group < 0 || sel->column_group >= optimal_columns) {
 			/* DO NOT force to 0 - let tile() function handle assignment */
 			wlr_log(WLR_DEBUG, "[nixtile] TOGGLE: Invalid column_group %d, will be reassigned by tile() (max columns: %d)", sel->column_group, optimal_columns);
@@ -9280,7 +9520,7 @@ togglefloating(const Arg *arg)
 	}
 }
 
-void
+static void UNUSED
 togglecolumn(const Arg *arg)
 {
 	Client *sel = focustop(selmon);
@@ -9297,13 +9537,15 @@ togglecolumn(const Arg *arg)
 void
 togglefullscreen(const Arg *arg)
 {
+	Client *sel;
+
 	/* CRASH PREVENTION: Comprehensive validation */
 	if (!selmon) {
 		wlr_log(WLR_ERROR, "[nixtile] SAFETY: No selected monitor in togglefullscreen");
 		return;
 	}
 	
-	Client *sel = focustop(selmon);
+	sel = focustop(selmon);
 	if (!sel) {
 		wlr_log(WLR_DEBUG, "[nixtile] SAFETY: No client to toggle fullscreen");
 		return;
@@ -9321,6 +9563,9 @@ togglefullscreen(const Arg *arg)
 void
 toggletag(const Arg *arg)
 {
+	Client *sel;
+	uint32_t newtags;
+
 	/* CRASH PREVENTION: Comprehensive validation */
 	if (!arg) {
 		wlr_log(WLR_ERROR, "[nixtile] SAFETY: NULL argument in toggletag");
@@ -9338,7 +9583,7 @@ toggletag(const Arg *arg)
 		return;
 	}
 	
-	Client *sel = focustop(selmon);
+	sel = focustop(selmon);
 	if (!sel) {
 		wlr_log(WLR_DEBUG, "[nixtile] SAFETY: No client to toggle tag");
 		return;
@@ -9350,7 +9595,6 @@ toggletag(const Arg *arg)
 		return;
 	}
 	
-	uint32_t newtags;
 	if (!(newtags = sel->tags ^ (arg->ui & TAGMASK))) {
 		wlr_log(WLR_DEBUG, "[nixtile] SAFETY: Invalid tag combination in toggletag");
 		return;
@@ -9365,6 +9609,8 @@ toggletag(const Arg *arg)
 void
 toggleview(const Arg *arg)
 {
+	uint32_t newtagset;
+
 	/* CRASH PREVENTION: Comprehensive validation */
 	if (!arg) {
 		wlr_log(WLR_ERROR, "[nixtile] SAFETY: NULL argument in toggleview");
@@ -9382,7 +9628,6 @@ toggleview(const Arg *arg)
 		return;
 	}
 	
-	uint32_t newtagset;
 	if (!(newtagset = selmon->tagset[selmon->seltags] ^ (arg->ui & TAGMASK))) {
 		wlr_log(WLR_DEBUG, "[nixtile] SAFETY: Invalid tagset in toggleview");
 		return;
@@ -9670,7 +9915,7 @@ xytonode(double x, double y, struct wlr_surface **psurface,
 	if (pl) *pl = l;
 }
 
-void
+static void UNUSED
 zoom(const Arg *arg)
 {
 	Client *c, *sel = focustop(selmon);
@@ -9769,10 +10014,17 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	/* INTELLIGENT TILE PLACEMENT: Use same logic as createnotify for consistency */
 	c->mon = selmon;
 	c->tags = selmon->tagset[selmon->seltags];
-	
-	/* Count existing tiles (excluding the current tile being assigned) */
+
 	int current_workspace_tiles = 0;
 	Client *temp_c;
+	int optimal_columns = 0;
+	int master_tiles = 0;
+	int tile_number = 0;
+	int target_column = 0;
+	int workspace = 0;
+	bool workspace_manual_resize = false;
+	
+	/* Count existing tiles (excluding the current tile being assigned) */
 	wl_list_for_each(temp_c, &clients, link) {
 		if (temp_c != c && VISIBLEON(temp_c, selmon) && !temp_c->isfloating && !temp_c->isfullscreen) {
 			current_workspace_tiles++;
@@ -9780,17 +10032,17 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	}
 	
 	/* CRITICAL WORKSPACE ISOLATION: Get dynamic column configuration from workspace-specific values */
-	int optimal_columns = get_workspace_optimal_columns();
-	int master_tiles = get_workspace_nmaster();
+	optimal_columns = get_workspace_optimal_columns();
+	master_tiles = get_workspace_nmaster();
 	
-	int tile_number = current_workspace_tiles + 1; /* 1-based tile number */
+	tile_number = current_workspace_tiles + 1; /* 1-based tile number */
 	
 	wlr_log(WLR_INFO, "[nixtile] X11 PLACEMENT: Tile #%d, master_tiles=%d, optimal_columns=%d", 
 		tile_number, master_tiles, optimal_columns);
 	
 	/* GUARANTEED RULE: First N tiles go to separate columns (horizontal placement) */
 	if (tile_number <= master_tiles) {
-		int target_column = (tile_number - 1) % optimal_columns;
+		target_column = (tile_number - 1) % optimal_columns;
 		wlr_log(WLR_INFO, "[nixtile] X11 HORIZONTAL PLACEMENT: Tile #%d -> Column %d (guaranteed horizontal)", 
 			tile_number, target_column);
 		c->column_group = target_column;
@@ -9802,15 +10054,14 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	}
 	
 	/* WORKSPACE ISOLATION: Preserve manual resize using workspace-specific state */
-	int target_column = c->column_group;
+	target_column = c->column_group;
 	if (target_column >= 0 && target_column < MAX_COLUMNS) {
-		int workspace = get_current_workspace();
-		bool workspace_manual_resize = (selmon && workspace >= 0 && workspace < 9) ? 
+		workspace = get_current_workspace();
+		workspace_manual_resize = (selmon && workspace >= 0 && workspace < 9) ? 
 			selmon->workspace_manual_resize_performed[workspace][target_column] : false;
 		if (!workspace_manual_resize) {
 			/* No manual resize in this workspace - maintain equal distribution */
 			wlr_log(WLR_INFO, "[nixtile] WORKSPACE ISOLATION: No manual resize in workspace %d column %d, maintaining equal height factors", workspace, target_column);
-			Client *temp_c;
 			wl_list_for_each(temp_c, &clients, link) {
 				if (!VISIBLEON(temp_c, selmon) || temp_c->isfloating || temp_c->isfullscreen)
 					continue;
@@ -9926,7 +10177,7 @@ static int get_current_workspace() {
 }
 
 /* Load workspace-specific mfact */
-static void load_workspace_mfact() {
+static void UNUSED load_workspace_mfact() {
 	int workspace = get_current_workspace();
 	if (selmon->workspace_mfact[workspace] == 0.0f) {
 		/* Initialize new workspace with default mfact */
@@ -9943,13 +10194,14 @@ static void save_workspace_mfact() {
 
 /* Get workspace-specific mfact */
 static float get_workspace_mfact(void) {
+	int workspace;
 	/* STARTUP SAFETY: Skip if monitor not initialized */
 	if (!selmon) {
 		wlr_log(WLR_DEBUG, "[nixtile] STARTUP: selmon not initialized, defaulting to mfact 0.5");
 		return 0.5f; /* Safe default */
 	}
 	
-	int workspace = get_current_workspace();
+	workspace = get_current_workspace();
 	
 	/* CRITICAL FIX: During resize operations, use current selmon->mfact instead of cached workspace value */
 	if (resize_pending || vertical_resize_pending || horizontal_column_resize_pending) {
@@ -9971,6 +10223,9 @@ static float get_workspace_mfact(void) {
 
 /* Initialize workspace state with defaults */
 static void init_workspace_state(int workspace) {
+	int screen_width;
+	int col;
+
 	if (workspace < 0 || workspace >= 9 || !selmon)
 		return;
 	
@@ -9981,7 +10236,7 @@ static void init_workspace_state(int workspace) {
 	selmon->workspace_mfact[workspace] = 0.5f;
 	
 	/* Set workspace-specific defaults based on screen width */
-	int screen_width = selmon->w.width;
+	screen_width = selmon->w.width;
 	if (screen_width > 3440) {
 		/* Super Ultrawide: 4 columns, 4 master tiles */
 		selmon->workspace_nmaster[workspace] = 4;
@@ -10001,7 +10256,7 @@ static void init_workspace_state(int workspace) {
 	}
 	
 	/* Initialize manual resize state */
-	for (int col = 0; col < MAX_COLUMNS; col++) {
+	for (col = 0; col < MAX_COLUMNS; col++) {
 		selmon->workspace_manual_resize_performed[workspace][col] = false;
 	}
 	
@@ -10030,13 +10285,18 @@ static void init_workspace_state(int workspace) {
 
 /* Load all workspace-specific state */
 static void load_workspace_state() {
+	int workspace;
+	int col;
+	Client *c;
+	int tile_index = 0;
+
 	/* STARTUP SAFETY: Skip if monitor not initialized */
 	if (!selmon) {
 		wlr_log(WLR_DEBUG, "[nixtile] STARTUP: selmon not initialized, skipping workspace state load");
 		return;
 	}
 	
-	int workspace = get_current_workspace();
+	workspace = get_current_workspace();
 	
 	/* Initialize if needed */
 	init_workspace_state(workspace);
@@ -10046,7 +10306,7 @@ static void load_workspace_state() {
 	selmon->nmaster = selmon->workspace_nmaster[workspace];
 	
 	/* CRITICAL WORKSPACE ISOLATION: Load manual resize state from workspace arrays */
-	for (int col = 0; col < MAX_COLUMNS; col++) {
+	for (col = 0; col < MAX_COLUMNS; col++) {
 		manual_resize_performed[col] = selmon->workspace_manual_resize_performed[workspace][col];
 	}
 	
@@ -10060,8 +10320,6 @@ static void load_workspace_state() {
 	pending_right_x = selmon->workspace_pending_right_x[workspace];
 	
 	/* CRITICAL: Restore individual tile height and width factors from workspace state */
-	Client *c;
-	int tile_index = 0;
 	wl_list_for_each(c, &clients, link) {
 		if (VISIBLEON(c, selmon) && tile_index < MAX_TILES_PER_WORKSPACE) {
 			float saved_height_factor = selmon->workspace_height_factors[workspace][tile_index];
@@ -10109,60 +10367,20 @@ static void load_workspace_state() {
 		workspace, selmon->mfact, selmon->nmaster, selmon->workspace_optimal_columns[workspace], pending_target_mfact);
 }
 
-/* Universal column rebalancing function - resets all height factors to 1.0f for equal distribution */
-void rebalance_all_columns(Monitor *m, const char *context) {
-	if (!m) {
-		wlr_log(WLR_ERROR, "[nixtile] REBALANCE: NULL monitor in %s - ABORT", context);
-		return;
-	}
-	
-	wlr_log(WLR_INFO, "[nixtile] %s REBALANCE: Starting column rebalancing", context);
-	
-	Client *temp_c;
-	int rebalanced_tiles[MAX_COLUMNS] = {0}; /* Track rebalanced tiles per column */
-	int total_tiles_processed = 0;
-	
-	/* Reset height factors for all tiles in all columns */
-	wl_list_for_each(temp_c, &clients, link) {
-		if (temp_c->mon == m && !temp_c->isfloating && VISIBLEON(temp_c, m)) {
-			int column = temp_c->column_group;
-			float old_height_factor = temp_c->height_factor;
-			if (column >= 0 && column < MAX_COLUMNS) {
-				temp_c->height_factor = 1.0f;
-				rebalanced_tiles[column]++;
-				total_tiles_processed++;
-				wlr_log(WLR_DEBUG, "[nixtile] %s REBALANCED: Tile %p in column %d: %.2f -> 1.0f", 
-					context, (void*)temp_c, column, old_height_factor);
-			} else {
-				wlr_log(WLR_ERROR, "[nixtile] %s REBALANCE ERROR: Invalid column %d for tile %p", 
-					context, column, (void*)temp_c);
-			}
-		}
-	}
-	
-	/* Log rebalancing results */
-	wlr_log(WLR_INFO, "[nixtile] %s REBALANCE COMPLETE: Processed %d total tiles", context, total_tiles_processed);
-	for (int col = 0; col < MAX_COLUMNS; col++) {
-		if (rebalanced_tiles[col] > 0) {
-			wlr_log(WLR_INFO, "[nixtile] %s REBALANCE: Reset %d tiles in column %d to equal height (height_factor=1.0f)", 
-				context, rebalanced_tiles[col], col);
-		}
-	}
-	
-	/* CRITICAL: Save rebalanced height factors to workspace state */
-	save_workspace_state();
-	wlr_log(WLR_INFO, "[nixtile] %s REBALANCE: Saved rebalanced height factors to workspace state", context);
-}
-
 /* Save all workspace-specific state */
 static void save_workspace_state() {
+	int workspace;
+	int col;
+	int tile_index = 0;
+	Client *c;
+
 	/* STARTUP SAFETY: Skip if monitor not initialized */
 	if (!selmon) {
 		wlr_log(WLR_DEBUG, "[nixtile] STARTUP: selmon not initialized, skipping workspace state save");
 		return;
 	}
 	
-	int workspace = get_current_workspace();
+	workspace = get_current_workspace();
 	
 	/* Initialize if needed */
 	init_workspace_state(workspace);
@@ -10172,7 +10390,7 @@ static void save_workspace_state() {
 	selmon->workspace_nmaster[workspace] = selmon->nmaster;
 	
 	/* CRITICAL WORKSPACE ISOLATION: Save manual resize state to workspace arrays */
-	for (int col = 0; col < MAX_COLUMNS; col++) {
+	for (col = 0; col < MAX_COLUMNS; col++) {
 		selmon->workspace_manual_resize_performed[workspace][col] = manual_resize_performed[col];
 	}
 	
@@ -10186,8 +10404,6 @@ static void save_workspace_state() {
 	selmon->workspace_pending_right_x[workspace] = pending_right_x;
 	
 	/* CRITICAL: Save individual tile height and width factors to workspace state */
-	Client *c;
-	int tile_index = 0;
 	wl_list_for_each(c, &clients, link) {
 		if (VISIBLEON(c, selmon) && tile_index < MAX_TILES_PER_WORKSPACE) {
 			selmon->workspace_height_factors[workspace][tile_index] = c->height_factor;
@@ -10204,32 +10420,32 @@ static void save_workspace_state() {
 
 /* Get workspace-specific nmaster */
 static int get_workspace_nmaster() {
+	int workspace;
 	/* STARTUP SAFETY: Fallback if monitor not initialized */
 	if (!selmon) {
 		wlr_log(WLR_DEBUG, "[nixtile] STARTUP: selmon not initialized, using default nmaster=2");
 		return 2; /* Safe default */
 	}
-	
-	int workspace = get_current_workspace();
+	workspace = get_current_workspace();
 	init_workspace_state(workspace);
 	return selmon->workspace_nmaster[workspace];
 }
 
 /* Get workspace-specific optimal columns */
 static int get_workspace_optimal_columns() {
+	int workspace;
 	/* STARTUP SAFETY: Fallback if monitor not initialized */
 	if (!selmon) {
 		wlr_log(WLR_DEBUG, "[nixtile] STARTUP: selmon not initialized, using default columns=2");
 		return 2; /* Safe default */
 	}
-	
-	int workspace = get_current_workspace();
+	workspace = get_current_workspace();
 	init_workspace_state(workspace);
 	return selmon->workspace_optimal_columns[workspace];
 }
 
 /* Set workspace-specific nmaster */
-static void set_workspace_nmaster(int value) {
+static void UNUSED set_workspace_nmaster(int value) {
 	int workspace = get_current_workspace();
 	init_workspace_state(workspace);
 	selmon->workspace_nmaster[workspace] = value;
@@ -10238,7 +10454,7 @@ static void set_workspace_nmaster(int value) {
 }
 
 /* Set workspace-specific optimal columns */
-static void set_workspace_optimal_columns(int value) {
+static void UNUSED set_workspace_optimal_columns(int value) {
 	int workspace = get_current_workspace();
 	init_workspace_state(workspace);
 	selmon->workspace_optimal_columns[workspace] = value;
@@ -10247,9 +10463,8 @@ static void set_workspace_optimal_columns(int value) {
 
 /* Check if a client pointer is still valid in the client list */
 static bool client_exists(Client *c) {
-	if (!c) return false;
-	
 	Client *temp_c;
+	if (!c) return false;
 	wl_list_for_each(temp_c, &clients, link) {
 		if (temp_c == c) {
 			return true;
@@ -10262,22 +10477,19 @@ static bool client_exists(Client *c) {
 
 /* Reset mfact to 0.5 for equal width distribution when workspace becomes populated */
 void ensure_equal_width_distribution(Client *new_client) {
-	/* TEMPORARILY DISABLED: Manual resize check for debugging */
-	bool any_manual_resize = manual_resize_performed[0] || manual_resize_performed[1];
-	if (false) { /* DISABLED FOR TESTING */
-		wlr_log(WLR_INFO, "[nixtile] PRESERVING MANUAL RESIZE: Skipping equal width distribution (left_manual=%d, right_manual=%d)", 
-		        manual_resize_performed[0], manual_resize_performed[1]);
-		return;
-	}
-	wlr_log(WLR_DEBUG, "[nixtile] MANUAL RESIZE CHECK: left_manual=%d, right_manual=%d - PROCEEDING", 
-	        manual_resize_performed[0], manual_resize_performed[1]);
-	
-	/* Get current mfact for logging */
-	float current_mfact = selmon->mfact;
-	
-	/* Count existing visible tiles to determine if workspace was empty */
+	float current_mfact;
 	int existing_tiles = 0;
 	Client *count_c;
+	int workspace;
+	float saved_mfact;
+
+	/* Manual resize preservation currently disabled for this path */
+	wlr_log(WLR_DEBUG, "[nixtile] MANUAL RESIZE CHECK: left_manual=%d, right_manual=%d - PROCEEDING", 
+	        manual_resize_performed[0], manual_resize_performed[1]);
+	/* Get current mfact for logging */
+	current_mfact = selmon->mfact;
+	
+	/* Count existing visible tiles to determine if workspace was empty */
 	wl_list_for_each(count_c, &clients, link) {
 		if (!VISIBLEON(count_c, selmon) || count_c->isfloating || count_c->isfullscreen)
 			continue;
@@ -10286,8 +10498,8 @@ void ensure_equal_width_distribution(Client *new_client) {
 	}
 	
 	/* Check if workspace has saved mfact value before resetting */
-	int workspace = get_current_workspace();
-	float saved_mfact = selmon->workspace_mfact[workspace];
+	workspace = get_current_workspace();
+	saved_mfact = selmon->workspace_mfact[workspace];
 	
 	/* Only reset mfact for truly new workspaces that have no saved value */
 	if (existing_tiles <= 1 && saved_mfact == 0.0f) {
@@ -10307,6 +10519,9 @@ void ensure_equal_width_distribution(Client *new_client) {
 
 /* SCREEN FILLING LOGIC: Ensure tiles always fill the entire screen */
 void handle_empty_column_expansion() {
+	bool any_manual_resize;
+	int left_column_count, right_column_count, total_tiles;
+
 	/* SAFETY: Validate monitor */
 	if (!selmon) {
 		wlr_log(WLR_ERROR, "[nixtile] SAFETY: No selected monitor in handle_empty_column_expansion");
@@ -10314,7 +10529,7 @@ void handle_empty_column_expansion() {
 	}
 	
 	/* CHECK FOR MANUAL RESIZE: Don't auto-adjust if user has manually resized */
-	bool any_manual_resize = manual_resize_performed[0] || manual_resize_performed[1];
+	any_manual_resize = manual_resize_performed[0] || manual_resize_performed[1];
 	if (any_manual_resize) {
 		wlr_log(WLR_INFO, "[nixtile] PRESERVING MANUAL RESIZE: Skipping automatic column expansion (left_manual=%d, right_manual=%d)", 
 		        manual_resize_performed[0], manual_resize_performed[1]);
@@ -10322,9 +10537,9 @@ void handle_empty_column_expansion() {
 	}
 	
 	/* Count tiles in each column */
-	int left_column_count = count_tiles_in_stack(0, selmon);
-	int right_column_count = count_tiles_in_stack(1, selmon);
-	int total_tiles = left_column_count + right_column_count;
+	left_column_count = count_tiles_in_stack(0, selmon);
+	right_column_count = count_tiles_in_stack(1, selmon);
+	total_tiles = left_column_count + right_column_count;
 	
 	wlr_log(WLR_DEBUG, "[nixtile] COLUMN EXPANSION: left=%d, right=%d, total=%d", 
 	        left_column_count, right_column_count, total_tiles);
@@ -10370,6 +10585,10 @@ void handle_empty_column_expansion() {
 
 /* EQUAL HEIGHT DISTRIBUTION: Ensure all tiles in a stack have equal height factors */
 void ensure_equal_height_distribution_in_stack(int column) {
+	int tiles_in_column = 0;
+	Client *c;
+	int workspace = 0;
+
 	/* SAFETY: Validate inputs */
 	if (!selmon || column < 0 || column >= MAX_COLUMNS) {
 		wlr_log(WLR_ERROR, "[nixtile] EQUAL HEIGHT: Invalid parameters (selmon=%p, column=%d)", (void*)selmon, column);
@@ -10377,7 +10596,7 @@ void ensure_equal_height_distribution_in_stack(int column) {
 	}
 	
 	/* WORKSPACE ISOLATION: Reset manual resize using workspace-specific state */
-	int workspace = get_current_workspace();
+	workspace = get_current_workspace();
 	if (workspace >= 0 && workspace < 9 && selmon->workspace_manual_resize_performed[workspace][column]) {
 		wlr_log(WLR_INFO, "[nixtile] WORKSPACE ISOLATION: Resetting manual resize flag for workspace %d column %d - enforcing equal distribution", workspace, column);
 		selmon->workspace_manual_resize_performed[workspace][column] = false;
@@ -10386,8 +10605,6 @@ void ensure_equal_height_distribution_in_stack(int column) {
 	}
 	
 	/* Count tiles in the specified column */
-	int tiles_in_column = 0;
-	Client *c;
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, selmon) || c->isfloating || c->isfullscreen)
 			continue;
@@ -10415,6 +10632,15 @@ void ensure_equal_height_distribution_in_stack(int column) {
 
 /* DYNAMIC EQUAL HORIZONTAL DISTRIBUTION: Works for 2, 3, or 4 columns based on monitor resolution */
 void ensure_equal_horizontal_distribution_for_two_tiles(void) {
+	int max_columns;
+	int column_counts[MAX_COLUMNS] = {0};
+	int total_tiles = 0;
+	bool only_single_tiles = true;
+	bool any_manual_resize = false;
+	int workspace = 0;
+	float saved_mfact = 0.0f;
+	Client *c;
+
 	/* SAFETY: Validate monitor */
 	if (!selmon) {
 		wlr_log(WLR_ERROR, "[nixtile] EQUAL HORIZONTAL: No selected monitor");
@@ -10422,13 +10648,9 @@ void ensure_equal_horizontal_distribution_for_two_tiles(void) {
 	}
 	
 	/* Get dynamic column count based on monitor resolution */
-	int max_columns = get_optimal_columns(selmon->w.width, selmon->w.height);
+	max_columns = get_optimal_columns(selmon->w.width, selmon->w.height);
 	
 	/* Count tiles in each column */
-	int column_counts[MAX_COLUMNS] = {0};
-	int total_tiles = 0;
-	bool only_single_tiles = true;
-	
 	for (int col = 0; col < max_columns; col++) {
 		column_counts[col] = count_tiles_in_stack(col, selmon);
 		total_tiles += column_counts[col];
@@ -10438,17 +10660,16 @@ void ensure_equal_horizontal_distribution_for_two_tiles(void) {
 			only_single_tiles = false;
 		}
 	}
-	
+
 	wlr_log(WLR_DEBUG, "[nixtile] DYNAMIC EQUAL HORIZONTAL: %d columns, total_tiles=%d, only_single_tiles=%d", 
 		max_columns, total_tiles, only_single_tiles);
 	for (int col = 0; col < max_columns; col++) {
 		wlr_log(WLR_DEBUG, "[nixtile] DYNAMIC EQUAL HORIZONTAL: Column %d has %d tiles", col, column_counts[col]);
 	}
-	
+		
 	/* Apply equal distribution when only single tiles remain (no stacks) */
 	if (only_single_tiles && total_tiles >= 2) {
 		/* RESET MANUAL RESIZE: Always reset and enforce equal distribution for single tiles */
-		bool any_manual_resize = false;
 		for (int col = 0; col < max_columns; col++) {
 			if (manual_resize_performed[col]) {
 				any_manual_resize = true;
@@ -10461,7 +10682,6 @@ void ensure_equal_horizontal_distribution_for_two_tiles(void) {
 		}
 		
 		/* Clear all width factors to enforce equal distribution */
-		Client *c;
 		wl_list_for_each(c, &clients, link) {
 			if (VISIBLEON(c, selmon) && !c->isfloating && !c->isfullscreen) {
 				c->width_factor = 1.0f;
@@ -10469,8 +10689,8 @@ void ensure_equal_horizontal_distribution_for_two_tiles(void) {
 		}
 		
 		/* Check if workspace has saved mfact value before resetting */
-		int workspace = get_current_workspace();
-		float saved_mfact = selmon->workspace_mfact[workspace];
+		workspace = get_current_workspace();
+		saved_mfact = selmon->workspace_mfact[workspace];
 		
 		/* For 2 columns: only reset mfact if no saved value exists */
 		if (max_columns == 2) {
@@ -10503,9 +10723,11 @@ void ensure_equal_horizontal_distribution_for_two_tiles(void) {
 			total_tiles, only_single_tiles);
 	}
 }
-
 /* CRASH PREVENTION: Validate client list integrity before operations */
 bool validate_client_list_integrity() {
+	Client *c;
+	int client_count = 0;
+
 	/* SAFETY: Check if clients list is properly initialized */
 	if (!clients.prev || !clients.next) {
 		wlr_log(WLR_ERROR, "[nixtile] CRASH PREVENTION: Clients list not properly initialized");
@@ -10519,8 +10741,6 @@ bool validate_client_list_integrity() {
 	}
 	
 	/* SAFETY: Validate each client in the list */
-	Client *c;
-	int client_count = 0;
 	wl_list_for_each(c, &clients, link) {
 		client_count++;
 		
@@ -10585,18 +10805,19 @@ int count_total_tiles_in_workspace(Monitor *m) {
 }
 
 /* Find available stack (column) that has space for new tile */
-int find_available_stack(Monitor *m) {
+int UNUSED find_available_stack(Monitor *m) {
+	int left_count, right_count;
 	if (!m) return 0;
 	
 	/* Check left column (0) first */
-	int left_count = count_tiles_in_stack(0, m);
+	left_count = count_tiles_in_stack(0, m);
 	if (left_count < MAX_TILES_PER_STACK) {
 		wlr_log(WLR_INFO, "[nixtile] STACK PLACEMENT: Left stack (0) has space (%d/%d tiles)", left_count, MAX_TILES_PER_STACK);
 		return 0;
 	}
 	
 	/* Check right column (1) */
-	int right_count = count_tiles_in_stack(1, m);
+	right_count = count_tiles_in_stack(1, m);
 	if (right_count < MAX_TILES_PER_STACK) {
 		wlr_log(WLR_INFO, "[nixtile] STACK PLACEMENT: Right stack (1) has space (%d/%d tiles)", right_count, MAX_TILES_PER_STACK);
 		return 1;
@@ -10608,13 +10829,16 @@ int find_available_stack(Monitor *m) {
 }
 
 /* Find next available workspace */
-int find_available_workspace(void) {
+int UNUSED find_available_workspace(void) {
 	for (int workspace = 0; workspace < TAGCOUNT; workspace++) {
+		uint32_t old_tags;
+		int tile_count;
+
 		/* Switch to this workspace temporarily to count tiles */
-		uint32_t old_tags = selmon->tagset[selmon->seltags];
+		old_tags = selmon->tagset[selmon->seltags];
 		selmon->tagset[selmon->seltags] = 1 << workspace;
 		
-		int tile_count = count_total_tiles_in_workspace(selmon);
+		tile_count = count_total_tiles_in_workspace(selmon);
 		
 		/* Restore original workspace */
 		selmon->tagset[selmon->seltags] = old_tags;

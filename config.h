@@ -17,9 +17,10 @@ static const float focuscolor[]            = COLOR(0x005577ff);
 static const float urgentcolor[]           = COLOR(0xff0000ff);
 /* Status bar configuration */
 static const char *statusbar_position      = "top";   /* "top", "bottom", "left", "right" */
-static const unsigned int statusbar_height = 30;      /* Height in pixels (for top/bottom), width for left/right) */
+static const unsigned int statusbar_height = 36;      /* Height in pixels (for top/bottom), width for left/right) */
 static const float statusbar_alpha         = 0.4f;    /* Transparency (0.0 = fully transparent, 1.0 = opaque) */
 static const float statusbar_color[]       = COLOR(0x222222ff); /* Default bar background color */
+static const float statusbar_fg_color[]    = COLOR(0xffffffff); /* Text/foreground color */
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
 
@@ -232,6 +233,4 @@ static const Button buttons[] = {
 #pragma message "BTN_LEFT = " TOSTRING(BTN_LEFT)
 #pragma message "BTN_MIDDLE = " TOSTRING(BTN_MIDDLE) 
 #pragma message "BTN_RIGHT = " TOSTRING(BTN_RIGHT)
-
-
 

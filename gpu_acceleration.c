@@ -7,10 +7,20 @@
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/util/log.h>
-#include <wlr/render/gles2.h>
 #include <wlr/render/pixman.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* Environment Variables for GPU Acceleration */
+static const char* gpu_acceleration_env_vars[][2] = {
+    {"WLR_RENDERER", "vulkan"},                  /* Prefer Vulkan renderer */
+    {"WLR_DRM_NO_ATOMIC", "0"},                   /* Enable atomic modesetting */
+    {"WLR_DRM_NO_MODIFIERS", "0"},                /* Enable DRM modifiers */
+    {"WLR_SCENE_DISABLE_VISIBILITY", "0"},        /* Enable scene visibility optimizations */
+    {"WLR_NO_HARDWARE_CURSORS", "0"},             /* Enable hardware cursors */
+    {"WLR_RENDERER_ALLOW_SOFTWARE", "0"},         /* Avoid software renderer fallback */
+    {NULL, NULL}                                  /* Terminator */
+};
 
 /* Global GPU capabilities */
 static gpu_capabilities_t global_gpu_caps = {0};
@@ -54,18 +64,20 @@ gpu_capabilities_t detect_gpu_capabilities(struct wlr_renderer *renderer, struct
     }
     
     /* Detect renderer type */
-    if (wlr_renderer_is_gles2(renderer)) {
-        caps.hardware_acceleration = true;
-        caps.renderer_name = "OpenGL ES 2.0 (Hardware Accelerated)";
-        wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Hardware-accelerated OpenGL ES 2.0 detected");
-    } else if (wlr_renderer_is_pixman(renderer)) {
+    if (wlr_renderer_is_pixman(renderer)) {
         caps.hardware_acceleration = false;
         caps.renderer_name = "Pixman (Software Fallback)";
         wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Software Pixman renderer detected (no hardware acceleration)");
     } else {
-        caps.hardware_acceleration = false;
-        caps.renderer_name = "Unknown Renderer";
-        wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Unknown renderer type detected");
+        caps.hardware_acceleration = true;
+        const char *requested_renderer = getenv("WLR_RENDERER");
+        if (requested_renderer && strcmp(requested_renderer, "vulkan") == 0) {
+            caps.renderer_name = "Vulkan (Hardware Accelerated)";
+            wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Vulkan renderer detected");
+        } else {
+            caps.renderer_name = "Hardware Renderer";
+            wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Hardware renderer detected");
+        }
     }
     
     /* Detect adaptive sync support */
@@ -83,6 +95,8 @@ gpu_capabilities_t detect_gpu_capabilities(struct wlr_renderer *renderer, struct
     
     /* Hardware cursor detection */
     caps.hardware_cursors = true;  /* Assume supported, will be validated during runtime */
+    caps.texture_compression = caps.hardware_acceleration;
+    caps.timeline_sync = caps.hardware_acceleration;
     
     global_gpu_caps = caps;
     return caps;
@@ -110,10 +124,6 @@ void optimize_for_gpu(gpu_capabilities_t *caps)
     /* Hardware acceleration optimizations */
     if (caps->hardware_acceleration) {
         wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Hardware acceleration available, enabling GPU optimizations");
-        
-        /* Enable GPU-specific optimizations */
-        setenv("MESA_EXTENSION_OVERRIDE", "+GL_EXT_gpu_shader4", 0);
-        setenv("MESA_GL_VERSION_OVERRIDE", "3.3", 0);
     }
     
     /* Adaptive sync optimizations */

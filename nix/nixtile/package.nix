@@ -19,6 +19,7 @@
   writeText,
   xcbutilwm,
   xwayland,
+  vulkan-loader,
   # Boolean flags
   enableXWayland ? true,
   withCustomConfigH ? (configH != null),
@@ -58,6 +59,7 @@ stdenv.mkDerivation (finalAttrs: {
       libxcb
       libxkbcommon
       mesa
+      vulkan-loader
       pixman
       wayland
       wayland-protocols
@@ -109,6 +111,7 @@ stdenv.mkDerivation (finalAttrs: {
   __structuredAttrs = true;
 
   passthru = {
+    wlrootsVersion = wlroots.version;
     tests.version = testers.testVersion {
       package = finalAttrs.finalPackage;
       # `nixtile -v` emits its version string to stderr and returns 1
