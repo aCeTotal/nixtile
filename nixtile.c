@@ -2845,8 +2845,12 @@ renderer_name_for_log(struct wlr_renderer *renderer)
 	if (wlr_renderer_is_pixman(renderer))
 		return "Pixman (Software Fallback)";
 	const char *requested = getenv("WLR_RENDERER");
-	if (requested && strcmp(requested, "vulkan") == 0)
-		return "Vulkan (Hardware Accelerated)";
+	if (requested) {
+		if (strcmp(requested, "vulkan") == 0)
+			return "Vulkan (Hardware Accelerated)";
+		if (strcmp(requested, "gles2") == 0 || strcmp(requested, "gles3") == 0)
+			return "OpenGL (GLES2/3 Hardware Accelerated)";
+	}
 	return "Hardware Renderer";
 }
 
@@ -2895,7 +2899,7 @@ optimize_for_gpu(gpu_capabilities_t *caps)
 		wlr_log(WLR_INFO, "[nixtile] GPU OPTIMIZATION: High performance mode enabled");
 		
 		/* Set environment variables for optimal GPU performance */
-		setenv("WLR_RENDERER", "vulkan", 0); /* Don't override if already set */
+		setenv("WLR_RENDERER", "gles2", 0); /* Don't override if already set */
 		setenv("WLR_DRM_NO_ATOMIC", "0", 0);
 		setenv("WLR_DRM_NO_MODIFIERS", "0", 0);
 		setenv("WLR_NO_HARDWARE_CURSORS", "0", 0);
@@ -8744,7 +8748,7 @@ setup(void)
 	}
 	
 	/* Enable GPU acceleration environment variables */
-	setenv("WLR_RENDERER", "vulkan", 0); /* Prefer hardware-accelerated Vulkan renderer */
+	setenv("WLR_RENDERER", "gles2", 0); /* Prefer OpenGL (GLES3-capable) renderer */
 	setenv("WLR_DRM_NO_ATOMIC", "0", 0); /* Enable atomic modesetting for smooth updates */
 	setenv("WLR_DRM_NO_MODIFIERS", "0", 0); /* Enable DRM modifiers for better performance */
 	setenv("WLR_SCENE_DISABLE_VISIBILITY", "0", 0); /* Enable scene visibility optimizations */

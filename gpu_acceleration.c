@@ -13,7 +13,7 @@
 
 /* Environment Variables for GPU Acceleration */
 static const char* gpu_acceleration_env_vars[][2] = {
-    {"WLR_RENDERER", "vulkan"},                  /* Prefer Vulkan renderer */
+    {"WLR_RENDERER", "gles2"},                   /* Prefer OpenGL (GLES3-capable) renderer */
     {"WLR_DRM_NO_ATOMIC", "0"},                   /* Enable atomic modesetting */
     {"WLR_DRM_NO_MODIFIERS", "0"},                /* Enable DRM modifiers */
     {"WLR_SCENE_DISABLE_VISIBILITY", "0"},        /* Enable scene visibility optimizations */
@@ -74,6 +74,9 @@ gpu_capabilities_t detect_gpu_capabilities(struct wlr_renderer *renderer, struct
         if (requested_renderer && strcmp(requested_renderer, "vulkan") == 0) {
             caps.renderer_name = "Vulkan (Hardware Accelerated)";
             wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Vulkan renderer detected");
+        } else if (requested_renderer && strcmp(requested_renderer, "gles2") == 0) {
+            caps.renderer_name = "OpenGL (GLES2/3 Hardware Accelerated)";
+            wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: OpenGL (GLES) renderer detected");
         } else {
             caps.renderer_name = "Hardware Renderer";
             wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Hardware renderer detected");
