@@ -8313,21 +8313,23 @@ static void draw_status_bar(Monitor *m) {
 	if (clock_x < padding)
 		clock_x = padding;
 
-	/* Blue, semi-transparent background just around the clock */
-	int clock_pad = MAX(cell, 3);
-	int clock_bg_w = clock_w + 2 * clock_pad;
-	int clock_bg_h = font_h + 2 * clock_pad;
-	int clock_bg_x = clock_x - clock_pad;
-	int clock_bg_y = text_y - clock_pad;
-	if (clock_bg_x < padding)
-		clock_bg_x = padding;
-	if (clock_bg_y < 0)
-		clock_bg_y = 0;
-	if (clock_bg_x + clock_bg_w > bar_w)
-		clock_bg_w = bar_w - clock_bg_x;
-	if (clock_bg_y + clock_bg_h > bar_h)
-		clock_bg_h = bar_h - clock_bg_y;
-	float clock_bg_color[4] = {0.0f, 0.35f, 1.0f, 0.8f};
+		/* Subtle, semi-transparent background behind the clock (85% opacity) */
+		int clock_pad = MAX(cell, 3);
+		int clock_bg_w = clock_w + 2 * clock_pad;
+		int clock_bg_h = font_h + 2 * clock_pad;
+		int clock_bg_x = clock_x - clock_pad;
+		int clock_bg_y = text_y - clock_pad;
+		if (clock_bg_x < padding)
+			clock_bg_x = padding;
+		if (clock_bg_y < 0)
+			clock_bg_y = 0;
+		if (clock_bg_x + clock_bg_w > bar_w)
+			clock_bg_w = bar_w - clock_bg_x;
+		if (clock_bg_y + clock_bg_h > bar_h)
+			clock_bg_h = bar_h - clock_bg_y;
+	/* Use premultiplied alpha for the rect color to ensure transparency blends correctly */
+	float alpha = 0.15f; /* 15% opacity to let wallpaper show through */
+	float clock_bg_color[4] = {0.0f * alpha, 0.35f * alpha, 1.0f * alpha, alpha};
 	struct wlr_scene_rect *clock_bg = wlr_scene_rect_create(statusbar_tree, clock_bg_w, clock_bg_h, clock_bg_color);
 	wlr_scene_node_set_position(&clock_bg->node, clock_bg_x, clock_bg_y);
 
@@ -9368,7 +9370,24 @@ tile(Monitor *m)
 		/* 2-column layout: mfact-based horizontal resizing (supports stacks) */
 		/* This preserves horizontal resizing functionality for 2-column scenarios only */
 		
-		int left_width, right_width;
+		int left_width = 0, right_width = 0;
+		int available_width = adjusted_area.width - innergappx;
+		if (available_width < 0)
+			available_width = 0;
+		int left_tiles = 0, right_tiles = 0;
+		
+		/* Count tiles in each column for proper stack handling */
+		Client *temp_c;
+		wl_list_for_each(temp_c, &clients, link) {
+			if (!VISIBLEON(temp_c, m) || temp_c->isfloating || temp_c->isfullscreen)
+				continue;
+			
+			if (temp_c->column_group == 0) {
+				left_tiles++;
+			} else {
+				right_tiles++;
+			}
+		}
 		
 		/* HORIZONTAL RESIZE SUPPORT: Check if any tiles have custom width factors */
 		bool has_custom_width_factors = false;
@@ -9388,42 +9407,36 @@ tile(Monitor *m)
 			}
 		}
 		
-		if (has_custom_width_factors) {
-			/* Use width factors like height factors */
-			float total_factors = left_width_factor + right_width_factor;
-			if (total_factors > 0.1f) {
-				left_width = (int)((adjusted_area.width * left_width_factor) / total_factors);
-				right_width = adjusted_area.width - left_width - innergappx;
-				wlr_log(WLR_DEBUG, "[nixtile] WIDTH FACTORS: left=%.3f, right=%.3f, widths=(%d,%d)", 
-					left_width_factor, right_width_factor, left_width, right_width);
-			} else {
-				/* WORKSPACE ISOLATION: Use workspace-specific mfact instead of global m->mfact */
-				float workspace_mfact = get_workspace_mfact();
-				left_width = (int)roundf(adjusted_area.width * workspace_mfact);
-				right_width = adjusted_area.width - left_width - innergappx;
-				wlr_log(WLR_DEBUG, "[nixtile] WORKSPACE ISOLATION: Using workspace mfact %.3f instead of global %.3f", workspace_mfact, m->mfact);
-			}
-		} else {
-			/* WORKSPACE ISOLATION: Calculate widths based on workspace-specific mfact */
+		/* Force stable 50/50 (or saved mfact) when both columns have tiles and no manual horizontal resize has been done */
+		bool both_columns_populated = (left_tiles > 0 && right_tiles > 0);
+		if (both_columns_populated && !manual_resize_performed[0] && !manual_resize_performed[1]) {
 			float workspace_mfact = get_workspace_mfact();
-			left_width = (int)roundf(adjusted_area.width * workspace_mfact);
-			right_width = adjusted_area.width - left_width - innergappx;
-			wlr_log(WLR_DEBUG, "[nixtile] WORKSPACE ISOLATION: Using workspace mfact %.3f for layout calculation", workspace_mfact);
-			wlr_log(WLR_DEBUG, "[nixtile] 2-COLUMN GAP CALCULATION: adjusted_area.width=%d, left_width=%d, right_width=%d, innergappx=%d, outergappx=%d", 
-				adjusted_area.width, left_width, right_width, innergappx, outergappx);
+			left_width = (int)roundf(available_width * workspace_mfact);
+			right_width = available_width - left_width;
+			wlr_log(WLR_INFO, "[nixtile] 2-COLUMN STABLE WIDTH: using workspace mfact %.3f (left=%d right=%d)", workspace_mfact, left_width, right_width);
+			has_custom_width_factors = false; /* Ignore width factors in this balanced case */
 		}
 		
-		/* Count tiles in each column for proper stack handling */
-		int left_tiles = 0, right_tiles = 0;
-		Client *temp_c;
-		wl_list_for_each(temp_c, &clients, link) {
-			if (!VISIBLEON(temp_c, m) || temp_c->isfloating || temp_c->isfullscreen)
-				continue;
+		if (left_width == 0 && right_width == 0) {
+			if (has_custom_width_factors) {
+				/* Use width factors like height factors */
+				float total_factors = left_width_factor + right_width_factor;
+				if (total_factors > 0.1f) {
+					left_width = (int)((available_width * left_width_factor) / total_factors);
+					right_width = available_width - left_width;
+					wlr_log(WLR_DEBUG, "[nixtile] WIDTH FACTORS: left=%.3f, right=%.3f, widths=(%d,%d)", 
+						left_width_factor, right_width_factor, left_width, right_width);
+				}
+			}
 			
-			if (temp_c->column_group == 0) {
-				left_tiles++;
-			} else {
-				right_tiles++;
+			if (left_width == 0 && right_width == 0) {
+				/* WORKSPACE ISOLATION: Calculate widths based on workspace-specific mfact */
+				float workspace_mfact = get_workspace_mfact();
+				left_width = (int)roundf(available_width * workspace_mfact);
+				right_width = available_width - left_width;
+				wlr_log(WLR_DEBUG, "[nixtile] WORKSPACE ISOLATION: Using workspace mfact %.3f for layout calculation", workspace_mfact);
+				wlr_log(WLR_DEBUG, "[nixtile] 2-COLUMN GAP CALCULATION: adjusted_area.width=%d, left_width=%d, right_width=%d, innergappx=%d, outergappx=%d", 
+					adjusted_area.width, left_width, right_width, innergappx, outergappx);
 			}
 		}
 		
