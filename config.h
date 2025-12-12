@@ -128,7 +128,8 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
 
 /* commands */
-static const char *termcmd[] = { "kitty", NULL };
+static const char *termcmd[] = { "alacritty", NULL };
+static const char *browsercmd[] = { "google-chrome-stable", NULL };
 static const char *filebrowsercmd[] = { "thunar", NULL };
 
 
@@ -141,6 +142,7 @@ static const Key keys[] = {
     { .mod = MODKEY, .keysym = XKB_KEY_b, .func = toggle_statusbar, .arg = { .i = 0 } },
     { .mod = MODKEY, .keysym = XKB_KEY_p, .func = show_launcher, .arg = { .i = 0 } },
     { .mod = MODKEY, .keysym = XKB_KEY_Return, .func = spawn, .arg = { .v = termcmd } },
+    { .mod = MODKEY, .keysym = XKB_KEY_BackSpace, .func = spawn, .arg = { .v = browsercmd } },
     { .mod = MODKEY, .keysym = XKB_KEY_e, .func = spawn, .arg = { .v = filebrowsercmd } },
     { .mod = MODKEY, .keysym = XKB_KEY_f, .func = togglefullscreen, .arg = { .i = 0 } },
 
@@ -230,7 +232,6 @@ static const Button buttons[] = {
 #pragma message "BTN_LEFT = " TOSTRING(BTN_LEFT)
 #pragma message "BTN_MIDDLE = " TOSTRING(BTN_MIDDLE) 
 #pragma message "BTN_RIGHT = " TOSTRING(BTN_RIGHT)
-
 
 
 

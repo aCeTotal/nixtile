@@ -1,6 +1,5 @@
 {
   lib,
-  fetchFromGitHub,
   installShellFiles,
   libGL,
   libglvnd,
@@ -42,12 +41,8 @@ stdenv.mkDerivation (finalAttrs: {
   pname = "nixtile";
   version = "0.1-dev";
 
-  src = fetchFromGitHub {
-    owner = "aCeTotal";
-    repo = "nixtile";
-    rev = "f8a4943c78dc2438e7aee966a95a2c5b376b9d4a";
-    sha256 = "sha256-1z3kqbnpx1n0z7z0cjiqgy00lp7v3vgq58fr8x9f24jr1qrv7qp7";
-  };
+  # Build from the local working tree instead of a fixed GitHub revision
+  src = ../..;
 
   nativeBuildInputs = [
     installShellFiles
@@ -140,4 +135,3 @@ stdenv.mkDerivation (finalAttrs: {
     mainProgram = "nixtile";
   };
 })
-
