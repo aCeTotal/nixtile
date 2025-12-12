@@ -2296,6 +2296,13 @@ buttonpress(struct wl_listener *listener, void *data)
 			} else {
 				wlr_log(WLR_DEBUG, "[nixtile] Button release: grabc or cursor is NULL");
 			}
+
+			/* Persist final resize state once the interaction ends */
+			if (original_cursor_mode == CurTileResize) {
+				save_workspace_state();
+				wlr_log(WLR_DEBUG, "[nixtile] TILE RESIZE COMPLETE: Workspace state saved on button release");
+			}
+
 			/* Reset grab variables safely */
 			grabc = NULL;
 			grabedge = EDGE_NONE;
@@ -3178,27 +3185,6 @@ createnotify(struct wl_listener *listener, void *data)
 		rebalance_column_heights(selmon, c->column_group);
 	}
 	
-	/* STEP 5: RESET MANUAL RESIZE - Always reset ALL manual resize flags on tile addition */
-	int workspace = get_current_workspace();
-	if (selmon && workspace >= 0 && workspace < 9) {
-		/* Reset ALL manual resize flags for ALL columns when any tile is added */
-		for (int col = 0; col < MAX_COLUMNS; col++) {
-			selmon->workspace_manual_resize_performed[workspace][col] = false;
-			manual_resize_performed[col] = false;
-		}
-		wlr_log(WLR_ERROR, "[nixtile] CREATENOTIFY: Reset ALL manual resize flags for workspace %d on tile addition", workspace);
-	}
-	
-	/* RESET ALL HEIGHT FACTORS: Set all tiles to equal height factors on tile addition */
-	Client *reset_c;
-	wl_list_for_each(reset_c, &clients, link) {
-		/* Only affect tiles in current workspace */
-		if (!VISIBLEON(reset_c, selmon) || reset_c->isfloating || reset_c->isfullscreen)
-			continue;
-		reset_c->height_factor = 1.0f;
-		wlr_log(WLR_DEBUG, "[nixtile] CREATENOTIFY: Reset height factor for tile %p in workspace %d", (void*)reset_c, workspace);
-	}
-	
 	/* STEP 5: Final verification */
 	int final_count = count_tiles_in_stack(c->column_group, selmon);
 	wlr_log(WLR_INFO, "[nixtile] PLACEMENT COMPLETE: Column %d will have %d tiles after addition", c->column_group, final_count + 1);
@@ -3223,56 +3209,6 @@ createnotify(struct wl_listener *listener, void *data)
 	/* LAYOUT UPDATE: Apply initial layout */
 	arrange(selmon);
 	
-	/* POST-LAYOUT HEIGHT REBALANCING: Force equal heights after tile creation */
-	wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT CREATION: Starting post-layout height rebalancing after tile creation");
-	
-	/* Get current workspace */
-	int current_workspace = get_current_workspace();
-	if (current_workspace >= 0 && current_workspace < 9) {
-		/* Count tiles per column in current workspace */
-		int column_counts[MAX_COLUMNS] = {0};
-		int max_columns = get_workspace_optimal_columns();
-		
-		Client *client;
-		wl_list_for_each(client, &clients, link) {
-			if (!VISIBLEON(client, selmon) || client->isfloating || client->isfullscreen)
-				continue;
-			if (client->column_group >= 0 && client->column_group < max_columns) {
-				column_counts[client->column_group]++;
-			}
-		}
-		
-		/* Force equal heights in each column */
-		for (int col = 0; col < max_columns; col++) {
-			if (column_counts[col] <= 1) continue; /* Skip columns with 0 or 1 tile */
-			
-			wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT CREATION: Rebalancing column %d with %d tiles", col, column_counts[col]);
-			
-			/* Set all tiles in this column to height_factor = 1.0 */
-			wl_list_for_each(client, &clients, link) {
-				if (!VISIBLEON(client, selmon) || client->isfloating || client->isfullscreen)
-					continue;
-				if (client->column_group == col) {
-					float old_factor = client->height_factor;
-					client->height_factor = 1.0f;
-					wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT CREATION: Tile %p in column %d - height_factor: %.3f -> 1.000", 
-						(void*)client, col, old_factor);
-				}
-			}
-			
-			/* Clear workspace storage for this column */
-			for (int i = 0; i < MAX_TILES_PER_WORKSPACE; i++) {
-				selmon->workspace_height_factors[current_workspace][i] = 1.0f;
-			}
-			selmon->workspace_manual_resize_performed[current_workspace][col] = false;
-			wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT CREATION: Cleared workspace storage for column %d", col);
-		}
-		
-		/* Final layout update to apply equal heights */
-		arrange(selmon);
-		wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT CREATION: Final layout update completed - all columns rebalanced");
-	}
-	
 	/* DEFERRED AUTO-FOCUS: Schedule focus with timer for consistent behavior */
 	wlr_log(WLR_DEBUG, "[nixtile] DEFERRED AUTO-FOCUS: Scheduling focus timer after creation");
 	
@@ -3282,10 +3218,6 @@ createnotify(struct wl_listener *listener, void *data)
 	if (creation_focus_timer) {
 		wl_event_source_timer_update(creation_focus_timer, 25); /* 25ms delay for creation */
 	}
-	
-	/* COMPREHENSIVE RESET: Final reset after all processing to ensure equal distribution */
-	wlr_log(WLR_ERROR, "[nixtile] CREATENOTIFY FINAL: Calling comprehensive reset after all processing");
-	comprehensive_reset_all_resizing(selmon, "tile creation final");
 }
 
 void
@@ -4545,51 +4477,12 @@ handletiledrop_old(Client *c, double x, double y)
 		wlr_log(WLR_DEBUG, "[nixtile] Moved tile from column %d to column %d (cross-column swap)", old_column, target_column);
 	}
 	
-	/* RESET MANUAL RESIZE STATE: Clear all manual resize flags on tile movement */
-	int workspace = get_current_workspace();
-	if (workspace >= 0 && workspace < 9) {
-		/* Reset ALL manual resize flags for ALL columns when any tile is moved */
-		for (int col = 0; col < MAX_COLUMNS; col++) {
-			m->workspace_manual_resize_performed[workspace][col] = false;
-			manual_resize_performed[col] = false;
-		}
-		wlr_log(WLR_ERROR, "[nixtile] HANDLETILEDROP: Reset ALL manual resize flags for workspace %d on tile movement", workspace);
-	}
-	
 	/* EQUAL DISTRIBUTION: Check if we need equal horizontal distribution for single tiles */
 	ensure_equal_horizontal_distribution_for_two_tiles();
 	
 	/* Force layout update FIRST */
 	arrange(m);
 	
-	/* POST-LAYOUT REBALANCING: Enkel tilnærming som tvinger lik fordeling ETTER alt annet */
-	wlr_log(WLR_ERROR, "[nixtile] TILE MOVEMENT: Tvinger lik høyde-fordeling etter layout");
-	
-	/* Tell tiles i hver kolonne */
-	int tiles_per_column[MAX_COLUMNS] = {0};
-	Client *count_c;
-	wl_list_for_each(count_c, &clients, link) {
-		if (VISIBLEON(count_c, m) && !count_c->isfloating && !count_c->isfullscreen) {
-			if (count_c->column_group >= 0 && count_c->column_group < MAX_COLUMNS) {
-				tiles_per_column[count_c->column_group]++;
-			}
-		}
-	}
-	
-	/* RESET ALL HEIGHT FACTORS: Set all tiles to equal height factors on tile movement */
-	Client *reset_all_c;
-	wl_list_for_each(reset_all_c, &clients, link) {
-		if (VISIBLEON(reset_all_c, m) && !reset_all_c->isfloating && !reset_all_c->isfullscreen) {
-			float old_factor = reset_all_c->height_factor;
-			reset_all_c->height_factor = 1.0f;
-			wlr_log(WLR_ERROR, "[nixtile] HANDLETILEDROP: Reset height factor for tile %p: %.3f -> 1.000", 
-			        (void*)reset_all_c, old_factor);
-		}
-	}
-	
-	/* Siste layout-oppdatering for å anvende rebalanceringen */
-	wlr_log(WLR_ERROR, "[nixtile] POST-LAYOUT: Anvender lik fordeling med siste layout-oppdatering");
-	arrange(m);
 }
 
 void
@@ -4826,6 +4719,7 @@ destroynotify(struct wl_listener *listener, void *data)
 	
 	/* Store monitor for later layout update */
 	Monitor *saved_mon = c->mon;
+	int destroyed_column = c->column_group;
 	
 	/* MINIMAL cleanup: Only remove from lists if managed */
 	if (!client_is_unmanaged(c)) {
@@ -4850,32 +4744,21 @@ destroynotify(struct wl_listener *listener, void *data)
 		
 		/* RESET MANUAL RESIZE STATE: Clear all manual resize flags on tile deletion */
 		int workspace = get_current_workspace();
-		if (workspace >= 0 && workspace < 9) {
-			for (int col = 0; col < MAX_COLUMNS; col++) {
-				saved_mon->workspace_manual_resize_performed[workspace][col] = false;
-				manual_resize_performed[col] = false;
-			}
-			wlr_log(WLR_ERROR, "[nixtile] DESTROYNOTIFY: Reset all manual resize flags for workspace %d", workspace);
+		if (workspace >= 0 && workspace < 9 && destroyed_column >= 0 && destroyed_column < MAX_COLUMNS) {
+			saved_mon->workspace_manual_resize_performed[workspace][destroyed_column] = false;
+			manual_resize_performed[destroyed_column] = false;
+			wlr_log(WLR_ERROR, "[nixtile] DESTROYNOTIFY: Reset manual resize flag for workspace %d column %d", workspace, destroyed_column);
 		}
 		
 		/* CRITICAL: Rebalance column assignments after tile deletion */
 		wlr_log(WLR_DEBUG, "[nixtile] COLUMN REBALANCE: Fixing column assignments after tile deletion");
 		rebalance_column_assignments(saved_mon);
 		
-		/* RESET ALL HEIGHT FACTORS: Set all remaining tiles to equal height factors on tile deletion */
-		Client *reset_remaining_c;
-		wl_list_for_each(reset_remaining_c, &clients, link) {
-			if (VISIBLEON(reset_remaining_c, saved_mon) && !reset_remaining_c->isfloating && !reset_remaining_c->isfullscreen) {
-				float old_factor = reset_remaining_c->height_factor;
-				reset_remaining_c->height_factor = 1.0f;
-				wlr_log(WLR_ERROR, "[nixtile] DESTROYNOTIFY: Reset height factor for remaining tile %p: %.3f -> 1.000", 
-				        (void*)reset_remaining_c, old_factor);
-			}
+		/* AUTOMATIC HEIGHT REBALANCING: Reset tile heights only for the affected column */
+		if (destroyed_column >= 0 && destroyed_column < MAX_COLUMNS) {
+			wlr_log(WLR_ERROR, "[nixtile] DESTROYNOTIFY: Tile removed - rebalancing column %d", destroyed_column);
+			rebalance_column_heights(saved_mon, destroyed_column);
 		}
-		
-		/* AUTOMATIC HEIGHT REBALANCING: Reset tile heights after tile removal */
-		wlr_log(WLR_ERROR, "[nixtile] DESTROYNOTIFY: Tile removed - triggering height rebalancing for all columns");
-		rebalance_all_column_heights(saved_mon);
 		
 		/* Schedule immediate layout update now that destruction is complete */
 		wlr_log(WLR_DEBUG, "[nixtile] SAFE LAYOUT: Triggering deferred arrange after destruction");
@@ -5779,9 +5662,12 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 		
 		/* HORIZONTAL RESIZING: Direct tile width adjustment like vertical resizing */
 		if (do_horizontal_resize && horizontal_resize_client && horizontal_resize_neighbor) {
-			/* Rate limiting for smooth resizing */
+			/* Rate limit based on monitor refresh rate for consistent feel */
 			uint32_t current_time = get_time_ms();
-			if (current_time - last_horizontal_resize_time < 16) {
+			int refresh_mhz = get_monitor_refresh_rate(selmon);
+			int min_interval_ms = (refresh_mhz > 0) ? (int)lround(1000000.0 / (double)refresh_mhz) : 16;
+			if (min_interval_ms < 1) min_interval_ms = 1;
+			if (current_time - last_horizontal_resize_time < (uint32_t)min_interval_ms) {
 				/* Skip horizontal resize this frame, but allow vertical resize to continue */
 				goto skip_horizontal_resize;
 			}
@@ -6034,33 +5920,57 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 					}
 					
 					wlr_log(WLR_DEBUG, "[nixtile] WIDTH FACTORS UPDATED: grabc=%.3f, neighbor=%.3f (total_width=%d)", 
-				grabc_width_factor, neighbor_width_factor, total_width);
-				
-				/* CRITICAL: Calculate and update mfact based on column widths */
-				/* For 2-column layout, mfact represents the ratio of left column to total width */
-				int total_available_width = selmon->w.width - 2 * outergappx;
-				if (total_available_width > 0) {
-					/* Determine which column is left and which is right */
-					Client *left_column_tile = (grabc->column_group < neighbor_tile->column_group) ? grabc : neighbor_tile;
-					int left_column_width = left_column_tile->geom.width;
+						grabc_width_factor, neighbor_width_factor, total_width);
 					
-					/* Calculate new mfact: left_column_width / total_available_width */
-					float new_mfact = (float)left_column_width / (float)total_available_width;
+					/* CRITICAL: Calculate and update mfact based on column widths */
+					/* For 2-column layout, mfact represents the ratio of left column to total width */
+					int total_available_width = selmon->w.width - 2 * outergappx;
+					if (total_available_width > 0) {
+						/* Determine which column is left and which is right */
+						Client *left_column_tile = (grabc->column_group < neighbor_tile->column_group) ? grabc : neighbor_tile;
+						int left_column_width = left_column_tile->geom.width;
+						
+						/* Calculate new mfact: left_column_width / total_available_width */
+						float new_mfact = (float)left_column_width / (float)total_available_width;
+						
+						/* Apply bounds checking to mfact */
+						if (new_mfact < 0.1f) new_mfact = 0.1f;
+						if (new_mfact > 0.9f) new_mfact = 0.9f;
+						
+						/* Update mfact */
+						selmon->mfact = new_mfact;
+						
+						wlr_log(WLR_DEBUG, "[nixtile] MFACT UPDATED: new_mfact=%.3f (left_width=%d, total_width=%d)", 
+							new_mfact, left_column_width, total_available_width);
+					}
 					
-					/* Apply bounds checking to mfact */
-					if (new_mfact < 0.1f) new_mfact = 0.1f;
-					if (new_mfact > 0.9f) new_mfact = 0.9f;
-					
-					/* Update mfact */
-					selmon->mfact = new_mfact;
-					
-					wlr_log(WLR_DEBUG, "[nixtile] MFACT UPDATED: new_mfact=%.3f (left_width=%d, total_width=%d)", 
-						new_mfact, left_column_width, total_available_width);
-				}
-				
-				/* CRITICAL: Save workspace state to persist width_factor and mfact changes */
-				save_workspace_state();
-				wlr_log(WLR_DEBUG, "[nixtile] PERSISTENCE: Saved width_factor and mfact changes from motionnotify to workspace state");
+					/* Persist the new distribution to workspace state without a full save */
+					int workspace = get_current_workspace();
+					if (workspace >= 0 && workspace < 9 && selmon) {
+						selmon->workspace_mfact[workspace] = selmon->mfact;
+						selmon->workspace_pending_target_mfact[workspace] = selmon->mfact;
+						
+						/* Store updated width factors in workspace order */
+						int tile_index = 0;
+						wl_list_for_each(sync_c, &clients, link) {
+							if (!VISIBLEON(sync_c, selmon) || sync_c->isfloating || sync_c->isfullscreen)
+								continue;
+							if (tile_index < MAX_TILES_PER_WORKSPACE) {
+								selmon->workspace_width_factors[workspace][tile_index] = sync_c->width_factor;
+							}
+							tile_index++;
+						}
+						
+						/* Mark both columns as manually resized for this workspace */
+						if (grabc->column_group >= 0 && grabc->column_group < MAX_COLUMNS) {
+							selmon->workspace_manual_resize_performed[workspace][grabc->column_group] = true;
+							manual_resize_performed[grabc->column_group] = true;
+						}
+						if (neighbor_tile->column_group >= 0 && neighbor_tile->column_group < MAX_COLUMNS) {
+							selmon->workspace_manual_resize_performed[workspace][neighbor_tile->column_group] = true;
+							manual_resize_performed[neighbor_tile->column_group] = true;
+						}
+					}
 				}
 				
 				wlr_log(WLR_DEBUG, "[nixtile] HORIZONTAL POINTER-RELATIVE RESIZE: cursor_x=%.1f, edge_x=%.1f, offset=%.1f, grabc_w=%d, neighbor_w=%d", 
@@ -6073,9 +5983,12 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 skip_horizontal_resize:
 		/* TRUE POINTER-RELATIVE VERTICAL RESIZING: Mouse-to-edge distance stays constant */
 		if (do_vertical_resize && vertical_resize_client && vertical_resize_neighbor) {
-			/* Rate limiting for smooth vertical resizing */
+			/* Rate limiting for smooth vertical resizing (match monitor Hz) */
 			uint32_t current_time = get_time_ms();
-			if (current_time - last_vertical_resize_time < 16) {
+			int refresh_mhz = get_monitor_refresh_rate(selmon);
+			int min_interval_ms = (refresh_mhz > 0) ? (int)lround(1000000.0 / (double)refresh_mhz) : 16;
+			if (min_interval_ms < 1) min_interval_ms = 1;
+			if (current_time - last_vertical_resize_time < (uint32_t)min_interval_ms) {
 				/* Skip vertical resize this frame, but don't exit completely */
 				goto skip_vertical_resize;
 			}
@@ -6329,6 +6242,10 @@ skip_horizontal_resize:
 						wlr_log(WLR_INFO, "[nixtile] WORKSPACE PERSISTENCE: Saved height factors - grabc[%d]=%.2f, neighbor[%d]=%.2f", 
 							grabc_index, grabc->height_factor, neighbor_index, neighbor_tile->height_factor);
 					}
+
+					/* Keep pending height factor in sync for frame callback/state save */
+					pending_target_height_factor = grabc->height_factor;
+					selmon->workspace_pending_target_height_factor[workspace] = pending_target_height_factor;
 				}
 				
 				vertical_resize_pending = true;
@@ -6349,11 +6266,9 @@ skip_vertical_resize:
 		if ((resize_pending || vertical_resize_pending) && !resize_timer) {
 			/* Get monitor refresh rate for optimal frame sync */
 			int refresh_rate_mhz = get_monitor_refresh_rate(selmon);
-			int frame_interval_ms = 1000 / (refresh_rate_mhz / 1000); /* Convert mHz to ms interval */
-			
-			/* SAFETY: Clamp frame interval to prevent protocol overload or sluggishness */
-			if (frame_interval_ms < 8) frame_interval_ms = 8;   /* Max 125Hz - prevents protocol overload */
-			if (frame_interval_ms > 20) frame_interval_ms = 20; /* Min 50Hz - ensures responsiveness */
+			/* Convert mHz -> ms with rounding: 1s = 1,000,000 mHz */
+			int frame_interval_ms = (refresh_rate_mhz > 0) ? (int)lround(1000000.0 / (double)refresh_rate_mhz) : 16;
+			if (frame_interval_ms < 1) frame_interval_ms = 1;
 			
 			resize_timer = wl_event_loop_add_timer(wl_display_get_event_loop(dpy),
 							   frame_synced_resize_callback, NULL);
@@ -6619,9 +6534,12 @@ frame_synced_resize_callback(void *data)
 				vertical_resize_neighbor = NULL;
 				resize_operation_active = false;
 			} else {
-				/* SAFETY: Validate height factor is reasonable */
-				if (!isfinite(pending_target_height_factor) || pending_target_height_factor <= 0.1f || pending_target_height_factor >= 3.0f) {
-					wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid height factor %.3f - ABORT", pending_target_height_factor);
+				/* SAFETY: Validate height factors produced during motion */
+				float target_factor = vertical_resize_client->height_factor;
+				float neighbor_factor = vertical_resize_neighbor->height_factor;
+				if (!isfinite(target_factor) || target_factor <= 0.05f || target_factor >= 3.0f ||
+				    !isfinite(neighbor_factor) || neighbor_factor <= 0.05f || neighbor_factor >= 3.0f) {
+					wlr_log(WLR_ERROR, "[nixtile] SAFETY: Invalid height factors (%.3f, %.3f) - ABORT", target_factor, neighbor_factor);
 					vertical_resize_pending = false;
 					resize_operation_active = false;
 				} else {
@@ -6640,24 +6558,18 @@ frame_synced_resize_callback(void *data)
 						vertical_resize_neighbor = NULL;
 						resize_operation_active = false;
 					} else {
-						/* Safe to apply resize */
-						vertical_resize_client->height_factor = pending_target_height_factor;
-						/* Optimized neighbor adjustment */
-						float remaining = 2.0f - pending_target_height_factor;
-						if (remaining > 0.2f) {
-							vertical_resize_neighbor->height_factor = remaining;
-						}
+						/* Persist latest factor so workspace save/load stays in sync */
+						pending_target_height_factor = target_factor;
 						
 						/* MANUAL RESIZE TRACKING: Mark this column as manually resized */
 						int column = vertical_resize_client->column_group;
-						if (column >= 0 && column < 2) {
-							/* WORKSPACE ISOLATION: Mark resize in workspace-specific state */
+						if (column >= 0 && column < MAX_COLUMNS) {
 							int workspace = get_current_workspace();
 							if (selmon && workspace >= 0 && workspace < 9) {
 								selmon->workspace_manual_resize_performed[workspace][column] = true;
+								selmon->workspace_pending_target_height_factor[workspace] = pending_target_height_factor;
 								wlr_log(WLR_INFO, "[nixtile] WORKSPACE ISOLATION: Column %d marked as manually resized in workspace %d", column, workspace);
 							}
-							/* Also update global state for compatibility */
 							manual_resize_performed[column] = true;
 						}
 						
@@ -6764,13 +6676,12 @@ frame_synced_resize_callback(void *data)
 							(current_time.tv_nsec - last_arrange_time.tv_nsec) / 1000000;
 		
 		/* DYNAMIC FRAME SYNC: Calculate optimal frame time based on monitor's refresh rate */
-		int monitor_refresh_hz = get_monitor_refresh_rate(selmon) / 1000; /* Convert mHz to Hz */
-		int optimal_frame_time_ms = (monitor_refresh_hz > 0) ? (1000 / monitor_refresh_hz) : 16;
+		int refresh_rate_mhz = get_monitor_refresh_rate(selmon);
+		int optimal_frame_time_ms = (refresh_rate_mhz > 0) ? (int)lround(1000000.0 / (double)refresh_rate_mhz) : 16;
+		if (optimal_frame_time_ms < 1) optimal_frame_time_ms = 1;
 		
-		/* Ensure minimum performance even on very high refresh rate displays */
-		if (optimal_frame_time_ms < 4) optimal_frame_time_ms = 4; /* Max 250fps cap for safety */
-		
-		wlr_log(WLR_DEBUG, "[nixtile] FRAME SYNC: Monitor %dHz -> %dms frame time (was fixed 16ms)", 
+		int monitor_refresh_hz = refresh_rate_mhz / 1000;
+		wlr_log(WLR_DEBUG, "[nixtile] FRAME SYNC: Monitor %dHz -> %dms frame time (adaptive)", 
 		        monitor_refresh_hz, optimal_frame_time_ms);
 		
 		/* Only arrange if enough time has passed (dynamic based on monitor Hz) */
@@ -8313,8 +8224,8 @@ static void draw_status_bar(Monitor *m) {
 	if (clock_x < padding)
 		clock_x = padding;
 
-		/* Subtle, semi-transparent background behind the clock (85% opacity) */
-		int clock_pad = MAX(cell, 3);
+		/* Subtle, semi-transparent background behind the clock (slightly smaller) */
+		int clock_pad = MAX(cell - 1, 2); /* reduce overall size a bit */
 		int clock_bg_w = clock_w + 2 * clock_pad;
 		int clock_bg_h = font_h + 2 * clock_pad;
 		int clock_bg_x = clock_x - clock_pad;
@@ -10034,12 +9945,18 @@ toggleview(const Arg *arg)
 		return;
 	}
 
+	/* Save current workspace state before switching visibility */
+	save_workspace_state();
+
 	selmon->tagset[selmon->seltags] = newtagset;
 	
 	/* Reset workspace-specific stacking counter for "blank slate" per workspace */
 	selmon->workspace_stacking_counter = 0;
 	selmon->workspace_stacking_counter_initialized = false;
 	wlr_log(WLR_ERROR, "[nixtile] *** WORKSPACE TOGGLE RESET: Stacking counter reset for workspace toggle ***");
+
+	/* Load workspace-specific state after toggling visibility */
+	load_workspace_state();
 	
 	focusclient(focustop(selmon), 1);
 	arrange(selmon);
@@ -10722,6 +10639,7 @@ static void load_workspace_state() {
 	pending_right_x = selmon->workspace_pending_right_x[workspace];
 	
 	/* CRITICAL: Restore individual tile height and width factors from workspace state */
+	int visible_tiles = 0;
 	wl_list_for_each(c, &clients, link) {
 		if (VISIBLEON(c, selmon) && tile_index < MAX_TILES_PER_WORKSPACE) {
 			float saved_height_factor = selmon->workspace_height_factors[workspace][tile_index];
@@ -10744,7 +10662,43 @@ static void load_workspace_state() {
 			wlr_log(WLR_DEBUG, "[nixtile] RESTORED height_factor %.2f, width_factor %.2f for tile %d", 
 				c->height_factor, c->width_factor, tile_index);
 			tile_index++;
+			visible_tiles++;
 		}
+	}
+
+	/* BLANK WORKSPACE GUARD: Reset all state for empty workspaces to ensure equal distribution */
+	if (visible_tiles == 0) {
+		wlr_log(WLR_INFO, "[nixtile] WORKSPACE ISOLATION: Workspace %d is empty - resetting layout state", workspace);
+		
+		/* Reset manual resize flags */
+		for (col = 0; col < MAX_COLUMNS; col++) {
+			selmon->workspace_manual_resize_performed[workspace][col] = false;
+			manual_resize_performed[col] = false;
+		}
+		
+		/* Reset factors and pending targets */
+		for (int i = 0; i < MAX_TILES_PER_WORKSPACE; i++) {
+			selmon->workspace_height_factors[workspace][i] = 1.0f;
+			selmon->workspace_width_factors[workspace][i] = 1.0f;
+		}
+		
+		selmon->workspace_mfact[workspace] = 0.5f;
+		selmon->workspace_pending_target_mfact[workspace] = 0.5f;
+		pending_target_mfact = 0.5f;
+		
+		selmon->workspace_pending_target_height_factor[workspace] = 1.0f;
+		pending_target_height_factor = 1.0f;
+		
+		selmon->workspace_pending_left_column[workspace] = -1;
+		selmon->workspace_pending_right_column[workspace] = -1;
+		selmon->workspace_pending_left_width[workspace] = 0;
+		selmon->workspace_pending_right_width[workspace] = 0;
+		selmon->workspace_pending_right_x[workspace] = 0;
+		pending_left_column = -1;
+		pending_right_column = -1;
+		pending_left_width = 0;
+		pending_right_width = 0;
+		pending_right_x = 0;
 	}
 	
 	/* WORKSPACE ISOLATION: Preserve active resize operations across workspace loads */
