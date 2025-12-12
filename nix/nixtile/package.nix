@@ -7,7 +7,9 @@
   libinput,
   libxcb,
   libxkbcommon,
+  libdrm,
   mesa,
+  swaybg,
   pixman,
   pkg-config,
   stdenv,
@@ -15,10 +17,12 @@
   wayland,
   wayland-protocols,
   wayland-scanner,
+  makeWrapper,
   wlroots,
   writeText,
   xcbutilwm,
   xwayland,
+  stb,
   vulkan-loader,
   # Boolean flags
   enableXWayland ? true,
@@ -49,6 +53,7 @@ stdenv.mkDerivation (finalAttrs: {
     installShellFiles
     pkg-config
     wayland-scanner
+    makeWrapper
   ];
 
   buildInputs =
@@ -58,9 +63,12 @@ stdenv.mkDerivation (finalAttrs: {
       libinput
       libxcb
       libxkbcommon
+      libdrm
       mesa
+      swaybg
       vulkan-loader
       pixman
+      stb
       wayland
       wayland-protocols
       wlroots
@@ -75,6 +83,8 @@ stdenv.mkDerivation (finalAttrs: {
     "out"
     "man"
   ];
+
+  NIX_CFLAGS_COMPILE = "-I${stb}/include";
 
   postPatch =
     let
@@ -91,6 +101,7 @@ stdenv.mkDerivation (finalAttrs: {
     mkdir -p $out/share/applications
     cp -f nixtile.desktop $out/share/wayland-sessions/
     cp -f nixtile.desktop $out/share/applications/
+    wrapProgram $out/bin/nixtile --prefix PATH : ${swaybg}/bin
   '';
 
   makeFlags =

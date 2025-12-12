@@ -2,6 +2,7 @@
  * See LICENSE file for copyright and license details.
  */
 #define _GNU_SOURCE
+#include <drm_fourcc.h>
 #include <getopt.h>
 #include <libinput.h>
 #include <limits.h>
@@ -11,13 +12,19 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <ctype.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <sched.h>
+#include <stdint.h>
 #include <wayland-server-core.h>
+#include <limits.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb/stb_image.h>
+#include <wlr/interfaces/wlr_buffer.h>
 #include <wlr/backend.h>
 #include <wlr/backend/libinput.h>
 #include <wlr/render/allocator.h>
@@ -53,6 +60,7 @@
 #include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_screencopy_v1.h>
 #include <wlr/types/wlr_seat.h>
+#include <wlr/types/wlr_buffer.h>
 #include <wlr/types/wlr_server_decoration.h>
 #include <wlr/types/wlr_session_lock_v1.h>
 #include <wlr/types/wlr_single_pixel_buffer_v1.h>
@@ -100,6 +108,7 @@ static const float launcher_tab_active_color[4] = {0.22f, 0.24f, 0.32f, 1.0f};
 #include <xcb/xcb_icccm.h>
 #endif
 
+#include <wlr/render/wlr_texture.h>
 #include "util.h"
 #include "gpu_acceleration.h"
 #include <wlr/render/pixman.h>
@@ -239,6 +248,10 @@ struct Monitor {
 	struct wlr_output *wlr_output;
 	struct wlr_scene_output *scene_output;
 	struct wlr_scene_rect *fullscreen_bg; /* See createmon() for info */
+	struct wlr_scene_buffer *wallpaper_scene;
+	struct wlr_buffer *wallpaper_buf;
+	int wallpaper_target_w;
+	int wallpaper_target_h;
 	struct wl_listener frame;
 	struct wl_listener destroy;
 	struct wl_listener request_state;
@@ -350,6 +363,8 @@ static void cursorframe(struct wl_listener *listener, void *data);
 static void cursorwarptohint(void);
 static void destroydecoration(struct wl_listener *listener, void *data);
 static void destroydragicon(struct wl_listener *listener, void *data);
+static void start_swaybg(void);
+static void stop_swaybg(void);
 static void destroyidleinhibitor(struct wl_listener *listener, void *data);
 static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroylock(SessionLock *lock, int unlocked);
@@ -467,6 +482,10 @@ static Monitor *xytomon(double x, double y);
 static void xytonode(double x, double y, struct wlr_surface **psurface,
 		Client **pc, LayerSurface **pl, double *nx, double *ny);
 static void zoom(const Arg *arg) UNUSED;
+static bool load_wallpaper_image(void);
+static const char *wallpaper_path(void);
+static void refresh_wallpaper(Monitor *m);
+static void destroy_wallpaper(Monitor *m);
 static bool layout_is_norwegian(const char *layout);
 
 /* variables */
@@ -483,6 +502,21 @@ static struct wlr_scene_tree *drag_icon;
 static const int layermap[] = { LyrBg, LyrBottom, LyrTop, LyrOverlay };
 static struct wlr_renderer *drw;
 static struct wlr_allocator *alloc;
+static unsigned char *wallpaper_data;
+static int wallpaper_width;
+static int wallpaper_height;
+static bool wallpaper_loaded;
+static bool wallpaper_failed;
+static char wallpaper_resolved_path[PATH_MAX];
+static bool wallpaper_enabled = true;
+static bool wallpaper_use_swaybg = true;
+static pid_t swaybg_pid = -1;
+struct pixel_buffer {
+	struct wlr_buffer base;
+	uint8_t *data;
+	size_t stride;
+	uint32_t format;
+};
 static struct wlr_compositor *compositor;
 static struct wlr_session *session;
 
@@ -716,6 +750,313 @@ get_time_ms(void)
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+}
+
+static const char *
+wallpaper_path(void)
+{
+	if (wallpaper_resolved_path[0])
+		return wallpaper_resolved_path;
+
+	/* 1) Explicit override */
+	const char *env_path = getenv("NIXTILE_WALLPAPER");
+	if (env_path && *env_path && access(env_path, R_OK) == 0) {
+		strncpy(wallpaper_resolved_path, env_path, sizeof(wallpaper_resolved_path) - 1);
+		wallpaper_resolved_path[sizeof(wallpaper_resolved_path) - 1] = '\0';
+		return wallpaper_resolved_path;
+	}
+
+	/* 2) Installed datadir (e.g. /nix/store/.../share or /usr/share) */
+	if (NIXTILE_DATADIR && *NIXTILE_DATADIR) {
+		snprintf(wallpaper_resolved_path, sizeof(wallpaper_resolved_path),
+		         "%s/wallpapers/beach.jpg", NIXTILE_DATADIR);
+		if (access(wallpaper_resolved_path, R_OK) == 0)
+			return wallpaper_resolved_path;
+
+		snprintf(wallpaper_resolved_path, sizeof(wallpaper_resolved_path),
+		         "%s/nixtile/wallpapers/beach.jpg", NIXTILE_DATADIR);
+		if (access(wallpaper_resolved_path, R_OK) == 0)
+			return wallpaper_resolved_path;
+	}
+	if (access("/usr/share/nixtile/wallpapers/beach.jpg", R_OK) == 0) {
+		strncpy(wallpaper_resolved_path, "/usr/share/nixtile/wallpapers/beach.jpg",
+		        sizeof(wallpaper_resolved_path) - 1);
+		wallpaper_resolved_path[sizeof(wallpaper_resolved_path) - 1] = '\0';
+		return wallpaper_resolved_path;
+	}
+
+	/* 3) Relative to the executable location (useful for local builds) */
+	char exe_path[PATH_MAX];
+	ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+	if (len > 0) {
+		exe_path[len] = '\0';
+		char *slash = strrchr(exe_path, '/');
+		if (slash) {
+			size_t dir_len = (size_t)(slash - exe_path);
+			char candidate[PATH_MAX];
+
+			/* Try ../share/nixtile/wallpapers/beach.jpg */
+			snprintf(candidate, sizeof(candidate), "%.*s/../share/nixtile/wallpapers/beach.jpg",
+			         (int)dir_len, exe_path);
+			if (access(candidate, R_OK) == 0) {
+				strncpy(wallpaper_resolved_path, candidate, sizeof(wallpaper_resolved_path) - 1);
+				wallpaper_resolved_path[sizeof(wallpaper_resolved_path) - 1] = '\0';
+				return wallpaper_resolved_path;
+			}
+
+			/* Try alongside the source tree for development runs */
+			snprintf(candidate, sizeof(candidate), "%.*s/wallpapers/beach.jpg", (int)dir_len, exe_path);
+			if (access(candidate, R_OK) == 0) {
+				strncpy(wallpaper_resolved_path, candidate, sizeof(wallpaper_resolved_path) - 1);
+				wallpaper_resolved_path[sizeof(wallpaper_resolved_path) - 1] = '\0';
+				return wallpaper_resolved_path;
+			}
+		}
+	}
+
+	/* 4) Fallback to relative path in the repository */
+	strncpy(wallpaper_resolved_path, "wallpapers/beach.jpg", sizeof(wallpaper_resolved_path) - 1);
+	wallpaper_resolved_path[sizeof(wallpaper_resolved_path) - 1] = '\0';
+	return wallpaper_resolved_path;
+}
+
+static void
+start_swaybg(void)
+{
+	if (!wallpaper_enabled || !wallpaper_use_swaybg || swaybg_pid > 0)
+		return;
+
+	const char *path = wallpaper_path();
+	if (!path || access(path, R_OK) != 0) {
+		wlr_log(WLR_ERROR, "[nixtile] SWAYBG: wallpaper not readable at %s", path ? path : "(null)");
+		return;
+	}
+
+	const char *swaybg_bin = getenv("NIXTILE_SWAYBG");
+	if (!swaybg_bin || !*swaybg_bin)
+		swaybg_bin = "swaybg";
+
+	pid_t pid = fork();
+	if (pid < 0) {
+		wlr_log_errno(WLR_ERROR, "[nixtile] SWAYBG: fork failed");
+		return;
+	}
+	if (pid == 0) {
+		setsid();
+		/* Ensure common locations are in PATH so swaybg is found even in minimal envs */
+		const char *existing_path = getenv("PATH");
+		char path_buf[4096];
+		snprintf(path_buf, sizeof(path_buf), "%s:%s:%s:%s:%s",
+		         existing_path ? existing_path : "",
+		         "/run/current-system/sw/bin",
+		         "/usr/local/bin",
+		         "/usr/bin",
+		         "/bin");
+		setenv("PATH", path_buf, 1);
+		execlp(swaybg_bin, swaybg_bin, "-m", "fill", "-i", path, NULL);
+		fprintf(stderr, "[nixtile] SWAYBG: exec failed for %s (%s)\n", swaybg_bin, strerror(errno));
+		_exit(127);
+	}
+	swaybg_pid = pid;
+	wlr_log(WLR_INFO, "[nixtile] SWAYBG: started %s with %s", swaybg_bin, path);
+}
+
+static void
+stop_swaybg(void)
+{
+	if (swaybg_pid <= 0)
+		return;
+	kill(swaybg_pid, SIGTERM);
+	waitpid(swaybg_pid, NULL, 0);
+	swaybg_pid = -1;
+}
+
+static bool
+load_wallpaper_image(void)
+{
+	if (!wallpaper_enabled)
+		return false;
+
+	if (wallpaper_failed)
+		return false;
+
+	if (wallpaper_loaded)
+		return true;
+
+	const char *path = wallpaper_path();
+	stbi_set_flip_vertically_on_load(0);
+	wallpaper_data = stbi_load(path, &wallpaper_width, &wallpaper_height, NULL, 4);
+	if (!wallpaper_data) {
+		wlr_log(WLR_ERROR, "[nixtile] WALLPAPER: Failed to load %s", path);
+		wallpaper_failed = true;
+		return false;
+	}
+	wallpaper_loaded = true;
+	wlr_log(WLR_INFO, "[nixtile] WALLPAPER: Loaded %s (%dx%d)", path, wallpaper_width, wallpaper_height);
+	return true;
+}
+
+static void
+destroy_wallpaper(Monitor *m)
+{
+	if (!m)
+		return;
+
+	if (m->wallpaper_scene) {
+		wlr_scene_node_destroy(&m->wallpaper_scene->node);
+		m->wallpaper_scene = NULL;
+	}
+	if (m->wallpaper_buf) {
+		wlr_buffer_drop(m->wallpaper_buf);
+		m->wallpaper_buf = NULL;
+	}
+	m->wallpaper_target_w = 0;
+	m->wallpaper_target_h = 0;
+}
+
+static void pixel_buffer_destroy(struct wlr_buffer *buffer)
+{
+	struct pixel_buffer *pb = wl_container_of(buffer, pb, base);
+	free(pb->data);
+	wlr_buffer_finish(buffer);
+	free(pb);
+}
+
+static bool pixel_buffer_begin_data_ptr_access(struct wlr_buffer *buffer, uint32_t flags,
+	void **data, uint32_t *format, size_t *stride)
+{
+	struct pixel_buffer *pb = wl_container_of(buffer, pb, base);
+	(void)flags;
+	if (data)
+		*data = pb->data;
+	if (format)
+		*format = pb->format;
+	if (stride)
+		*stride = pb->stride;
+	return true;
+}
+
+static void pixel_buffer_end_data_ptr_access(struct wlr_buffer *buffer)
+{
+	(void)buffer;
+}
+
+static bool pixel_buffer_get_dmabuf(struct wlr_buffer *buffer, struct wlr_dmabuf_attributes *attribs)
+{
+	(void)buffer;
+	(void)attribs;
+	return false;
+}
+
+static bool pixel_buffer_get_shm(struct wlr_buffer *buffer, struct wlr_shm_attributes *attribs)
+{
+	(void)buffer;
+	(void)attribs;
+	return false;
+}
+
+static const struct wlr_buffer_impl pixel_buffer_impl = {
+	.destroy = pixel_buffer_destroy,
+	.get_dmabuf = pixel_buffer_get_dmabuf,
+	.get_shm = pixel_buffer_get_shm,
+	.begin_data_ptr_access = pixel_buffer_begin_data_ptr_access,
+	.end_data_ptr_access = pixel_buffer_end_data_ptr_access,
+};
+
+static struct wlr_buffer *pixel_buffer_create(int width, int height, uint32_t stride, uint32_t format, uint8_t *data_owned)
+{
+	struct pixel_buffer *pb = calloc(1, sizeof(*pb));
+	if (!pb)
+		return NULL;
+	pb->data = data_owned;
+	pb->stride = stride;
+	pb->format = format;
+	wlr_buffer_init(&pb->base, &pixel_buffer_impl, width, height);
+	return &pb->base;
+}
+
+static void
+refresh_wallpaper(Monitor *m)
+{
+	if (wallpaper_use_swaybg)
+		return;
+
+	struct wlr_box obox;
+	int target_w, target_h;
+	uint8_t *scaled = NULL;
+	struct wlr_buffer *buf;
+	struct wlr_scene_buffer *scene_buf;
+
+	if (!m || !m->wlr_output || wallpaper_failed || !wallpaper_enabled)
+		return;
+	if (!load_wallpaper_image())
+		return;
+
+	wlr_log(WLR_DEBUG, "[nixtile] WALLPAPER: preparing for output %s", m->wlr_output->name);
+
+	target_w = m->wlr_output->width;
+	target_h = m->wlr_output->height;
+	if (target_w <= 0 || target_h <= 0) {
+		struct wlr_output_mode *mode = wlr_output_preferred_mode(m->wlr_output);
+		if (mode) {
+			target_w = mode->width;
+			target_h = mode->height;
+		}
+	}
+	if (target_w <= 0 || target_h <= 0)
+		return;
+
+	if (m->wallpaper_scene && m->wallpaper_target_w == target_w && m->wallpaper_target_h == target_h) {
+		wlr_output_layout_get_box(output_layout, m->wlr_output, &obox);
+		wlr_scene_node_set_position(&m->wallpaper_scene->node, obox.x, obox.y);
+		return;
+	}
+
+	destroy_wallpaper(m);
+
+	scaled = calloc((size_t)target_w * target_h * 4, 1);
+	if (!scaled)
+		return;
+
+	for (int y = 0; y < target_h; y++) {
+		int src_y = (int)((uint64_t)y * wallpaper_height / target_h);
+		for (int x = 0; x < target_w; x++) {
+			int src_x = (int)((uint64_t)x * wallpaper_width / target_w);
+			const uint8_t *src = wallpaper_data + 4 * (src_y * wallpaper_width + src_x);
+			uint8_t *dst = scaled + 4 * (y * target_w + x);
+			/* Convert RGBA -> ARGB8888 byte order (little endian: B,G,R,A) */
+			dst[0] = src[2];
+			dst[1] = src[1];
+			dst[2] = src[0];
+			dst[3] = 0xFF;
+		}
+	}
+
+	buf = pixel_buffer_create(target_w, target_h, (uint32_t)(target_w * 4), DRM_FORMAT_ARGB8888, scaled);
+	if (!buf) {
+		wlr_log(WLR_ERROR, "[nixtile] WALLPAPER: pixel_buffer_create failed (target %dx%d)", target_w, target_h);
+		free(scaled);
+		wallpaper_failed = true;
+		return;
+	}
+
+	scene_buf = wlr_scene_buffer_create(layers[LyrBg], buf);
+	if (!scene_buf) {
+		wlr_log(WLR_ERROR, "[nixtile] WALLPAPER: wlr_scene_buffer_create failed");
+		wlr_buffer_drop(buf);
+		wallpaper_failed = true;
+		return;
+	}
+	m->wallpaper_buf = buf;
+
+	wlr_output_layout_get_box(output_layout, m->wlr_output, &obox);
+	wlr_scene_node_set_position(&scene_buf->node, obox.x, obox.y);
+
+m->wallpaper_scene = scene_buf;
+	m->wallpaper_target_w = target_w;
+	m->wallpaper_target_h = target_h;
+
+	wlr_log(WLR_INFO, "[nixtile] WALLPAPER: applied %dx%d -> %dx%d on %s", wallpaper_width, wallpaper_height, target_w, target_h, m->wlr_output->name);
 }
 
 /*
@@ -2007,6 +2348,9 @@ cleanup(void)
 	}
 	arrange_pending = false;
 	pending_arrange_monitor = NULL;
+
+	/* Stop external wallpaper client */
+	stop_swaybg();
 	
 	cleanuplisteners();
 #ifdef XWAYLAND
@@ -2030,6 +2374,11 @@ cleanup(void)
 	/* Destroy after the wayland display (when the monitors are already destroyed)
 	   to avoid destroying them with an invalid scene output. */
 	wlr_scene_node_destroy(&scene->tree.node);
+	if (wallpaper_data) {
+		stbi_image_free(wallpaper_data);
+		wallpaper_data = NULL;
+		wallpaper_loaded = false;
+	}
 }
 
 void
@@ -2054,6 +2403,7 @@ cleanupmon(struct wl_listener *listener, void *data)
 	m->wlr_output->data = NULL;
 	wlr_output_layout_remove(output_layout, m->wlr_output);
 	wlr_scene_output_destroy(m->scene_output);
+	destroy_wallpaper(m);
 
 	closemon(m);
 	wlr_scene_node_destroy(&m->fullscreen_bg->node);
@@ -2707,6 +3057,9 @@ createmon(struct wl_listener *listener, void *data)
 		wlr_output_layout_add_auto(output_layout, wlr_output);
 	else
 		wlr_output_layout_add(output_layout, wlr_output, m->m.x, m->m.y);
+
+	/* Per-monitor wallpaper scaled to output resolution */
+	refresh_wallpaper(m);
 }
 
 void
@@ -7538,12 +7891,12 @@ schedule_statusbar_timer(void)
 
 	struct timespec ts;
 	if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
-		wl_event_source_timer_update(statusbar_timer, 1000);
+		wl_event_source_timer_update(statusbar_timer, 60000);
 		return;
 	}
-	long ms = 1000 - ((ts.tv_nsec / 1000000) % 1000);
-	if (ms <= 0 || ms > 1000)
-		ms = 1000;
+	long ms = 60000 - ((ts.tv_sec % 60) * 1000 + ts.tv_nsec / 1000000);
+	if (ms <= 0 || ms > 60000)
+		ms = 60000;
 	wl_event_source_timer_update(statusbar_timer, ms);
 }
 
@@ -7921,13 +8274,8 @@ static void draw_status_bar(Monitor *m) {
 		bar_h = m->wlr_output->height - statusbar_top_gap; /* Bottom gap ignored */
 	}
 
-	color[0] = statusbar_color[0];
-	color[1] = statusbar_color[1];
-	color[2] = statusbar_color[2];
-	color[3] = statusbar_alpha;
-	statusbar_rect = wlr_scene_rect_create(&scene->tree, bar_w, bar_h, color);
-	wlr_scene_node_set_position(&statusbar_rect->node, bar_x, bar_y);
-	wlr_scene_node_place_above(&statusbar_rect->node, &layers[LyrTop]->node);
+	/* No full-bar background: keep gaps reserved but draw only per-widget backgrounds */
+	(void)statusbar_color; /* avoid unused warning when bar background is disabled */
 
 	/* Derive glyph metrics from available bar height to avoid clipping */
 	int padding = MAX(4, bar_h / 8);
@@ -7946,7 +8294,7 @@ static void draw_status_bar(Monitor *m) {
 
 	statusbar_tree = wlr_scene_tree_create(&scene->tree);
 	wlr_scene_node_set_position(&statusbar_tree->node, bar_x, bar_y);
-	wlr_scene_node_place_above(&statusbar_tree->node, &statusbar_rect->node);
+	wlr_scene_node_place_above(&statusbar_tree->node, &layers[LyrTop]->node);
 
 	int text_y = (bar_h - font_h) / 2;
 	if (text_y < 0)
@@ -7964,6 +8312,26 @@ static void draw_status_bar(Monitor *m) {
 	int clock_x = bar_w - padding - clock_w;
 	if (clock_x < padding)
 		clock_x = padding;
+
+	/* Blue, semi-transparent background just around the clock */
+	int clock_pad = MAX(cell, 3);
+	int clock_bg_w = clock_w + 2 * clock_pad;
+	int clock_bg_h = font_h + 2 * clock_pad;
+	int clock_bg_x = clock_x - clock_pad;
+	int clock_bg_y = text_y - clock_pad;
+	if (clock_bg_x < padding)
+		clock_bg_x = padding;
+	if (clock_bg_y < 0)
+		clock_bg_y = 0;
+	if (clock_bg_x + clock_bg_w > bar_w)
+		clock_bg_w = bar_w - clock_bg_x;
+	if (clock_bg_y + clock_bg_h > bar_h)
+		clock_bg_h = bar_h - clock_bg_y;
+	float clock_bg_color[4] = {0.0f, 0.35f, 1.0f, 0.8f};
+	struct wlr_scene_rect *clock_bg = wlr_scene_rect_create(statusbar_tree, clock_bg_w, clock_bg_h, clock_bg_color);
+	wlr_scene_node_set_position(&clock_bg->node, clock_bg_x, clock_bg_y);
+
+	/* Draw the time above its background */
 	status_render_text(statusbar_tree, clock_x, text_y, timebuf, fg, cell, gap);
 }
 
@@ -8154,6 +8522,9 @@ run(char *startup_cmd)
 	 * master, etc */
 	if (!wlr_backend_start(backend))
 		die("startup: backend_start");
+
+	if (wallpaper_enabled && wallpaper_use_swaybg)
+		start_swaybg();
 
 	/* Now that the socket exists and the backend is started, run the startup command */
 	if (startup_cmd) {
@@ -8435,6 +8806,19 @@ setup(void)
 
 	wlr_log_init(log_level, NULL);
 
+	/* Ensure PATH contains common locations for utilities (including swaybg) */
+	{
+		const char *existing_path = getenv("PATH");
+		char path_buf[4096];
+		snprintf(path_buf, sizeof(path_buf), "%s:%s:%s:%s:%s",
+		         existing_path ? existing_path : "",
+		         "/run/current-system/sw/bin",
+		         "/usr/local/bin",
+		         "/usr/bin",
+		         "/bin");
+		setenv("PATH", path_buf, 1);
+	}
+
 	/* ULTRA-SMOOTH GPU ACCELERATION: Initialize hardware acceleration system */
 	init_gpu_acceleration();
 	
@@ -8451,6 +8835,10 @@ setup(void)
 	setenv("WLR_DRM_NO_ATOMIC", "0", 0); /* Enable atomic modesetting for smooth updates */
 	setenv("WLR_DRM_NO_MODIFIERS", "0", 0); /* Enable DRM modifiers for better performance */
 	setenv("WLR_SCENE_DISABLE_VISIBILITY", "0", 0); /* Enable scene visibility optimizations */
+	if (getenv("NIXTILE_DISABLE_WALLPAPER"))
+		wallpaper_enabled = false;
+	else if (getenv("NIXTILE_ENABLE_WALLPAPER"))
+		wallpaper_enabled = true;
 	wlr_log(WLR_INFO, "[nixtile] GPU ACCELERATION: Enabled hardware acceleration environment");
 
 	/* The Wayland display is managed by libwayland. It handles accepting
@@ -9752,6 +10140,7 @@ updatemons(struct wl_listener *listener, void *data)
 
 		wlr_scene_node_set_position(&m->fullscreen_bg->node, m->m.x, m->m.y);
 		wlr_scene_rect_set_size(m->fullscreen_bg, m->m.width, m->m.height);
+		refresh_wallpaper(m);
 
 		if (m->lock_surface) {
 			struct wlr_scene_tree *scene_tree = m->lock_surface->surface->data;

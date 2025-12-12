@@ -1,0 +1,14 @@
+MESA-INTEL: warning: ../src/intel/vulkan/anv_formats.c:802: FINISHME: support YUV colorspace with DRM format modifiers
+MESA-INTEL: warning: ../src/intel/vulkan/anv_formats.c:834: FINISHME: support more multi-planar formats with DRM modifiers
+00:00:00.437 [ERROR] [nixtile.c:8908] [nixtile] *** NIXTILE STARTUP WITH NEW RESIZE CODE - VERSION 2025-08-24 ***
+00:00:00.437 [ERROR] [nixtile.c:8909] [nixtile] *** ZONE-BASED EDGE DETECTION AND 0.1 PIXEL THRESHOLD ACTIVE ***
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 0
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+00:00:01.899 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:01.900 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 0 tiles to layout ***
+00:00:01.900 [ERROR] [nixtile.c:9188] [nixtile] *** TILE FUNCTION: No tiles to layout, returning early ***

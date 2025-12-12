@@ -51,12 +51,14 @@
             pkgs.libGL
             pkgs.libglvnd
             pkgs.wayland-protocols
+            pkgs.stb
             pkgs.scdoc
             pkgs.gnumake
             pkgs.git
             pkgs.wayland-scanner
             pkgs.pixman
             pkgs.cage
+            pkgs.swaybg
           ];
           shellHook = ''
             # Ingen ekstra PKG_CONFIG_PATH nødvendig for wlroots

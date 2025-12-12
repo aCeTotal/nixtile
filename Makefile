@@ -5,14 +5,14 @@ include config.mk
 
 # flags for compiling
 NIXTILECPPFLAGS = -I. -DWLR_USE_UNSTABLE -D_POSIX_C_SOURCE=200809L \
-	-DVERSION=\"$(VERSION)\" $(XWAYLAND)
+	-DVERSION=\"$(VERSION)\" -DNIXTILE_DATADIR=\"$(DATADIR)\" $(XWAYLAND)
 NIXTILEDEVCFLAGS = -g -Wpedantic -Wall -Wextra -Wdeclaration-after-statement \
 	-Wno-unused-parameter -Wshadow -Wunused-macros -Werror=strict-prototypes \
 	-Werror=implicit -Werror=return-type -Werror=incompatible-pointer-types \
 	-Wfloat-conversion
 
 # CFLAGS / LDFLAGS
-PKGS      = wayland-server xkbcommon libinput $(XLIBS)
+PKGS      = wayland-server xkbcommon libinput libdrm $(XLIBS)
 NIXTILECFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(WLR_INCS) $(NIXTILECPPFLAGS) $(NIXTILEDEVCFLAGS) $(CFLAGS)
 LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` $(WLR_LIBS) -lm $(LIBS)
 
@@ -65,6 +65,8 @@ install: nixtile
 	rm -f $(DESTDIR)$(PREFIX)/bin/nixtile
 	cp -f nixtile $(DESTDIR)$(PREFIX)/bin
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/nixtile
+	mkdir -p $(DESTDIR)$(DATADIR)/nixtile/wallpapers
+	cp -f wallpapers/* $(DESTDIR)$(DATADIR)/nixtile/wallpapers/
 	mkdir -p $(DESTDIR)$(MANDIR)/man1
 	cp -f nixtile.1 $(DESTDIR)$(MANDIR)/man1
 	chmod 644 $(DESTDIR)$(MANDIR)/man1/nixtile.1

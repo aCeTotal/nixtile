@@ -1,0 +1,1284 @@
+MESA-INTEL: warning: ../src/intel/vulkan/anv_formats.c:802: FINISHME: support YUV colorspace with DRM format modifiers
+MESA-INTEL: warning: ../src/intel/vulkan/anv_formats.c:834: FINISHME: support more multi-planar formats with DRM modifiers
+00:00:00.452 [ERROR] [nixtile.c:8908] [nixtile] *** NIXTILE STARTUP WITH NEW RESIZE CODE - VERSION 2025-08-24 ***
+00:00:00.452 [ERROR] [nixtile.c:8909] [nixtile] *** ZONE-BASED EDGE DETECTION AND 0.1 PIXEL THRESHOLD ACTIVE ***
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 0
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+00:00:01.792 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:01.792 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 0 tiles to layout ***
+00:00:01.792 [ERROR] [nixtile.c:9188] [nixtile] *** TILE FUNCTION: No tiles to layout, returning early ***
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+[nixtile] keybinding: mods=0x40, sym=0xff0d
+00:00:02.829 [ERROR] [nixtile.c:2966] [nixtile] *** CREATENOTIFY CALLED - NEW TILE BEING CREATED ***
+00:00:02.829 [ERROR] [nixtile.c:2967] [nixtile] *** IF YOU SEE THIS MESSAGE, CREATENOTIFY IS WORKING ***
+00:00:02.830 [ERROR] [nixtile.c:3054] [nixtile] *** CREATENOTIFY FINAL ASSIGNMENT: Tile 0x5623c3106720 assigned to column 0 ***
+00:00:02.830 [ERROR] [nixtile.c:3055] [nixtile] *** THIS IS THE COLUMN_GROUP SET IN CREATENOTIFY - SHOULD NOT BE OVERWRITTEN ***
+00:00:02.830 [ERROR] [nixtile.c:3059] [nixtile] CREATENOTIFY: New tile added to column 0 - triggering height rebalancing
+00:00:02.830 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 0
+00:00:02.830 [ERROR] [nixtile.c:3071] [nixtile] CREATENOTIFY: Reset ALL manual resize flags for workspace 0 on tile addition
+00:00:02.830 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:02.830 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 0 tiles to layout ***
+00:00:02.830 [ERROR] [nixtile.c:9188] [nixtile] *** TILE FUNCTION: No tiles to layout, returning early ***
+00:00:02.830 [ERROR] [nixtile.c:3109] [nixtile] POST-LAYOUT CREATION: Starting post-layout height rebalancing after tile creation
+00:00:02.830 [ERROR] [nixtile.c:3155] [nixtile] POST-LAYOUT CREATION: Final layout update completed - all columns rebalanced
+00:00:02.830 [ERROR] [nixtile.c:3169] [nixtile] CREATENOTIFY FINAL: Calling comprehensive reset after all processing
+00:00:02.830 [ERROR] [nixtile.c:1684] [nixtile] *** COMPREHENSIVE RESET *** Triggered by: tile creation final
+00:00:02.830 [ERROR] [nixtile.c:1701] [nixtile] COMPREHENSIVE RESET: 0 total tiles, 0 forced to tiled
+00:00:02.830 [ERROR] [nixtile.c:1723] [nixtile] COMPREHENSIVE RESET: 0 active columns detected
+00:00:02.830 [ERROR] [nixtile.c:1743] [nixtile] COMPREHENSIVE RESET: Reset 0 tiles to equal distribution
+00:00:02.830 [ERROR] [nixtile.c:1772] [nixtile] WORKSPACE RESET: Cleared workspace 0 storage, set mfact=0.500 for 0 columns
+00:00:02.830 [ERROR] [nixtile.c:1779] [nixtile] *** COMPREHENSIVE RESET COMPLETE *** All tiles reset to equal distribution
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+00:00:02.846 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:02.846 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 0 tiles to layout ***
+00:00:02.846 [ERROR] [nixtile.c:9188] [nixtile] *** TILE FUNCTION: No tiles to layout, returning early ***
+00:00:02.975 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:02.975 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:02.975 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:02.975 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:02.976 [ERROR] [nixtile.c:5388] [nixtile] *** MAPNOTIFY ENTRY: Tile 0x5623c3106720 has column_group=0 (optimal_columns=2) ***
+00:00:02.976 [ERROR] [nixtile.c:5395] [nixtile] *** MAPNOTIFY KEEPING: Valid column_group 0 for 2-column layout ***
+00:00:02.976 [ERROR] [nixtile.c:5405] [nixtile] MAPNOTIFY: Stack 0 has 1 tiles (within limit 4)
+00:00:02.976 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:02.976 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:02.993 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:02.993 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:02.993 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:02.993 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+[nixtile] keybinding: mods=0x40, sym=0xff0d
+00:00:03.496 [ERROR] [nixtile.c:2966] [nixtile] *** CREATENOTIFY CALLED - NEW TILE BEING CREATED ***
+00:00:03.496 [ERROR] [nixtile.c:2967] [nixtile] *** IF YOU SEE THIS MESSAGE, CREATENOTIFY IS WORKING ***
+00:00:03.496 [ERROR] [nixtile.c:3054] [nixtile] *** CREATENOTIFY FINAL ASSIGNMENT: Tile 0x5623c30cd790 assigned to column 1 ***
+00:00:03.496 [ERROR] [nixtile.c:3055] [nixtile] *** THIS IS THE COLUMN_GROUP SET IN CREATENOTIFY - SHOULD NOT BE OVERWRITTEN ***
+00:00:03.496 [ERROR] [nixtile.c:3059] [nixtile] CREATENOTIFY: New tile added to column 1 - triggering height rebalancing
+00:00:03.496 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 1
+00:00:03.496 [ERROR] [nixtile.c:3071] [nixtile] CREATENOTIFY: Reset ALL manual resize flags for workspace 0 on tile addition
+00:00:03.496 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:03.496 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:03.496 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:03.496 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+00:00:03.496 [ERROR] [nixtile.c:3109] [nixtile] POST-LAYOUT CREATION: Starting post-layout height rebalancing after tile creation
+00:00:03.496 [ERROR] [nixtile.c:3155] [nixtile] POST-LAYOUT CREATION: Final layout update completed - all columns rebalanced
+00:00:03.496 [ERROR] [nixtile.c:3169] [nixtile] CREATENOTIFY FINAL: Calling comprehensive reset after all processing
+00:00:03.496 [ERROR] [nixtile.c:1684] [nixtile] *** COMPREHENSIVE RESET *** Triggered by: tile creation final
+00:00:03.496 [ERROR] [nixtile.c:1701] [nixtile] COMPREHENSIVE RESET: 1 total tiles, 0 forced to tiled
+00:00:03.496 [ERROR] [nixtile.c:1723] [nixtile] COMPREHENSIVE RESET: 1 active columns detected
+00:00:03.496 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c3106720 col=0 height 1.000->1.000 width 1.000->1.000
+00:00:03.496 [ERROR] [nixtile.c:1743] [nixtile] COMPREHENSIVE RESET: Reset 1 tiles to equal distribution
+00:00:03.496 [ERROR] [nixtile.c:1772] [nixtile] WORKSPACE RESET: Cleared workspace 0 storage, set mfact=0.500 for 1 columns
+00:00:03.496 [ERROR] [nixtile.c:1779] [nixtile] *** COMPREHENSIVE RESET COMPLETE *** All tiles reset to equal distribution
+00:00:03.512 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:03.512 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:03.512 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:03.512 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+00:00:03.596 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:03.596 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30cd790 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:03.596 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:03.596 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:03.596 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:03.596 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:03.599 [ERROR] [nixtile.c:5388] [nixtile] *** MAPNOTIFY ENTRY: Tile 0x5623c30cd790 has column_group=1 (optimal_columns=2) ***
+00:00:03.599 [ERROR] [nixtile.c:5395] [nixtile] *** MAPNOTIFY KEEPING: Valid column_group 1 for 2-column layout ***
+00:00:03.599 [ERROR] [nixtile.c:5405] [nixtile] MAPNOTIFY: Stack 1 has 1 tiles (within limit 4)
+00:00:03.599 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:03.599 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:03.613 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:03.613 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30cd790 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:03.613 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:03.613 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:03.613 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:03.613 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+[nixtile] keybinding: mods=0x40, sym=0xff0d
+00:00:03.729 [ERROR] [nixtile.c:2966] [nixtile] *** CREATENOTIFY CALLED - NEW TILE BEING CREATED ***
+00:00:03.729 [ERROR] [nixtile.c:2967] [nixtile] *** IF YOU SEE THIS MESSAGE, CREATENOTIFY IS WORKING ***
+00:00:03.729 [ERROR] [nixtile.c:3054] [nixtile] *** CREATENOTIFY FINAL ASSIGNMENT: Tile 0x5623c2f2b9e0 assigned to column -1 ***
+00:00:03.729 [ERROR] [nixtile.c:3055] [nixtile] *** THIS IS THE COLUMN_GROUP SET IN CREATENOTIFY - SHOULD NOT BE OVERWRITTEN ***
+00:00:03.729 [ERROR] [nixtile.c:3071] [nixtile] CREATENOTIFY: Reset ALL manual resize flags for workspace 0 on tile addition
+00:00:03.729 [ERROR] [nixtile.c:10847] [nixtile] EQUAL HEIGHT: Invalid parameters (selmon=0x5623c308e350, column=-1)
+00:00:03.729 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:03.729 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30cd790 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:03.729 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:03.729 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:03.729 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:03.729 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+00:00:03.729 [ERROR] [nixtile.c:3109] [nixtile] POST-LAYOUT CREATION: Starting post-layout height rebalancing after tile creation
+00:00:03.729 [ERROR] [nixtile.c:3155] [nixtile] POST-LAYOUT CREATION: Final layout update completed - all columns rebalanced
+00:00:03.729 [ERROR] [nixtile.c:3169] [nixtile] CREATENOTIFY FINAL: Calling comprehensive reset after all processing
+00:00:03.729 [ERROR] [nixtile.c:1684] [nixtile] *** COMPREHENSIVE RESET *** Triggered by: tile creation final
+00:00:03.729 [ERROR] [nixtile.c:1701] [nixtile] COMPREHENSIVE RESET: 2 total tiles, 0 forced to tiled
+00:00:03.729 [ERROR] [nixtile.c:1723] [nixtile] COMPREHENSIVE RESET: 2 active columns detected
+00:00:03.729 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c30cd790 col=1 height 1.000->1.000 width 1.000->1.000
+00:00:03.729 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c3106720 col=0 height 1.000->1.000 width 1.000->1.000
+00:00:03.729 [ERROR] [nixtile.c:1743] [nixtile] COMPREHENSIVE RESET: Reset 2 tiles to equal distribution
+00:00:03.729 [ERROR] [nixtile.c:1772] [nixtile] WORKSPACE RESET: Cleared workspace 0 storage, set mfact=0.500 for 2 columns
+00:00:03.730 [ERROR] [nixtile.c:1779] [nixtile] *** COMPREHENSIVE RESET COMPLETE *** All tiles reset to equal distribution
+00:00:03.746 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:03.746 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30cd790 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:03.746 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:03.746 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:03.746 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:03.746 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+[nixtile] keybinding: mods=0x40, sym=0xff0d
+00:00:03.837 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:03.837 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c2f2b9e0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=-1 ***
+00:00:03.837 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30cd790 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:03.837 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:03.837 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 3 tiles to layout ***
+00:00:03.837 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=3, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:03.837 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:03.837 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:03.837 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=3, effective_columns=2, mfact=0.500 ***
+00:00:03.837 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:03.837 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c2f2b9e0 (workspace_index 0) has column_group=-1, master_tiles=2 ***
+00:00:03.837 [ERROR] [nixtile.c:9527] [nixtile] *** NEW TILE DETECTED: Tile 0x5623c2f2b9e0 has invalid column_group=-1 ***
+00:00:03.838 [ERROR] [nixtile.c:9561] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c2f2b9e0 (workspace_index 0) assigned to column 0 (current: 1 tiles) ***
+00:00:03.838 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30cd790 (workspace_index 1) has column_group=1, master_tiles=2 ***
+00:00:03.838 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30cd790 (workspace_index 1) already has valid column_group=1 ***
+00:00:03.838 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3106720 (workspace_index 2) has column_group=0, master_tiles=2 ***
+00:00:03.838 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3106720 (workspace_index 2) already has valid column_group=0 ***
+00:00:03.838 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c2f2b9e0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:03.838 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30cd790 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:03.838 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c3106720 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:03.838 [ERROR] [nixtile.c:5388] [nixtile] *** MAPNOTIFY ENTRY: Tile 0x5623c2f2b9e0 has column_group=0 (optimal_columns=2) ***
+00:00:03.838 [ERROR] [nixtile.c:5395] [nixtile] *** MAPNOTIFY KEEPING: Valid column_group 0 for 2-column layout ***
+00:00:03.838 [ERROR] [nixtile.c:5405] [nixtile] MAPNOTIFY: Stack 0 has 2 tiles (within limit 4)
+00:00:03.838 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:03.838 [ERROR] [nixtile.c:1582] [nixtile] HEIGHT REBALANCE ALL: Column 0 has 2 tiles - rebalancing
+00:00:03.838 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 0
+00:00:03.838 [ERROR] [nixtile.c:1525] [nixtile] HEIGHT REBALANCE: Found 2 tiles in column 0 - resetting to equal heights
+00:00:03.838 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c2f2b9e0 in column 0 - height_factor: 1.000 -> 1.000
+00:00:03.838 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c3106720 in column 0 - height_factor: 1.000 -> 1.000
+00:00:03.838 [ERROR] [nixtile.c:1546] [nixtile] HEIGHT REBALANCE: Cleared manual resize flag for workspace 0, column 0
+00:00:03.838 [ERROR] [nixtile.c:1555] [nixtile] HEIGHT REBALANCE: Column 0 rebalanced - all tiles now have equal height
+00:00:03.838 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:03.856 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:03.856 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c2f2b9e0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:03.856 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30cd790 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:03.856 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:03.856 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 3 tiles to layout ***
+00:00:03.856 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=3, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:03.856 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:03.856 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:03.856 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=3, effective_columns=2, mfact=0.500 ***
+00:00:03.856 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:03.856 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c2f2b9e0 (workspace_index 0) has column_group=0, master_tiles=2 ***
+00:00:03.856 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c2f2b9e0 (workspace_index 0) already has valid column_group=0 ***
+00:00:03.856 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30cd790 (workspace_index 1) has column_group=1, master_tiles=2 ***
+00:00:03.856 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30cd790 (workspace_index 1) already has valid column_group=1 ***
+00:00:03.856 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3106720 (workspace_index 2) has column_group=0, master_tiles=2 ***
+00:00:03.856 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3106720 (workspace_index 2) already has valid column_group=0 ***
+00:00:03.856 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c2f2b9e0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:03.856 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30cd790 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:03.856 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c3106720 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:03.906 [ERROR] [nixtile.c:2966] [nixtile] *** CREATENOTIFY CALLED - NEW TILE BEING CREATED ***
+00:00:03.906 [ERROR] [nixtile.c:2967] [nixtile] *** IF YOU SEE THIS MESSAGE, CREATENOTIFY IS WORKING ***
+00:00:03.906 [ERROR] [nixtile.c:3054] [nixtile] *** CREATENOTIFY FINAL ASSIGNMENT: Tile 0x5623c33c4160 assigned to column -1 ***
+00:00:03.906 [ERROR] [nixtile.c:3055] [nixtile] *** THIS IS THE COLUMN_GROUP SET IN CREATENOTIFY - SHOULD NOT BE OVERWRITTEN ***
+00:00:03.906 [ERROR] [nixtile.c:3071] [nixtile] CREATENOTIFY: Reset ALL manual resize flags for workspace 0 on tile addition
+00:00:03.906 [ERROR] [nixtile.c:10847] [nixtile] EQUAL HEIGHT: Invalid parameters (selmon=0x5623c308e350, column=-1)
+00:00:03.906 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:03.906 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c2f2b9e0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:03.906 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30cd790 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:03.906 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:03.906 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 3 tiles to layout ***
+00:00:03.906 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=3, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:03.906 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:03.906 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:03.906 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=3, effective_columns=2, mfact=0.500 ***
+00:00:03.906 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:03.906 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c2f2b9e0 (workspace_index 0) has column_group=0, master_tiles=2 ***
+00:00:03.906 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c2f2b9e0 (workspace_index 0) already has valid column_group=0 ***
+00:00:03.906 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30cd790 (workspace_index 1) has column_group=1, master_tiles=2 ***
+00:00:03.906 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30cd790 (workspace_index 1) already has valid column_group=1 ***
+00:00:03.906 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3106720 (workspace_index 2) has column_group=0, master_tiles=2 ***
+00:00:03.906 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3106720 (workspace_index 2) already has valid column_group=0 ***
+00:00:03.906 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c2f2b9e0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:03.906 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30cd790 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:03.906 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c3106720 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:03.906 [ERROR] [nixtile.c:3109] [nixtile] POST-LAYOUT CREATION: Starting post-layout height rebalancing after tile creation
+00:00:03.906 [ERROR] [nixtile.c:3131] [nixtile] POST-LAYOUT CREATION: Rebalancing column 0 with 2 tiles
+00:00:03.906 [ERROR] [nixtile.c:3140] [nixtile] POST-LAYOUT CREATION: Tile 0x5623c2f2b9e0 in column 0 - height_factor: 1.000 -> 1.000
+00:00:03.906 [ERROR] [nixtile.c:3140] [nixtile] POST-LAYOUT CREATION: Tile 0x5623c3106720 in column 0 - height_factor: 1.000 -> 1.000
+00:00:03.906 [ERROR] [nixtile.c:3150] [nixtile] POST-LAYOUT CREATION: Cleared workspace storage for column 0
+00:00:03.906 [ERROR] [nixtile.c:3155] [nixtile] POST-LAYOUT CREATION: Final layout update completed - all columns rebalanced
+00:00:03.906 [ERROR] [nixtile.c:3169] [nixtile] CREATENOTIFY FINAL: Calling comprehensive reset after all processing
+00:00:03.906 [ERROR] [nixtile.c:1684] [nixtile] *** COMPREHENSIVE RESET *** Triggered by: tile creation final
+00:00:03.906 [ERROR] [nixtile.c:1701] [nixtile] COMPREHENSIVE RESET: 3 total tiles, 0 forced to tiled
+00:00:03.906 [ERROR] [nixtile.c:1723] [nixtile] COMPREHENSIVE RESET: 2 active columns detected
+00:00:03.906 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c2f2b9e0 col=0 height 1.000->1.000 width 1.000->1.000
+00:00:03.906 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c30cd790 col=1 height 1.000->1.000 width 1.000->1.000
+00:00:03.906 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c3106720 col=0 height 1.000->1.000 width 1.000->1.000
+00:00:03.906 [ERROR] [nixtile.c:1743] [nixtile] COMPREHENSIVE RESET: Reset 3 tiles to equal distribution
+00:00:03.906 [ERROR] [nixtile.c:1772] [nixtile] WORKSPACE RESET: Cleared workspace 0 storage, set mfact=0.500 for 2 columns
+00:00:03.906 [ERROR] [nixtile.c:1779] [nixtile] *** COMPREHENSIVE RESET COMPLETE *** All tiles reset to equal distribution
+00:00:03.922 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:03.922 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c2f2b9e0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:03.922 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30cd790 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:03.922 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:03.922 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 3 tiles to layout ***
+00:00:03.922 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=3, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:03.923 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:03.923 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:03.923 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=3, effective_columns=2, mfact=0.500 ***
+00:00:03.923 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:03.923 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c2f2b9e0 (workspace_index 0) has column_group=0, master_tiles=2 ***
+00:00:03.923 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c2f2b9e0 (workspace_index 0) already has valid column_group=0 ***
+00:00:03.923 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30cd790 (workspace_index 1) has column_group=1, master_tiles=2 ***
+00:00:03.923 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30cd790 (workspace_index 1) already has valid column_group=1 ***
+00:00:03.923 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3106720 (workspace_index 2) has column_group=0, master_tiles=2 ***
+00:00:03.923 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3106720 (workspace_index 2) already has valid column_group=0 ***
+00:00:03.923 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c2f2b9e0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:03.923 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30cd790 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:03.923 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c3106720 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:03.984 [ERROR] [nixtile.c:6768] [nixtile] FRAME TIMING: Performance warning - not hitting target 300Hz (actual 276.4FPS)
+00:00:04.006 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:04.006 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c33c4160 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=-1 ***
+00:00:04.006 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c2f2b9e0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:04.006 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30cd790 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:04.006 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:04.006 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 4 tiles to layout ***
+00:00:04.006 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=4, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:04.006 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:04.006 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:04.006 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=4, effective_columns=2, mfact=0.500 ***
+00:00:04.006 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:04.006 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33c4160 (workspace_index 0) has column_group=-1, master_tiles=2 ***
+00:00:04.006 [ERROR] [nixtile.c:9527] [nixtile] *** NEW TILE DETECTED: Tile 0x5623c33c4160 has invalid column_group=-1 ***
+00:00:04.006 [ERROR] [nixtile.c:9561] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33c4160 (workspace_index 0) assigned to column 1 (current: 1 tiles) ***
+00:00:04.006 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c2f2b9e0 (workspace_index 1) has column_group=0, master_tiles=2 ***
+00:00:04.006 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c2f2b9e0 (workspace_index 1) already has valid column_group=0 ***
+00:00:04.006 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30cd790 (workspace_index 2) has column_group=1, master_tiles=2 ***
+00:00:04.006 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30cd790 (workspace_index 2) already has valid column_group=1 ***
+00:00:04.007 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3106720 (workspace_index 3) has column_group=0, master_tiles=2 ***
+00:00:04.007 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3106720 (workspace_index 3) already has valid column_group=0 ***
+00:00:04.007 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c33c4160 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:04.007 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c2f2b9e0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:04.007 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30cd790 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:04.007 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c3106720 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:04.007 [ERROR] [nixtile.c:5388] [nixtile] *** MAPNOTIFY ENTRY: Tile 0x5623c33c4160 has column_group=1 (optimal_columns=2) ***
+00:00:04.007 [ERROR] [nixtile.c:5395] [nixtile] *** MAPNOTIFY KEEPING: Valid column_group 1 for 2-column layout ***
+00:00:04.007 [ERROR] [nixtile.c:5405] [nixtile] MAPNOTIFY: Stack 1 has 2 tiles (within limit 4)
+00:00:04.007 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:04.007 [ERROR] [nixtile.c:1582] [nixtile] HEIGHT REBALANCE ALL: Column 0 has 2 tiles - rebalancing
+00:00:04.007 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 0
+00:00:04.007 [ERROR] [nixtile.c:1525] [nixtile] HEIGHT REBALANCE: Found 2 tiles in column 0 - resetting to equal heights
+00:00:04.007 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c2f2b9e0 in column 0 - height_factor: 1.000 -> 1.000
+00:00:04.007 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c3106720 in column 0 - height_factor: 1.000 -> 1.000
+00:00:04.007 [ERROR] [nixtile.c:1546] [nixtile] HEIGHT REBALANCE: Cleared manual resize flag for workspace 0, column 0
+00:00:04.007 [ERROR] [nixtile.c:1555] [nixtile] HEIGHT REBALANCE: Column 0 rebalanced - all tiles now have equal height
+00:00:04.007 [ERROR] [nixtile.c:1582] [nixtile] HEIGHT REBALANCE ALL: Column 1 has 2 tiles - rebalancing
+00:00:04.007 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 1
+00:00:04.007 [ERROR] [nixtile.c:1525] [nixtile] HEIGHT REBALANCE: Found 2 tiles in column 1 - resetting to equal heights
+00:00:04.007 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c33c4160 in column 1 - height_factor: 1.000 -> 1.000
+00:00:04.007 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c30cd790 in column 1 - height_factor: 1.000 -> 1.000
+00:00:04.007 [ERROR] [nixtile.c:1546] [nixtile] HEIGHT REBALANCE: Cleared manual resize flag for workspace 0, column 1
+00:00:04.007 [ERROR] [nixtile.c:1555] [nixtile] HEIGHT REBALANCE: Column 1 rebalanced - all tiles now have equal height
+00:00:04.007 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:04.023 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:04.023 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c33c4160 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:04.023 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c2f2b9e0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:04.023 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30cd790 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:04.023 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:04.023 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 4 tiles to layout ***
+00:00:04.023 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=4, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:04.023 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:04.023 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:04.023 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=4, effective_columns=2, mfact=0.500 ***
+00:00:04.023 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:04.023 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33c4160 (workspace_index 0) has column_group=1, master_tiles=2 ***
+00:00:04.023 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33c4160 (workspace_index 0) already has valid column_group=1 ***
+00:00:04.023 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c2f2b9e0 (workspace_index 1) has column_group=0, master_tiles=2 ***
+00:00:04.023 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c2f2b9e0 (workspace_index 1) already has valid column_group=0 ***
+00:00:04.023 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30cd790 (workspace_index 2) has column_group=1, master_tiles=2 ***
+00:00:04.023 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30cd790 (workspace_index 2) already has valid column_group=1 ***
+00:00:04.023 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3106720 (workspace_index 3) has column_group=0, master_tiles=2 ***
+00:00:04.023 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3106720 (workspace_index 3) already has valid column_group=0 ***
+00:00:04.023 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c33c4160 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:04.023 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c2f2b9e0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:04.023 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30cd790 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:04.023 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c3106720 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+[nixtile] keybinding: mods=0x40, sym=0x71
+00:00:04.384 [ERROR] [nixtile.c:4740] [nixtile] DESTROYNOTIFY: Reset all manual resize flags for workspace 0
+00:00:04.384 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c2f2b9e0: 1.000 -> 1.000
+00:00:04.384 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c30cd790: 1.000 -> 1.000
+00:00:04.384 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c3106720: 1.000 -> 1.000
+00:00:04.384 [ERROR] [nixtile.c:4759] [nixtile] DESTROYNOTIFY: Tile removed - triggering height rebalancing for all columns
+00:00:04.384 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:04.384 [ERROR] [nixtile.c:1582] [nixtile] HEIGHT REBALANCE ALL: Column 0 has 2 tiles - rebalancing
+00:00:04.384 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 0
+00:00:04.384 [ERROR] [nixtile.c:1525] [nixtile] HEIGHT REBALANCE: Found 2 tiles in column 0 - resetting to equal heights
+00:00:04.384 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c2f2b9e0 in column 0 - height_factor: 1.000 -> 1.000
+00:00:04.384 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c3106720 in column 0 - height_factor: 1.000 -> 1.000
+00:00:04.384 [ERROR] [nixtile.c:1546] [nixtile] HEIGHT REBALANCE: Cleared manual resize flag for workspace 0, column 0
+00:00:04.384 [ERROR] [nixtile.c:1555] [nixtile] HEIGHT REBALANCE: Column 0 rebalanced - all tiles now have equal height
+00:00:04.384 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+00:00:04.384 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:04.384 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c2f2b9e0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:04.384 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30cd790 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:04.384 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:04.384 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 3 tiles to layout ***
+00:00:04.384 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=3, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:04.384 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:04.384 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:04.384 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=3, effective_columns=2, mfact=0.500 ***
+00:00:04.384 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:04.384 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c2f2b9e0 (workspace_index 0) has column_group=0, master_tiles=2 ***
+00:00:04.384 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c2f2b9e0 (workspace_index 0) already has valid column_group=0 ***
+00:00:04.384 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30cd790 (workspace_index 1) has column_group=1, master_tiles=2 ***
+00:00:04.384 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30cd790 (workspace_index 1) already has valid column_group=1 ***
+00:00:04.384 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3106720 (workspace_index 2) has column_group=0, master_tiles=2 ***
+00:00:04.384 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3106720 (workspace_index 2) already has valid column_group=0 ***
+00:00:04.384 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c2f2b9e0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:04.384 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30cd790 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:04.384 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c3106720 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+[nixtile] keybinding: mods=0x40, sym=0x71
+00:00:04.612 [ERROR] [nixtile.c:4740] [nixtile] DESTROYNOTIFY: Reset all manual resize flags for workspace 0
+00:00:04.612 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c30cd790: 1.000 -> 1.000
+00:00:04.612 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c3106720: 1.000 -> 1.000
+00:00:04.612 [ERROR] [nixtile.c:4759] [nixtile] DESTROYNOTIFY: Tile removed - triggering height rebalancing for all columns
+00:00:04.612 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:04.612 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+00:00:04.612 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:04.612 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30cd790 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:04.612 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3106720 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:04.612 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:04.612 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:04.612 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+[nixtile] keybinding: mods=0x40, sym=0x71
+00:00:04.815 [ERROR] [nixtile.c:4740] [nixtile] DESTROYNOTIFY: Reset all manual resize flags for workspace 0
+00:00:04.816 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c30cd790: 1.000 -> 1.000
+00:00:04.817 [ERROR] [nixtile.c:4759] [nixtile] DESTROYNOTIFY: Tile removed - triggering height rebalancing for all columns
+00:00:04.817 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:04.817 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+00:00:04.817 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:04.817 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30cd790 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:04.817 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:04.817 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+[nixtile] keybinding: mods=0x40, sym=0x71
+00:00:05.110 [ERROR] [nixtile.c:4740] [nixtile] DESTROYNOTIFY: Reset all manual resize flags for workspace 0
+00:00:05.110 [ERROR] [nixtile.c:4759] [nixtile] DESTROYNOTIFY: Tile removed - triggering height rebalancing for all columns
+00:00:05.110 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:05.110 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+00:00:05.110 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:05.110 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 0 tiles to layout ***
+00:00:05.110 [ERROR] [nixtile.c:9188] [nixtile] *** TILE FUNCTION: No tiles to layout, returning early ***
+00:00:06.367 [ERROR] [backend/drm/libliftoff.c:479] Atomic commit failed: Device or resource busy
+00:00:07.618 [ERROR] [nixtile.c:6768] [nixtile] FRAME TIMING: Performance warning - not hitting target 300Hz (actual 190.4FPS)
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+[nixtile] keybinding: mods=0x40, sym=0xff0d
+00:00:07.934 [ERROR] [nixtile.c:2966] [nixtile] *** CREATENOTIFY CALLED - NEW TILE BEING CREATED ***
+00:00:07.934 [ERROR] [nixtile.c:2967] [nixtile] *** IF YOU SEE THIS MESSAGE, CREATENOTIFY IS WORKING ***
+00:00:07.934 [ERROR] [nixtile.c:3054] [nixtile] *** CREATENOTIFY FINAL ASSIGNMENT: Tile 0x5623c32bb840 assigned to column 0 ***
+00:00:07.934 [ERROR] [nixtile.c:3055] [nixtile] *** THIS IS THE COLUMN_GROUP SET IN CREATENOTIFY - SHOULD NOT BE OVERWRITTEN ***
+00:00:07.935 [ERROR] [nixtile.c:3059] [nixtile] CREATENOTIFY: New tile added to column 0 - triggering height rebalancing
+00:00:07.935 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 0
+00:00:07.935 [ERROR] [nixtile.c:3071] [nixtile] CREATENOTIFY: Reset ALL manual resize flags for workspace 0 on tile addition
+00:00:07.935 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:07.935 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 0 tiles to layout ***
+00:00:07.935 [ERROR] [nixtile.c:9188] [nixtile] *** TILE FUNCTION: No tiles to layout, returning early ***
+00:00:07.935 [ERROR] [nixtile.c:3109] [nixtile] POST-LAYOUT CREATION: Starting post-layout height rebalancing after tile creation
+00:00:07.935 [ERROR] [nixtile.c:3155] [nixtile] POST-LAYOUT CREATION: Final layout update completed - all columns rebalanced
+00:00:07.935 [ERROR] [nixtile.c:3169] [nixtile] CREATENOTIFY FINAL: Calling comprehensive reset after all processing
+00:00:07.935 [ERROR] [nixtile.c:1684] [nixtile] *** COMPREHENSIVE RESET *** Triggered by: tile creation final
+00:00:07.935 [ERROR] [nixtile.c:1701] [nixtile] COMPREHENSIVE RESET: 0 total tiles, 0 forced to tiled
+00:00:07.935 [ERROR] [nixtile.c:1723] [nixtile] COMPREHENSIVE RESET: 0 active columns detected
+00:00:07.935 [ERROR] [nixtile.c:1743] [nixtile] COMPREHENSIVE RESET: Reset 0 tiles to equal distribution
+00:00:07.935 [ERROR] [nixtile.c:1772] [nixtile] WORKSPACE RESET: Cleared workspace 0 storage, set mfact=0.500 for 0 columns
+00:00:07.935 [ERROR] [nixtile.c:1779] [nixtile] *** COMPREHENSIVE RESET COMPLETE *** All tiles reset to equal distribution
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+00:00:07.951 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:07.951 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 0 tiles to layout ***
+00:00:07.951 [ERROR] [nixtile.c:9188] [nixtile] *** TILE FUNCTION: No tiles to layout, returning early ***
+[nixtile] keybinding: mods=0x40, sym=0xff0d
+00:00:08.036 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:08.036 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c32bb840 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:08.036 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:08.036 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:08.036 [ERROR] [nixtile.c:5388] [nixtile] *** MAPNOTIFY ENTRY: Tile 0x5623c32bb840 has column_group=0 (optimal_columns=2) ***
+00:00:08.037 [ERROR] [nixtile.c:5395] [nixtile] *** MAPNOTIFY KEEPING: Valid column_group 0 for 2-column layout ***
+00:00:08.037 [ERROR] [nixtile.c:5405] [nixtile] MAPNOTIFY: Stack 0 has 1 tiles (within limit 4)
+00:00:08.037 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:08.037 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:08.053 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:08.053 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c32bb840 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:08.053 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:08.054 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+00:00:08.124 [ERROR] [nixtile.c:2966] [nixtile] *** CREATENOTIFY CALLED - NEW TILE BEING CREATED ***
+00:00:08.124 [ERROR] [nixtile.c:2967] [nixtile] *** IF YOU SEE THIS MESSAGE, CREATENOTIFY IS WORKING ***
+00:00:08.124 [ERROR] [nixtile.c:3054] [nixtile] *** CREATENOTIFY FINAL ASSIGNMENT: Tile 0x5623c30bbd30 assigned to column 1 ***
+00:00:08.124 [ERROR] [nixtile.c:3055] [nixtile] *** THIS IS THE COLUMN_GROUP SET IN CREATENOTIFY - SHOULD NOT BE OVERWRITTEN ***
+00:00:08.124 [ERROR] [nixtile.c:3059] [nixtile] CREATENOTIFY: New tile added to column 1 - triggering height rebalancing
+00:00:08.124 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 1
+00:00:08.124 [ERROR] [nixtile.c:3071] [nixtile] CREATENOTIFY: Reset ALL manual resize flags for workspace 0 on tile addition
+00:00:08.124 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:08.124 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c32bb840 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:08.124 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:08.124 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+00:00:08.124 [ERROR] [nixtile.c:3109] [nixtile] POST-LAYOUT CREATION: Starting post-layout height rebalancing after tile creation
+00:00:08.124 [ERROR] [nixtile.c:3155] [nixtile] POST-LAYOUT CREATION: Final layout update completed - all columns rebalanced
+00:00:08.124 [ERROR] [nixtile.c:3169] [nixtile] CREATENOTIFY FINAL: Calling comprehensive reset after all processing
+00:00:08.124 [ERROR] [nixtile.c:1684] [nixtile] *** COMPREHENSIVE RESET *** Triggered by: tile creation final
+00:00:08.124 [ERROR] [nixtile.c:1701] [nixtile] COMPREHENSIVE RESET: 1 total tiles, 0 forced to tiled
+00:00:08.124 [ERROR] [nixtile.c:1723] [nixtile] COMPREHENSIVE RESET: 1 active columns detected
+00:00:08.125 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c32bb840 col=0 height 1.000->1.000 width 1.000->1.000
+00:00:08.125 [ERROR] [nixtile.c:1743] [nixtile] COMPREHENSIVE RESET: Reset 1 tiles to equal distribution
+00:00:08.125 [ERROR] [nixtile.c:1772] [nixtile] WORKSPACE RESET: Cleared workspace 0 storage, set mfact=0.500 for 1 columns
+00:00:08.125 [ERROR] [nixtile.c:1779] [nixtile] *** COMPREHENSIVE RESET COMPLETE *** All tiles reset to equal distribution
+00:00:08.140 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:08.140 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c32bb840 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:08.141 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:08.141 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+[nixtile] keybinding: mods=0x40, sym=0xff0d
+00:00:08.267 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:08.267 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30bbd30 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:08.267 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c32bb840 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:08.267 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:08.267 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:08.267 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:08.267 [ERROR] [nixtile.c:5388] [nixtile] *** MAPNOTIFY ENTRY: Tile 0x5623c30bbd30 has column_group=1 (optimal_columns=2) ***
+00:00:08.267 [ERROR] [nixtile.c:5395] [nixtile] *** MAPNOTIFY KEEPING: Valid column_group 1 for 2-column layout ***
+00:00:08.267 [ERROR] [nixtile.c:5405] [nixtile] MAPNOTIFY: Stack 1 has 1 tiles (within limit 4)
+00:00:08.267 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:08.267 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:08.283 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:08.283 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30bbd30 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:08.283 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c32bb840 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:08.283 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:08.283 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:08.283 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+00:00:08.344 [ERROR] [nixtile.c:2966] [nixtile] *** CREATENOTIFY CALLED - NEW TILE BEING CREATED ***
+00:00:08.344 [ERROR] [nixtile.c:2967] [nixtile] *** IF YOU SEE THIS MESSAGE, CREATENOTIFY IS WORKING ***
+00:00:08.344 [ERROR] [nixtile.c:3054] [nixtile] *** CREATENOTIFY FINAL ASSIGNMENT: Tile 0x5623c24140f0 assigned to column -1 ***
+00:00:08.344 [ERROR] [nixtile.c:3055] [nixtile] *** THIS IS THE COLUMN_GROUP SET IN CREATENOTIFY - SHOULD NOT BE OVERWRITTEN ***
+00:00:08.344 [ERROR] [nixtile.c:3071] [nixtile] CREATENOTIFY: Reset ALL manual resize flags for workspace 0 on tile addition
+00:00:08.344 [ERROR] [nixtile.c:10847] [nixtile] EQUAL HEIGHT: Invalid parameters (selmon=0x5623c308e350, column=-1)
+00:00:08.344 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:08.344 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30bbd30 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:08.344 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c32bb840 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:08.344 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:08.344 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:08.344 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+00:00:08.344 [ERROR] [nixtile.c:3109] [nixtile] POST-LAYOUT CREATION: Starting post-layout height rebalancing after tile creation
+00:00:08.344 [ERROR] [nixtile.c:3155] [nixtile] POST-LAYOUT CREATION: Final layout update completed - all columns rebalanced
+00:00:08.344 [ERROR] [nixtile.c:3169] [nixtile] CREATENOTIFY FINAL: Calling comprehensive reset after all processing
+00:00:08.344 [ERROR] [nixtile.c:1684] [nixtile] *** COMPREHENSIVE RESET *** Triggered by: tile creation final
+00:00:08.344 [ERROR] [nixtile.c:1701] [nixtile] COMPREHENSIVE RESET: 2 total tiles, 0 forced to tiled
+00:00:08.344 [ERROR] [nixtile.c:1723] [nixtile] COMPREHENSIVE RESET: 2 active columns detected
+00:00:08.344 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c30bbd30 col=1 height 1.000->1.000 width 1.000->1.000
+00:00:08.344 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c32bb840 col=0 height 1.000->1.000 width 1.000->1.000
+00:00:08.344 [ERROR] [nixtile.c:1743] [nixtile] COMPREHENSIVE RESET: Reset 2 tiles to equal distribution
+00:00:08.344 [ERROR] [nixtile.c:1772] [nixtile] WORKSPACE RESET: Cleared workspace 0 storage, set mfact=0.500 for 2 columns
+00:00:08.344 [ERROR] [nixtile.c:1779] [nixtile] *** COMPREHENSIVE RESET COMPLETE *** All tiles reset to equal distribution
+00:00:08.360 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:08.360 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30bbd30 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:08.360 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c32bb840 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:08.360 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:08.360 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:08.360 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:08.443 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:08.443 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c24140f0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=-1 ***
+00:00:08.443 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30bbd30 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:08.443 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c32bb840 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:08.443 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 3 tiles to layout ***
+00:00:08.443 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=3, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:08.443 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:08.443 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:08.443 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=3, effective_columns=2, mfact=0.500 ***
+00:00:08.443 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:08.443 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c24140f0 (workspace_index 0) has column_group=-1, master_tiles=2 ***
+00:00:08.443 [ERROR] [nixtile.c:9527] [nixtile] *** NEW TILE DETECTED: Tile 0x5623c24140f0 has invalid column_group=-1 ***
+00:00:08.443 [ERROR] [nixtile.c:9561] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c24140f0 (workspace_index 0) assigned to column 0 (current: 1 tiles) ***
+00:00:08.443 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30bbd30 (workspace_index 1) has column_group=1, master_tiles=2 ***
+00:00:08.443 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30bbd30 (workspace_index 1) already has valid column_group=1 ***
+00:00:08.443 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c32bb840 (workspace_index 2) has column_group=0, master_tiles=2 ***
+00:00:08.443 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c32bb840 (workspace_index 2) already has valid column_group=0 ***
+00:00:08.443 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c24140f0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:08.444 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30bbd30 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:08.444 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c32bb840 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:08.444 [ERROR] [nixtile.c:5388] [nixtile] *** MAPNOTIFY ENTRY: Tile 0x5623c24140f0 has column_group=0 (optimal_columns=2) ***
+00:00:08.444 [ERROR] [nixtile.c:5395] [nixtile] *** MAPNOTIFY KEEPING: Valid column_group 0 for 2-column layout ***
+00:00:08.444 [ERROR] [nixtile.c:5405] [nixtile] MAPNOTIFY: Stack 0 has 2 tiles (within limit 4)
+00:00:08.444 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:08.444 [ERROR] [nixtile.c:1582] [nixtile] HEIGHT REBALANCE ALL: Column 0 has 2 tiles - rebalancing
+00:00:08.444 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 0
+00:00:08.444 [ERROR] [nixtile.c:1525] [nixtile] HEIGHT REBALANCE: Found 2 tiles in column 0 - resetting to equal heights
+00:00:08.444 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c24140f0 in column 0 - height_factor: 1.000 -> 1.000
+00:00:08.444 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c32bb840 in column 0 - height_factor: 1.000 -> 1.000
+00:00:08.444 [ERROR] [nixtile.c:1546] [nixtile] HEIGHT REBALANCE: Cleared manual resize flag for workspace 0, column 0
+00:00:08.444 [ERROR] [nixtile.c:1555] [nixtile] HEIGHT REBALANCE: Column 0 rebalanced - all tiles now have equal height
+00:00:08.444 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:08.460 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:08.460 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c24140f0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:08.460 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30bbd30 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:08.460 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c32bb840 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:08.460 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 3 tiles to layout ***
+00:00:08.460 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=3, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:08.460 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:08.460 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:08.460 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=3, effective_columns=2, mfact=0.500 ***
+00:00:08.460 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:08.460 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c24140f0 (workspace_index 0) has column_group=0, master_tiles=2 ***
+00:00:08.460 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c24140f0 (workspace_index 0) already has valid column_group=0 ***
+00:00:08.460 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30bbd30 (workspace_index 1) has column_group=1, master_tiles=2 ***
+00:00:08.460 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30bbd30 (workspace_index 1) already has valid column_group=1 ***
+00:00:08.460 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c32bb840 (workspace_index 2) has column_group=0, master_tiles=2 ***
+00:00:08.460 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c32bb840 (workspace_index 2) already has valid column_group=0 ***
+00:00:08.460 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c24140f0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:08.460 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30bbd30 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:08.460 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c32bb840 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+[nixtile] keybinding: mods=0x40, sym=0x71
+00:00:08.626 [ERROR] [nixtile.c:4740] [nixtile] DESTROYNOTIFY: Reset all manual resize flags for workspace 0
+00:00:08.626 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c30bbd30: 1.000 -> 1.000
+00:00:08.626 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c32bb840: 1.000 -> 1.000
+00:00:08.626 [ERROR] [nixtile.c:4759] [nixtile] DESTROYNOTIFY: Tile removed - triggering height rebalancing for all columns
+00:00:08.626 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:08.626 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+00:00:08.626 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:08.626 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30bbd30 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:08.626 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c32bb840 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:08.626 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:08.626 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:08.626 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+00:00:08.724 [ERROR] [nixtile.c:6768] [nixtile] FRAME TIMING: Performance warning - not hitting target 300Hz (actual 271.3FPS)
+[nixtile] keybinding: mods=0x40, sym=0x71
+00:00:08.838 [ERROR] [nixtile.c:4740] [nixtile] DESTROYNOTIFY: Reset all manual resize flags for workspace 0
+00:00:08.838 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c30bbd30: 1.000 -> 1.000
+00:00:08.838 [ERROR] [nixtile.c:4759] [nixtile] DESTROYNOTIFY: Tile removed - triggering height rebalancing for all columns
+00:00:08.838 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:08.838 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+00:00:08.838 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:08.838 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30bbd30 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:08.838 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:08.838 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+[nixtile] keybinding: mods=0x40, sym=0x71
+00:00:08.996 [ERROR] [nixtile.c:4740] [nixtile] DESTROYNOTIFY: Reset all manual resize flags for workspace 0
+00:00:08.996 [ERROR] [nixtile.c:4759] [nixtile] DESTROYNOTIFY: Tile removed - triggering height rebalancing for all columns
+00:00:08.996 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:08.996 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+00:00:08.996 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:08.996 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 0 tiles to layout ***
+00:00:08.996 [ERROR] [nixtile.c:9188] [nixtile] *** TILE FUNCTION: No tiles to layout, returning early ***
+[nixtile] keybinding: mods=0x40, sym=0xff0d
+00:00:09.400 [ERROR] [nixtile.c:2966] [nixtile] *** CREATENOTIFY CALLED - NEW TILE BEING CREATED ***
+00:00:09.400 [ERROR] [nixtile.c:2967] [nixtile] *** IF YOU SEE THIS MESSAGE, CREATENOTIFY IS WORKING ***
+00:00:09.400 [ERROR] [nixtile.c:3054] [nixtile] *** CREATENOTIFY FINAL ASSIGNMENT: Tile 0x5623c30b68b0 assigned to column 0 ***
+00:00:09.400 [ERROR] [nixtile.c:3055] [nixtile] *** THIS IS THE COLUMN_GROUP SET IN CREATENOTIFY - SHOULD NOT BE OVERWRITTEN ***
+00:00:09.400 [ERROR] [nixtile.c:3059] [nixtile] CREATENOTIFY: New tile added to column 0 - triggering height rebalancing
+00:00:09.400 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 0
+00:00:09.400 [ERROR] [nixtile.c:3071] [nixtile] CREATENOTIFY: Reset ALL manual resize flags for workspace 0 on tile addition
+00:00:09.400 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:09.400 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 0 tiles to layout ***
+00:00:09.400 [ERROR] [nixtile.c:9188] [nixtile] *** TILE FUNCTION: No tiles to layout, returning early ***
+00:00:09.400 [ERROR] [nixtile.c:3109] [nixtile] POST-LAYOUT CREATION: Starting post-layout height rebalancing after tile creation
+00:00:09.400 [ERROR] [nixtile.c:3155] [nixtile] POST-LAYOUT CREATION: Final layout update completed - all columns rebalanced
+00:00:09.401 [ERROR] [nixtile.c:3169] [nixtile] CREATENOTIFY FINAL: Calling comprehensive reset after all processing
+00:00:09.401 [ERROR] [nixtile.c:1684] [nixtile] *** COMPREHENSIVE RESET *** Triggered by: tile creation final
+00:00:09.401 [ERROR] [nixtile.c:1701] [nixtile] COMPREHENSIVE RESET: 0 total tiles, 0 forced to tiled
+00:00:09.401 [ERROR] [nixtile.c:1723] [nixtile] COMPREHENSIVE RESET: 0 active columns detected
+00:00:09.401 [ERROR] [nixtile.c:1743] [nixtile] COMPREHENSIVE RESET: Reset 0 tiles to equal distribution
+00:00:09.401 [ERROR] [nixtile.c:1772] [nixtile] WORKSPACE RESET: Cleared workspace 0 storage, set mfact=0.500 for 0 columns
+00:00:09.401 [ERROR] [nixtile.c:1779] [nixtile] *** COMPREHENSIVE RESET COMPLETE *** All tiles reset to equal distribution
+eDP-1 title 
+eDP-1 appid 
+eDP-1 fullscreen 
+eDP-1 floating 
+eDP-1 selmon 1
+eDP-1 tags 0 1 0 0
+eDP-1 layout []=
+00:00:09.417 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:09.417 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 0 tiles to layout ***
+00:00:09.417 [ERROR] [nixtile.c:9188] [nixtile] *** TILE FUNCTION: No tiles to layout, returning early ***
+[nixtile] keybinding: mods=0x40, sym=0xff0d
+00:00:09.505 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:09.506 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:09.506 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:09.506 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:09.506 [ERROR] [nixtile.c:5388] [nixtile] *** MAPNOTIFY ENTRY: Tile 0x5623c30b68b0 has column_group=0 (optimal_columns=2) ***
+00:00:09.506 [ERROR] [nixtile.c:5395] [nixtile] *** MAPNOTIFY KEEPING: Valid column_group 0 for 2-column layout ***
+00:00:09.506 [ERROR] [nixtile.c:5405] [nixtile] MAPNOTIFY: Stack 0 has 1 tiles (within limit 4)
+00:00:09.506 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:09.506 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:09.522 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:09.522 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:09.522 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:09.522 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+00:00:09.596 [ERROR] [nixtile.c:2966] [nixtile] *** CREATENOTIFY CALLED - NEW TILE BEING CREATED ***
+00:00:09.596 [ERROR] [nixtile.c:2967] [nixtile] *** IF YOU SEE THIS MESSAGE, CREATENOTIFY IS WORKING ***
+00:00:09.596 [ERROR] [nixtile.c:3054] [nixtile] *** CREATENOTIFY FINAL ASSIGNMENT: Tile 0x5623c3061c20 assigned to column 1 ***
+00:00:09.596 [ERROR] [nixtile.c:3055] [nixtile] *** THIS IS THE COLUMN_GROUP SET IN CREATENOTIFY - SHOULD NOT BE OVERWRITTEN ***
+00:00:09.596 [ERROR] [nixtile.c:3059] [nixtile] CREATENOTIFY: New tile added to column 1 - triggering height rebalancing
+00:00:09.596 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 1
+00:00:09.596 [ERROR] [nixtile.c:3071] [nixtile] CREATENOTIFY: Reset ALL manual resize flags for workspace 0 on tile addition
+00:00:09.597 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:09.597 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:09.597 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:09.597 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+00:00:09.597 [ERROR] [nixtile.c:3109] [nixtile] POST-LAYOUT CREATION: Starting post-layout height rebalancing after tile creation
+00:00:09.597 [ERROR] [nixtile.c:3155] [nixtile] POST-LAYOUT CREATION: Final layout update completed - all columns rebalanced
+00:00:09.597 [ERROR] [nixtile.c:3169] [nixtile] CREATENOTIFY FINAL: Calling comprehensive reset after all processing
+00:00:09.597 [ERROR] [nixtile.c:1684] [nixtile] *** COMPREHENSIVE RESET *** Triggered by: tile creation final
+00:00:09.597 [ERROR] [nixtile.c:1701] [nixtile] COMPREHENSIVE RESET: 1 total tiles, 0 forced to tiled
+00:00:09.597 [ERROR] [nixtile.c:1723] [nixtile] COMPREHENSIVE RESET: 1 active columns detected
+00:00:09.597 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c30b68b0 col=0 height 1.000->1.000 width 1.000->1.000
+00:00:09.597 [ERROR] [nixtile.c:1743] [nixtile] COMPREHENSIVE RESET: Reset 1 tiles to equal distribution
+00:00:09.597 [ERROR] [nixtile.c:1772] [nixtile] WORKSPACE RESET: Cleared workspace 0 storage, set mfact=0.500 for 1 columns
+00:00:09.597 [ERROR] [nixtile.c:1779] [nixtile] *** COMPREHENSIVE RESET COMPLETE *** All tiles reset to equal distribution
+00:00:09.613 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:09.613 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:09.613 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:09.613 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+00:00:09.754 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:09.754 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3061c20 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:09.754 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:09.754 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:09.754 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:09.754 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:09.754 [ERROR] [nixtile.c:5388] [nixtile] *** MAPNOTIFY ENTRY: Tile 0x5623c3061c20 has column_group=1 (optimal_columns=2) ***
+00:00:09.754 [ERROR] [nixtile.c:5395] [nixtile] *** MAPNOTIFY KEEPING: Valid column_group 1 for 2-column layout ***
+00:00:09.754 [ERROR] [nixtile.c:5405] [nixtile] MAPNOTIFY: Stack 1 has 1 tiles (within limit 4)
+00:00:09.754 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:09.754 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:09.770 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:09.770 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3061c20 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:09.770 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:09.770 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:09.770 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:09.770 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+00:00:09.833 [ERROR] [nixtile.c:6768] [nixtile] FRAME TIMING: Performance warning - not hitting target 300Hz (actual 270.4FPS)
+[nixtile] keybinding: mods=0x40, sym=0xff0d
+00:00:10.282 [ERROR] [nixtile.c:2966] [nixtile] *** CREATENOTIFY CALLED - NEW TILE BEING CREATED ***
+00:00:10.282 [ERROR] [nixtile.c:2967] [nixtile] *** IF YOU SEE THIS MESSAGE, CREATENOTIFY IS WORKING ***
+00:00:10.282 [ERROR] [nixtile.c:3054] [nixtile] *** CREATENOTIFY FINAL ASSIGNMENT: Tile 0x5623c33b3690 assigned to column -1 ***
+00:00:10.282 [ERROR] [nixtile.c:3055] [nixtile] *** THIS IS THE COLUMN_GROUP SET IN CREATENOTIFY - SHOULD NOT BE OVERWRITTEN ***
+00:00:10.282 [ERROR] [nixtile.c:3071] [nixtile] CREATENOTIFY: Reset ALL manual resize flags for workspace 0 on tile addition
+00:00:10.282 [ERROR] [nixtile.c:10847] [nixtile] EQUAL HEIGHT: Invalid parameters (selmon=0x5623c308e350, column=-1)
+00:00:10.282 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:10.282 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3061c20 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:10.282 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:10.282 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:10.282 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:10.282 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+00:00:10.282 [ERROR] [nixtile.c:3109] [nixtile] POST-LAYOUT CREATION: Starting post-layout height rebalancing after tile creation
+00:00:10.282 [ERROR] [nixtile.c:3155] [nixtile] POST-LAYOUT CREATION: Final layout update completed - all columns rebalanced
+00:00:10.282 [ERROR] [nixtile.c:3169] [nixtile] CREATENOTIFY FINAL: Calling comprehensive reset after all processing
+00:00:10.282 [ERROR] [nixtile.c:1684] [nixtile] *** COMPREHENSIVE RESET *** Triggered by: tile creation final
+00:00:10.282 [ERROR] [nixtile.c:1701] [nixtile] COMPREHENSIVE RESET: 2 total tiles, 0 forced to tiled
+00:00:10.282 [ERROR] [nixtile.c:1723] [nixtile] COMPREHENSIVE RESET: 2 active columns detected
+00:00:10.282 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c3061c20 col=1 height 1.000->1.000 width 1.000->1.000
+00:00:10.282 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c30b68b0 col=0 height 1.000->1.000 width 1.000->1.000
+00:00:10.282 [ERROR] [nixtile.c:1743] [nixtile] COMPREHENSIVE RESET: Reset 2 tiles to equal distribution
+00:00:10.282 [ERROR] [nixtile.c:1772] [nixtile] WORKSPACE RESET: Cleared workspace 0 storage, set mfact=0.500 for 2 columns
+00:00:10.282 [ERROR] [nixtile.c:1779] [nixtile] *** COMPREHENSIVE RESET COMPLETE *** All tiles reset to equal distribution
+00:00:10.299 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:10.299 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3061c20 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:10.299 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:10.299 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:10.299 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:10.299 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:10.409 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:10.409 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c33b3690 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=-1 ***
+00:00:10.409 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3061c20 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:10.409 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:10.409 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 3 tiles to layout ***
+00:00:10.409 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=3, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:10.409 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:10.409 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:10.409 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=3, effective_columns=2, mfact=0.500 ***
+00:00:10.409 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:10.410 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b3690 (workspace_index 0) has column_group=-1, master_tiles=2 ***
+00:00:10.410 [ERROR] [nixtile.c:9527] [nixtile] *** NEW TILE DETECTED: Tile 0x5623c33b3690 has invalid column_group=-1 ***
+00:00:10.410 [ERROR] [nixtile.c:9561] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b3690 (workspace_index 0) assigned to column 0 (current: 1 tiles) ***
+00:00:10.410 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3061c20 (workspace_index 1) has column_group=1, master_tiles=2 ***
+00:00:10.410 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3061c20 (workspace_index 1) already has valid column_group=1 ***
+00:00:10.410 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30b68b0 (workspace_index 2) has column_group=0, master_tiles=2 ***
+00:00:10.410 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30b68b0 (workspace_index 2) already has valid column_group=0 ***
+00:00:10.410 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c33b3690 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:10.410 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c3061c20 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:10.410 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30b68b0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:10.410 [ERROR] [nixtile.c:5388] [nixtile] *** MAPNOTIFY ENTRY: Tile 0x5623c33b3690 has column_group=0 (optimal_columns=2) ***
+00:00:10.410 [ERROR] [nixtile.c:5395] [nixtile] *** MAPNOTIFY KEEPING: Valid column_group 0 for 2-column layout ***
+00:00:10.410 [ERROR] [nixtile.c:5405] [nixtile] MAPNOTIFY: Stack 0 has 2 tiles (within limit 4)
+00:00:10.410 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:10.410 [ERROR] [nixtile.c:1582] [nixtile] HEIGHT REBALANCE ALL: Column 0 has 2 tiles - rebalancing
+00:00:10.410 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 0
+00:00:10.410 [ERROR] [nixtile.c:1525] [nixtile] HEIGHT REBALANCE: Found 2 tiles in column 0 - resetting to equal heights
+00:00:10.410 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c33b3690 in column 0 - height_factor: 1.000 -> 1.000
+00:00:10.410 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c30b68b0 in column 0 - height_factor: 1.000 -> 1.000
+00:00:10.410 [ERROR] [nixtile.c:1546] [nixtile] HEIGHT REBALANCE: Cleared manual resize flag for workspace 0, column 0
+00:00:10.410 [ERROR] [nixtile.c:1555] [nixtile] HEIGHT REBALANCE: Column 0 rebalanced - all tiles now have equal height
+00:00:10.410 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:10.426 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:10.426 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c33b3690 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:10.426 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3061c20 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:10.426 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:10.426 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 3 tiles to layout ***
+00:00:10.426 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=3, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:10.426 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:10.426 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:10.426 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=3, effective_columns=2, mfact=0.500 ***
+00:00:10.426 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:10.426 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b3690 (workspace_index 0) has column_group=0, master_tiles=2 ***
+00:00:10.426 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b3690 (workspace_index 0) already has valid column_group=0 ***
+00:00:10.426 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3061c20 (workspace_index 1) has column_group=1, master_tiles=2 ***
+00:00:10.426 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3061c20 (workspace_index 1) already has valid column_group=1 ***
+00:00:10.426 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30b68b0 (workspace_index 2) has column_group=0, master_tiles=2 ***
+00:00:10.426 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30b68b0 (workspace_index 2) already has valid column_group=0 ***
+00:00:10.426 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c33b3690 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:10.427 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c3061c20 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:10.427 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30b68b0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+[nixtile] keybinding: mods=0x40, sym=0xff0d
+00:00:10.825 [ERROR] [nixtile.c:2966] [nixtile] *** CREATENOTIFY CALLED - NEW TILE BEING CREATED ***
+00:00:10.825 [ERROR] [nixtile.c:2967] [nixtile] *** IF YOU SEE THIS MESSAGE, CREATENOTIFY IS WORKING ***
+00:00:10.825 [ERROR] [nixtile.c:3054] [nixtile] *** CREATENOTIFY FINAL ASSIGNMENT: Tile 0x5623c33b0520 assigned to column -1 ***
+00:00:10.825 [ERROR] [nixtile.c:3055] [nixtile] *** THIS IS THE COLUMN_GROUP SET IN CREATENOTIFY - SHOULD NOT BE OVERWRITTEN ***
+00:00:10.825 [ERROR] [nixtile.c:3071] [nixtile] CREATENOTIFY: Reset ALL manual resize flags for workspace 0 on tile addition
+00:00:10.825 [ERROR] [nixtile.c:10847] [nixtile] EQUAL HEIGHT: Invalid parameters (selmon=0x5623c308e350, column=-1)
+00:00:10.825 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:10.825 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c33b3690 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:10.825 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3061c20 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:10.825 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:10.825 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 3 tiles to layout ***
+00:00:10.825 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=3, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:10.825 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:10.825 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:10.825 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=3, effective_columns=2, mfact=0.500 ***
+00:00:10.825 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:10.825 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b3690 (workspace_index 0) has column_group=0, master_tiles=2 ***
+00:00:10.825 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b3690 (workspace_index 0) already has valid column_group=0 ***
+00:00:10.825 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3061c20 (workspace_index 1) has column_group=1, master_tiles=2 ***
+00:00:10.825 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3061c20 (workspace_index 1) already has valid column_group=1 ***
+00:00:10.825 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30b68b0 (workspace_index 2) has column_group=0, master_tiles=2 ***
+00:00:10.825 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30b68b0 (workspace_index 2) already has valid column_group=0 ***
+00:00:10.825 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c33b3690 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:10.825 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c3061c20 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:10.825 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30b68b0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:10.825 [ERROR] [nixtile.c:3109] [nixtile] POST-LAYOUT CREATION: Starting post-layout height rebalancing after tile creation
+00:00:10.825 [ERROR] [nixtile.c:3131] [nixtile] POST-LAYOUT CREATION: Rebalancing column 0 with 2 tiles
+00:00:10.825 [ERROR] [nixtile.c:3140] [nixtile] POST-LAYOUT CREATION: Tile 0x5623c33b3690 in column 0 - height_factor: 1.000 -> 1.000
+00:00:10.825 [ERROR] [nixtile.c:3140] [nixtile] POST-LAYOUT CREATION: Tile 0x5623c30b68b0 in column 0 - height_factor: 1.000 -> 1.000
+00:00:10.826 [ERROR] [nixtile.c:3150] [nixtile] POST-LAYOUT CREATION: Cleared workspace storage for column 0
+00:00:10.826 [ERROR] [nixtile.c:3155] [nixtile] POST-LAYOUT CREATION: Final layout update completed - all columns rebalanced
+00:00:10.826 [ERROR] [nixtile.c:3169] [nixtile] CREATENOTIFY FINAL: Calling comprehensive reset after all processing
+00:00:10.826 [ERROR] [nixtile.c:1684] [nixtile] *** COMPREHENSIVE RESET *** Triggered by: tile creation final
+00:00:10.826 [ERROR] [nixtile.c:1701] [nixtile] COMPREHENSIVE RESET: 3 total tiles, 0 forced to tiled
+00:00:10.826 [ERROR] [nixtile.c:1723] [nixtile] COMPREHENSIVE RESET: 2 active columns detected
+00:00:10.826 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c33b3690 col=0 height 1.000->1.000 width 1.000->1.000
+00:00:10.826 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c3061c20 col=1 height 1.000->1.000 width 1.000->1.000
+00:00:10.826 [ERROR] [nixtile.c:1736] [nixtile] RESET TILE: 0x5623c30b68b0 col=0 height 1.000->1.000 width 1.000->1.000
+00:00:10.826 [ERROR] [nixtile.c:1743] [nixtile] COMPREHENSIVE RESET: Reset 3 tiles to equal distribution
+00:00:10.826 [ERROR] [nixtile.c:1772] [nixtile] WORKSPACE RESET: Cleared workspace 0 storage, set mfact=0.500 for 2 columns
+00:00:10.826 [ERROR] [nixtile.c:1779] [nixtile] *** COMPREHENSIVE RESET COMPLETE *** All tiles reset to equal distribution
+00:00:10.842 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:10.842 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c33b3690 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:10.842 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3061c20 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:10.842 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:10.842 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 3 tiles to layout ***
+00:00:10.842 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=3, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:10.842 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:10.842 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:10.842 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=3, effective_columns=2, mfact=0.500 ***
+00:00:10.842 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:10.842 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b3690 (workspace_index 0) has column_group=0, master_tiles=2 ***
+00:00:10.842 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b3690 (workspace_index 0) already has valid column_group=0 ***
+00:00:10.842 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3061c20 (workspace_index 1) has column_group=1, master_tiles=2 ***
+00:00:10.842 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3061c20 (workspace_index 1) already has valid column_group=1 ***
+00:00:10.842 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30b68b0 (workspace_index 2) has column_group=0, master_tiles=2 ***
+00:00:10.842 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30b68b0 (workspace_index 2) already has valid column_group=0 ***
+00:00:10.842 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c33b3690 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:10.842 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c3061c20 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:10.842 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30b68b0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:10.932 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:10.932 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c33b0520 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=-1 ***
+00:00:10.932 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c33b3690 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:10.932 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3061c20 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:10.932 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:10.932 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 4 tiles to layout ***
+00:00:10.932 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=4, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:10.932 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:10.932 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:10.932 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=4, effective_columns=2, mfact=0.500 ***
+00:00:10.932 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:10.932 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b0520 (workspace_index 0) has column_group=-1, master_tiles=2 ***
+00:00:10.932 [ERROR] [nixtile.c:9527] [nixtile] *** NEW TILE DETECTED: Tile 0x5623c33b0520 has invalid column_group=-1 ***
+00:00:10.932 [ERROR] [nixtile.c:9561] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b0520 (workspace_index 0) assigned to column 1 (current: 1 tiles) ***
+00:00:10.932 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b3690 (workspace_index 1) has column_group=0, master_tiles=2 ***
+00:00:10.932 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b3690 (workspace_index 1) already has valid column_group=0 ***
+00:00:10.932 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3061c20 (workspace_index 2) has column_group=1, master_tiles=2 ***
+00:00:10.932 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3061c20 (workspace_index 2) already has valid column_group=1 ***
+00:00:10.932 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30b68b0 (workspace_index 3) has column_group=0, master_tiles=2 ***
+00:00:10.932 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30b68b0 (workspace_index 3) already has valid column_group=0 ***
+00:00:10.932 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c33b0520 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:10.933 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c33b3690 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:10.933 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c3061c20 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:10.933 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30b68b0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:10.933 [ERROR] [nixtile.c:5388] [nixtile] *** MAPNOTIFY ENTRY: Tile 0x5623c33b0520 has column_group=1 (optimal_columns=2) ***
+00:00:10.933 [ERROR] [nixtile.c:5395] [nixtile] *** MAPNOTIFY KEEPING: Valid column_group 1 for 2-column layout ***
+00:00:10.933 [ERROR] [nixtile.c:5405] [nixtile] MAPNOTIFY: Stack 1 has 2 tiles (within limit 4)
+00:00:10.933 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:10.933 [ERROR] [nixtile.c:1582] [nixtile] HEIGHT REBALANCE ALL: Column 0 has 2 tiles - rebalancing
+00:00:10.933 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 0
+00:00:10.933 [ERROR] [nixtile.c:1525] [nixtile] HEIGHT REBALANCE: Found 2 tiles in column 0 - resetting to equal heights
+00:00:10.933 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c33b3690 in column 0 - height_factor: 1.000 -> 1.000
+00:00:10.933 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c30b68b0 in column 0 - height_factor: 1.000 -> 1.000
+00:00:10.933 [ERROR] [nixtile.c:1546] [nixtile] HEIGHT REBALANCE: Cleared manual resize flag for workspace 0, column 0
+00:00:10.933 [ERROR] [nixtile.c:1555] [nixtile] HEIGHT REBALANCE: Column 0 rebalanced - all tiles now have equal height
+00:00:10.933 [ERROR] [nixtile.c:1582] [nixtile] HEIGHT REBALANCE ALL: Column 1 has 2 tiles - rebalancing
+00:00:10.933 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 1
+00:00:10.933 [ERROR] [nixtile.c:1525] [nixtile] HEIGHT REBALANCE: Found 2 tiles in column 1 - resetting to equal heights
+00:00:10.933 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c33b0520 in column 1 - height_factor: 1.000 -> 1.000
+00:00:10.933 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c3061c20 in column 1 - height_factor: 1.000 -> 1.000
+00:00:10.933 [ERROR] [nixtile.c:1546] [nixtile] HEIGHT REBALANCE: Cleared manual resize flag for workspace 0, column 1
+00:00:10.933 [ERROR] [nixtile.c:1555] [nixtile] HEIGHT REBALANCE: Column 1 rebalanced - all tiles now have equal height
+00:00:10.933 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+eDP-1 title Alacritty
+eDP-1 appid Alacritty
+eDP-1 fullscreen 0
+eDP-1 floating 0
+eDP-1 selmon 1
+eDP-1 tags 1 1 1 0
+eDP-1 layout []=
+00:00:10.946 [ERROR] [nixtile.c:6768] [nixtile] FRAME TIMING: Performance warning - not hitting target 300Hz (actual 269.6FPS)
+00:00:10.949 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:10.949 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c33b0520 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:10.949 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c33b3690 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:10.949 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3061c20 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:10.949 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:10.949 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 4 tiles to layout ***
+00:00:10.949 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=4, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:10.949 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:10.949 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:10.949 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=4, effective_columns=2, mfact=0.500 ***
+00:00:10.949 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:10.949 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b0520 (workspace_index 0) has column_group=1, master_tiles=2 ***
+00:00:10.949 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b0520 (workspace_index 0) already has valid column_group=1 ***
+00:00:10.949 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b3690 (workspace_index 1) has column_group=0, master_tiles=2 ***
+00:00:10.949 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b3690 (workspace_index 1) already has valid column_group=0 ***
+00:00:10.949 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3061c20 (workspace_index 2) has column_group=1, master_tiles=2 ***
+00:00:10.949 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3061c20 (workspace_index 2) already has valid column_group=1 ***
+00:00:10.949 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30b68b0 (workspace_index 3) has column_group=0, master_tiles=2 ***
+00:00:10.949 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30b68b0 (workspace_index 3) already has valid column_group=0 ***
+00:00:10.949 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c33b0520 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:10.949 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c33b3690 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:10.949 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c3061c20 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:10.949 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30b68b0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+[nixtile] keybinding: mods=0x40, sym=0x71
+00:00:11.342 [ERROR] [nixtile.c:4740] [nixtile] DESTROYNOTIFY: Reset all manual resize flags for workspace 0
+00:00:11.342 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c33b3690: 1.000 -> 1.000
+00:00:11.342 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c3061c20: 1.000 -> 1.000
+00:00:11.343 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c30b68b0: 1.000 -> 1.000
+00:00:11.343 [ERROR] [nixtile.c:4759] [nixtile] DESTROYNOTIFY: Tile removed - triggering height rebalancing for all columns
+00:00:11.343 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:11.343 [ERROR] [nixtile.c:1582] [nixtile] HEIGHT REBALANCE ALL: Column 0 has 2 tiles - rebalancing
+00:00:11.343 [ERROR] [nixtile.c:1508] [nixtile] HEIGHT REBALANCE: Starting height rebalancing for column 0
+00:00:11.343 [ERROR] [nixtile.c:1525] [nixtile] HEIGHT REBALANCE: Found 2 tiles in column 0 - resetting to equal heights
+00:00:11.343 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c33b3690 in column 0 - height_factor: 1.000 -> 1.000
+00:00:11.343 [ERROR] [nixtile.c:1536] [nixtile] HEIGHT REBALANCE: Tile 0x5623c30b68b0 in column 0 - height_factor: 1.000 -> 1.000
+00:00:11.343 [ERROR] [nixtile.c:1546] [nixtile] HEIGHT REBALANCE: Cleared manual resize flag for workspace 0, column 0
+00:00:11.343 [ERROR] [nixtile.c:1555] [nixtile] HEIGHT REBALANCE: Column 0 rebalanced - all tiles now have equal height
+00:00:11.343 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+00:00:11.343 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:11.343 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c33b3690 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:11.343 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3061c20 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:11.343 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:11.343 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 3 tiles to layout ***
+00:00:11.343 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=3, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:11.343 [ERROR] [nixtile.c:9348] [nixtile] *** ENTERING ELSE BLOCK - CHECKING MULTI-COLUMN CONDITIONS ***
+00:00:11.343 [ERROR] [nixtile.c:9351] [nixtile] *** ENTERING DYNAMIC MULTI-COLUMN LAYOUT BLOCK ***
+00:00:11.343 [ERROR] [nixtile.c:9495] [nixtile] *** WIDTH CALCULATION: actual_tiles=3, effective_columns=2, mfact=0.500 ***
+00:00:11.343 [ERROR] [nixtile.c:9500] [nixtile] *** COLUMN ASSIGNMENT START: optimal_columns=2 ***
+00:00:11.343 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b3690 (workspace_index 0) has column_group=0, master_tiles=2 ***
+00:00:11.343 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c33b3690 (workspace_index 0) already has valid column_group=0 ***
+00:00:11.343 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3061c20 (workspace_index 1) has column_group=1, master_tiles=2 ***
+00:00:11.343 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c3061c20 (workspace_index 1) already has valid column_group=1 ***
+00:00:11.343 [ERROR] [nixtile.c:9522] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30b68b0 (workspace_index 2) has column_group=0, master_tiles=2 ***
+00:00:11.343 [ERROR] [nixtile.c:9564] [nixtile] *** WORKSPACE ISOLATION: Tile 0x5623c30b68b0 (workspace_index 2) already has valid column_group=0 ***
+00:00:11.343 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c33b3690 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+00:00:11.343 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c3061c20 -> column=1, x_pos=962, width=954 (mfact=0.500) ***
+00:00:11.343 [ERROR] [nixtile.c:9658] [nixtile] *** MFACT HORIZONTAL PLACEMENT: Tile 0x5623c30b68b0 -> column=0, x_pos=4, width=954 (mfact=0.500) ***
+[nixtile] keybinding: mods=0x40, sym=0x71
+00:00:11.529 [ERROR] [nixtile.c:4740] [nixtile] DESTROYNOTIFY: Reset all manual resize flags for workspace 0
+00:00:11.529 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c3061c20: 1.000 -> 1.000
+00:00:11.529 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c30b68b0: 1.000 -> 1.000
+00:00:11.529 [ERROR] [nixtile.c:4759] [nixtile] DESTROYNOTIFY: Tile removed - triggering height rebalancing for all columns
+00:00:11.529 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:11.529 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+00:00:11.529 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:11.529 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3061c20 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=1 ***
+00:00:11.529 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c30b68b0 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:11.529 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 2 tiles to layout ***
+00:00:11.529 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=2, optimal_columns=2, use_multi_column=1, force_multi_column=1 ***
+00:00:11.529 [ERROR] [nixtile.c:9231] [nixtile] *** ENTERING 2-COLUMN LAYOUT BLOCK ***
+[nixtile] keybinding: mods=0x40, sym=0x71
+00:00:11.731 [ERROR] [nixtile.c:4740] [nixtile] DESTROYNOTIFY: Reset all manual resize flags for workspace 0
+00:00:11.731 [ERROR] [nixtile.c:4753] [nixtile] DESTROYNOTIFY: Reset height factor for remaining tile 0x5623c3061c20: 1.000 -> 1.000
+00:00:11.731 [ERROR] [nixtile.c:4759] [nixtile] DESTROYNOTIFY: Tile removed - triggering height rebalancing for all columns
+00:00:11.731 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:11.731 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+00:00:11.731 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:11.731 [ERROR] [nixtile.c:9178] [nixtile] *** WORKSPACE TILE COUNT: Client 0x5623c3061c20 - has_mon=1, not_float=1, not_full=1, workspace_vis=1, column=0 ***
+00:00:11.731 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 1 tiles to layout ***
+00:00:11.731 [ERROR] [nixtile.c:9210] [nixtile] *** TILE FUNCTION: n=1, optimal_columns=2, use_multi_column=0, force_multi_column=1 ***
+[nixtile] keybinding: mods=0x40, sym=0x71
+00:00:12.144 [ERROR] [nixtile.c:4740] [nixtile] DESTROYNOTIFY: Reset all manual resize flags for workspace 0
+00:00:12.144 [ERROR] [nixtile.c:4759] [nixtile] DESTROYNOTIFY: Tile removed - triggering height rebalancing for all columns
+00:00:12.144 [ERROR] [nixtile.c:1574] [nixtile] HEIGHT REBALANCE ALL: Starting full height rebalancing
+00:00:12.144 [ERROR] [nixtile.c:1588] [nixtile] HEIGHT REBALANCE ALL: Full rebalancing complete
+00:00:12.144 [ERROR] [nixtile.c:9129] [nixtile] *** TILE FUNCTION CALLED - STARTING LAYOUT CALCULATION ***
+00:00:12.144 [ERROR] [nixtile.c:9186] [nixtile] *** TILE FUNCTION: Found 0 tiles to layout ***
+00:00:12.144 [ERROR] [nixtile.c:9188] [nixtile] *** TILE FUNCTION: No tiles to layout, returning early ***
+[nixtile] keybinding: mods=0x0, sym=0xffeb
+[nixtile] keybinding: mods=0x40, sym=0xffe1
+[nixtile] keybinding: mods=0x41, sym=0x51
